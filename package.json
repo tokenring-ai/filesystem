@@ -1,27 +1,27 @@
 {
-  "name": "@token-ring/filesystem",
-  "version": "0.1.0",
-  "dependencies": {
-    "@token-ring/ai-client": "0.1.0",
-    "@token-ring/chat": "0.1.0",
-    "@token-ring/registry": "0.1.0",
-    "ignore": "^7.0.5",
-    "path-browserify": "^1.0.1",
-    "@token-ring/eslint-config": "0.0.0"
-  },
-  "devDependencies": {
-    "@token-ring/eslint-config": "0.0.0",
-    "vitest": "^3.2.4"
-  },
-  "exports": {
-    ".": "./index.js",
-    "./*": "./*.js"
-  },
-  "private": true,
-  "scripts": {
-    "lint": "eslint .",
-    "test": "vitest run",
-    "eslint": "eslint --fix ./"
-  },
-  "type": "module"
+	"name": "@token-ring/filesystem",
+	"version": "0.1.0",
+	"dependencies": {
+		"@token-ring/ai-client": "0.1.0",
+		"@token-ring/chat": "0.1.0",
+		"@token-ring/registry": "0.1.0",
+		"ignore": "^7.0.5",
+		"path-browserify": "^1.0.1",
+		"@token-ring/eslint-config": "0.0.0"
+	},
+	"devDependencies": {
+		"@token-ring/eslint-config": "0.0.0",
+		"vitest": "^3.2.4"
+	},
+	"exports": {
+		".": "./index.js",
+		"./*": "./*.js"
+	},
+	"private": true,
+	"scripts": {
+		"lint": "eslint .",
+		"test": "vitest run",
+		"eslint": "eslint --fix ./"
+	},
+	"type": "module"
 }
