@@ -1,0 +1,311 @@
+import FileSystemService from "../FileSystemService.js";
+import ChatService from "@token-ring/chat/ChatService";
+import { z } from "zod";
+
+/**
+ * A unified file management API that combines functionality for retrieving and searching files.
+ *
+ * @param {Object} params - The parameters object
+ * @param {string[]} [params.files] - List of file paths to retrieve (can include glob patterns)
+ * @param {string[]} [params.searches] - The string pattern(s) to search for within files
+ * @param {string} [params.returnType="content"] - What to return: "names" (filenames only), "content" (full file content), or "matches" (search matches with context)
+ * @param {TokenRingRegistry} registry - The package registry
+ * @returns {Promise<Object[]|string>} - Either array of file objects or formatted search results
+ */
+export async function execute({
+                               files,
+                               searches,
+                               linesBefore = 0,
+                               linesAfter = 0,
+                               returnType = "content",
+                               fileSystemType
+                              }, registry) {
+ const chatService = registry.requireFirstServiceByType(ChatService);
+ const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+
+ chatService.infoLine(`[fileManager] Using ${fileSystem.name} file system`);
+
+ // Validate parameters
+ if (!files && !searches) {
+  throw new Error("Either 'files' or 'searches' parameter must be provided");
+ }
+
+ if (returnType !== "names" && returnType !== "content" && returnType !== "matches") {
+  throw new Error("returnType must be one of: 'names', 'content', or 'matches'");
+ }
+
+ // When returnType is 'matches', set linesBefore and linesAfter to 10
+ if (returnType === "matches") {
+  linesBefore = 10;
+  linesAfter = 10;
+ }
+
+ // Search mode - searching across all files
+ if (searches && !files) {
+  return await searchFiles(searches, linesBefore, linesAfter, returnType, fileSystem, chatService);
+ }
+
+ // Retrieve files first (whether to return them directly or search within them)
+ let resolvedFiles = [];
+
+ // Handle glob patterns in files array
+ if (files) {
+  for (const filePattern of files) {
+   try {
+    // If it's a glob pattern, resolve it
+    if (filePattern.includes("*") || filePattern.includes("?")) {
+     chatService.infoLine(`Resolving glob pattern: ${filePattern}`);
+     const matchedFiles = await fileSystem.glob(filePattern);
+     resolvedFiles.push(...matchedFiles);
+    } else {
+     // It's a direct file path
+     resolvedFiles.push(filePattern);
+    }
+   } catch (err) {
+    chatService.errorLine(`Error resolving pattern ${filePattern}: ${err.message}`);
+   }
+  }
+
+  // Remove duplicates
+  resolvedFiles = [...new Set(resolvedFiles)];
+
+  if (resolvedFiles.length === 0) {
+   return returnType === "matches"
+    ? "No files found matching the specified patterns"
+    : [];
+  }
+
+  chatService.infoLine(`Resolved ${resolvedFiles.length} files`);
+ }
+
+ if (resolvedFiles.length > 50 && returnType !== "names") {
+  chatService.infoLine(`Found ${resolvedFiles.length} files which exceeds the limit of 50 for '${returnType}' mode. Degrading to 'names' mode.`);
+  returnType = "names";
+ }
+
+ // If only filenames are requested
+ if (returnType === "names") {
+  return resolvedFiles;
+ }
+
+ // Fetch file contents
+ const fileResults = [];
+ for (const file of resolvedFiles) {
+  try {
+   const exists = await fileSystem.exists(file);
+   if (!exists) {
+    chatService.errorLine(`Cannot retrieve file ${file}: file not found.`);
+    fileResults.push({ file, exists: false, content: null });
+    continue;
+   }
+
+   const content = await fileSystem.getFile(file);
+   chatService.infoLine(`Retrieved file ${file}`);
+   fileResults.push({ file, exists: true, content });
+  } catch (err) {
+   chatService.errorLine(`Error retrieving ${file}: ${err.message}`);
+   fileResults.push({ file, exists: false, content: null, error: err.message });
+  }
+ }
+
+ // If we need the file content, return here
+ if (returnType === "content" || !searches) {
+  return fileResults;
+ }
+
+ // If we need to search within specific files
+ if (searches && returnType === "matches") {
+  return await searchInFiles(fileResults, searches, linesBefore, linesAfter, fileSystem, chatService);
+ }
+}
+
+/**
+ * Search across all files in the filesystem
+ */
+async function searchFiles(searchString, linesBefore, linesAfter, returnType, fileSystem, chatService) {
+ // If searchString is an array, log all strings being searched
+ if (Array.isArray(searchString)) {
+  chatService.infoLine(`[fileManager] Searching for multiple patterns: ${JSON.stringify(searchString)}`);
+ } else {
+  chatService.infoLine(`[fileManager] Searching for "${searchString}"`);
+ }
+
+ try {
+  const options = {
+   includeContent: {
+    linesBefore,
+    linesAfter
+   }
+  };
+
+  const results = await fileSystem.grep(searchString, options);
+
+  if (results.length === 0) {
+   const searchDesc = Array.isArray(searchString) ?
+    `any of the patterns: ${JSON.stringify(searchString)}` :
+    `"${searchString}"`;
+   return `No files found containing: ${searchDesc}`;
+  }
+
+  // Check for match limits and degrade if necessary
+  if (results.length > 50 && returnType === "matches") {
+   chatService.infoLine(`Found ${results.length} matches which exceeds the limit of 50 for 'matches' mode. Degrading to 'names' mode.`);
+
+   // Return only the unique file names
+   const uniqueFiles = [...new Set(results.map(result => result.file))];
+   return `Found ${results.length} matches in ${uniqueFiles.length} files. Showing file names only due to result limit:\n\n${uniqueFiles.join('\n')}`;
+  }
+
+  // Format results
+  return formatSearchResults(results, searchString, linesBefore, linesAfter, chatService);
+ } catch (err) {
+  chatService.errorLine(`[fileManager] Search error: ${err.message}`);
+  return `Error searching files: ${err.message}`;
+ }
+}
+
+/**
+ * Search within specific files
+ */
+async function searchInFiles(fileResults, searchString, linesBefore, linesAfter, fileSystem, chatService) {
+ // If searchString is an array, log all strings being searched
+ if (Array.isArray(searchString)) {
+  chatService.infoLine(`[fileManager] Searching for multiple patterns: ${JSON.stringify(searchString)} in ${fileResults.length} files`);
+ } else {
+  chatService.infoLine(`[fileManager] Searching for "${searchString}" in ${fileResults.length} files`);
+ }
+
+ const allMatches = [];
+
+ for (const fileResult of fileResults) {
+  if (!fileResult.exists || !fileResult.content) {
+   continue;
+  }
+
+  const fileContent = fileResult.content;
+  const lines = fileContent.split('\n');
+
+  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+   const line = lines[lineNum];
+
+   // Check if line includes any of the search strings
+   let matchFound = false;
+   let matchedString = '';
+
+   if (Array.isArray(searchString)) {
+    for (const pattern of searchString) {
+     if (line.includes(pattern)) {
+      matchFound = true;
+      matchedString = pattern;
+      break;
+     }
+    }
+   } else if (line.includes(searchString)) {
+    matchFound = true;
+    matchedString = searchString;
+   }
+
+   if (matchFound) {
+    // Calculate context lines
+    const startLine = Math.max(0, lineNum - linesBefore);
+    const endLine = Math.min(lines.length - 1, lineNum + linesAfter);
+
+    // Extract context
+    const contextLines = lines.slice(startLine, endLine + 1);
+    const content = contextLines.join('\n');
+
+    allMatches.push({
+     file: fileResult.file,
+     line: lineNum + 1, // 1-based line numbering
+     match: line,
+     matchedString: matchedString,
+     content
+    });
+   }
+  }
+ }
+
+ if (allMatches.length === 0) {
+  const searchDesc = Array.isArray(searchString) ?
+   `any of the patterns: ${JSON.stringify(searchString)}` :
+   `"${searchString}"`;
+  return `No matches found for ${searchDesc} in the specified files`;
+ }
+
+ // Check for match limits and degrade if necessary
+ if (allMatches.length > 50) {
+  chatService.infoLine(`Found ${allMatches.length} matches which exceeds the limit of 50 for 'matches' mode. Degrading to file names only.`);
+
+  // Return only the unique file names
+  const uniqueFiles = [...new Set(allMatches.map(match => match.file))];
+  return `Found ${allMatches.length} matches in ${uniqueFiles.length} files. Showing file names only due to result limit:\n\n${uniqueFiles.join('\n')}`;
+ }
+
+ return formatSearchResults(allMatches, searchString, linesBefore, linesAfter, chatService);
+}
+
+/**
+ * Format search results into a readable string
+ */
+function formatSearchResults(results, searchString, linesBefore, linesAfter, chatService) {
+ const searchDesc = Array.isArray(searchString) ?
+  `the specified patterns` :
+  `"${searchString}"`;
+
+ let output = `Found ${results.length} matches for ${searchDesc}:\n\n`;
+
+ const fileMatches = {};
+
+ // Group results by file
+ for (const result of results) {
+  if (!fileMatches[result.file]) {
+   fileMatches[result.file] = [];
+  }
+  fileMatches[result.file].push(result);
+ }
+
+ // Format output by file
+ for (const [file, matches] of Object.entries(fileMatches)) {
+  output += `File: ${file}\n`;
+
+  for (const match of matches) {
+   const matchedText = match.matchedString || searchString;
+   output += `  Line ${match.line}: ${match.match.trim()}\n`;
+
+   if (match.content) {
+    const contentLines = match.content.split('\n');
+    const contentWithLineNumbers = contentLines.map((line, idx) => {
+     const lineNumber = match.line - linesBefore + idx;
+     const prefix = lineNumber === match.line ? '> ' : '  ';
+     return `    ${prefix}${lineNumber}: ${line}`;
+    }).join('\n');
+
+    output += `${contentWithLineNumbers}\n\n`;
+   }
+  }
+
+  output += '\n';
+ }
+
+ return output.trim();
+}
+
+export const description = "Retrieve files based on any combination of file name, file path, or full text search. ";
+
+export const parameters = z.object({
+  files: z.array(z.string()).describe(
+    "List of file names or file glob patterns to retrieve ex: **/file.js, **/*.js, or /path/to/file.js. Required if 'searches' is not provided or if searching within specific files."
+  ).optional(),
+  searches: z.array(z.string()).describe(
+    "List of strings to search for in file contents. If 'files' is not provided, searches across the entire accessible filesystem."
+  ).optional(),
+  returnType: z.enum(["names", "content", "matches"]).describe(
+    "What to return: 'names' (filenames only), 'content' (full file content), or 'matches' (matched lines including context lines). Default: content"
+  ).optional(),
+  linesBefore: z.number().int().describe(
+    "Number of lines before a match to include when returnType is 'matches'. Defaults to 0, or 10 if returnType is 'matches' and this is not set."
+  ).default(0).optional(),
+  linesAfter: z.number().int().describe(
+    "Number of lines after a match to include when returnType is 'matches'. Defaults to 0, or 10 if returnType is 'matches' and this is not set."
+  ).default(0).optional()
+}).strict();
