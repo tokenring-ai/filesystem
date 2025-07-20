@@ -17,7 +17,7 @@
 		".": "./index.js",
 		"./*": "./*.js"
 	},
-	"private": true,
+	"license": "MIT",
 	"scripts": {
 		"lint": "eslint .",
 		"test": "vitest run",
