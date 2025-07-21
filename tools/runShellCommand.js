@@ -4,7 +4,7 @@ import { z } from "zod";
 
 /**
  * Executes a shell command in the source directory using the configured file system.
- * 
+ *
  * This function provides a safe way to execute shell commands with configurable
  * timeout, environment variables, and working directory. It uses the underlying
  * file system's command execution capabilities.
@@ -24,13 +24,13 @@ import { z } from "zod";
  * @returns {string} return.stdout - Standard output from the command
  * @returns {string} return.stderr - Standard error output from the command
  * @returns {string} [return.error] - Error message if execution failed
- * 
+ *
  * @example
  * // Basic command execution
  * const result = await execute({
  *   command: 'ls -la'
  * }, registry);
- * 
+ *
  * @example
  * // Command with timeout and environment variables
  * const result = await execute({
@@ -39,7 +39,7 @@ import { z } from "zod";
  *   env: { NODE_ENV: 'test', CI: 'true' },
  *   workingDirectory: 'packages/app'
  * }, registry);
- * 
+ *
  * @example
  * // Handling command results
  * const result = await execute({ command: 'git status' }, registry);
@@ -47,7 +47,7 @@ import { z } from "zod";
  *   console.log('Output:', result.stdout);
  * } else { *   console.error('Error:', result.stderr || result.error);
  * }
- * 
+ *
  * @throws {Error} Throws if command parameter is missing or invalid
  * @warning Commands are not sandboxed - use with caution in production environments
  */

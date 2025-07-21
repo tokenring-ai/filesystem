@@ -55,12 +55,12 @@ export default class FileSystemService extends Service {
 			ig.add(lines);
 		}
 
-  const aiIgnorePath = ".aiignore";
-  if (await this.exists(aiIgnorePath)) {
-   const data = await this.getFile(aiIgnorePath);
-   const lines = data.split(/\r?\n/).filter(Boolean);
-   ig.add(lines);
-  }
+		const aiIgnorePath = ".aiignore";
+		if (await this.exists(aiIgnorePath)) {
+			const data = await this.getFile(aiIgnorePath);
+			const lines = data.split(/\r?\n/).filter(Boolean);
+			ig.add(lines);
+		}
 
 		return ig.ignores.bind(ig);
 	}
