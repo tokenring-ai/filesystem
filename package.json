@@ -24,6 +24,9 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
+		"test:integration": "vitest run runShellCommand.integration.test.js",
+		"test:e2e": "vitest run runShellCommand.e2e.test.js",
+		"test:all": "vitest run && node test/integration-runner.js",
 		"eslint": "eslint --fix ./"
 	},
 	"type": "module"
