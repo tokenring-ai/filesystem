@@ -48,12 +48,19 @@ export default class FileSystemService extends Service {
 		ig.add("node_modules");
 		ig.add(".*");
 
-		const gitignorePath = ".gitignore";
-		if (await this.exists(gitignorePath)) {
-			const data = await this.getFile(gitignorePath);
+		const gitIgnorePath = ".gitignore";
+		if (await this.exists(gitIgnorePath)) {
+			const data = await this.getFile(gitIgnorePath);
 			const lines = data.split(/\r?\n/).filter(Boolean);
 			ig.add(lines);
 		}
+
+  const aiIgnorePath = ".aiignore";
+  if (await this.exists(aiIgnorePath)) {
+   const data = await this.getFile(aiIgnorePath);
+   const lines = data.split(/\r?\n/).filter(Boolean);
+   ig.add(lines);
+  }
 
 		return ig.ignores.bind(ig);
 	}

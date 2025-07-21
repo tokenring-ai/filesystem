@@ -51,7 +51,7 @@ export async function execute(
 
 	// Search mode - searching across all files
 	if (searches && !files) {
-		return await searchFiles(
+		return await fileSearch(
 			searches,
 			linesBefore,
 			linesAfter,
@@ -154,7 +154,7 @@ export async function execute(
 /**
  * Search across all files in the filesystem
  */
-async function searchFiles(
+async function fileSearch(
 	searchString,
 	linesBefore,
 	linesAfter,
@@ -367,7 +367,7 @@ function formatSearchResults(
 }
 
 export const description =
-	"Retrieve files based on any combination of file name, file path, or full text search. ";
+	"Retrieve a file list or file contents based on any combination of file name, file path, or full text search. ";
 
 export const parameters = z
 	.object({
