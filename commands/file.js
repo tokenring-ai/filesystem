@@ -37,7 +37,7 @@ async function selectFiles(filesystem, chatService, humanInterfaceService) {
 async function addFiles(
 	filesystem,
 	chatService,
-	humanInterfaceService,
+	_humanInterfaceService,
 	filesToAdd,
 ) {
 	let addedCount = 0;
@@ -61,7 +61,7 @@ async function addFiles(
 async function removeFiles(
 	filesystem,
 	chatService,
-	humanInterfaceService,
+	_humanInterfaceService,
 	filesToRemove,
 ) {
 	let removedCount = 0;

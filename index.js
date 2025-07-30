@@ -1,7 +1,6 @@
+export * as chatCommands from "./chatCommands.js";
 export { default as FileMatchResource } from "./FileMatchResource.js";
 export { default as FileSystemService } from "./FileSystemService.js";
-
-export * as chatCommands from "./chatCommands.js";
 export * as tools from "./tools.js";
 
 export const name = "@token-ring/filesystem";

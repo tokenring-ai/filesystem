@@ -15,7 +15,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<boolean>} A promise that resolves to true if the ownership was changed successfully.
 	 * @throws Will throw an error if the ownership cannot be changed.
 	 */
-	async chown(path, uid, gid) {
+	async chown(_path, _uid, _gid) {
 		throw new Error("Method chown must be implemented by subclasses");
 	}
 	name = "FileSystem";
@@ -96,7 +96,7 @@ export default class FileSystemService extends Service {
 	 * @throws Will throw an error if the directory cannot be read.
 	 */
 	// eslint-disable-next-line require-yield
-	async *getDirectoryTree(path, params) {
+	async *getDirectoryTree(_path, _params) {
 		throw new Error(
 			"Method 'getDirectoryTree' must be implemented by subclasses",
 		);
@@ -110,7 +110,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<boolean>} A promise that resolves to true if the file was created successfully.
 	 * @throws Will throw an error if the file cannot be created.
 	 */
-	async writeFile(path, content) {
+	async writeFile(_path, _content) {
 		throw new Error("Method 'writeFile' must be implemented by subclasses");
 	}
 
@@ -121,7 +121,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<boolean>} A promise that resolves to true if the file was deleted successfully.
 	 * @throws Will throw an error if the file cannot be deleted.
 	 */
-	async deleteFile(path) {
+	async deleteFile(_path) {
 		throw new Error("Method 'deleteFile' must be implemented by subclasses");
 	}
 
@@ -132,7 +132,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<string>} A promise that resolves to the content of the file as a string.
 	 * @throws Will throw an error if the file cannot be read.
 	 */
-	async getFile(path) {
+	async getFile(_path) {
 		throw new Error("Method 'getFile' must be implemented by subclasses");
 	}
 
@@ -144,7 +144,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<boolean>} A promise that resolves to true if the file was renamed successfully.
 	 * @throws Will throw an error if the file or directory cannot be renamed.
 	 */
-	async rename(oldPath, newPath) {
+	async rename(_oldPath, _newPath) {
 		throw new Error("Method 'rename' must be implemented by subclasses");
 	}
 
@@ -154,7 +154,7 @@ export default class FileSystemService extends Service {
 	 * @param {string} path - Path to check.
 	 * @returns {Promise<boolean>} A promise that resolves to true if the file or directory exists.
 	 */
-	async exists(path) {
+	async exists(_path) {
 		throw new Error("Method 'exists' must be implemented by subclasses");
 	}
 
@@ -165,7 +165,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<Object>} A promise that resolves to an object containing file or directory information.
 	 * @throws Will throw an error if the file or directory information cannot be retrieved.
 	 */
-	async stat(path) {
+	async stat(_path) {
 		throw new Error("Method 'stat' must be implemented by subclasses");
 	}
 
@@ -178,7 +178,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<boolean>} A promise that resolves to true if the directory was created successfully.
 	 * @throws Will throw an error if the directory cannot be created.
 	 */
-	async createDirectory(path, options = {}) {
+	async createDirectory(_path, _options = {}) {
 		throw new Error(
 			"Method 'createDirectory' must be implemented by subclasses",
 		);
@@ -194,7 +194,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<boolean>} A promise that resolves to true if the copy was successful.
 	 * @throws Will throw an error if the copy operation fails.
 	 */
-	async copy(source, destination, options = {}) {
+	async copy(_source, _destination, _options = {}) {
 		throw new Error("Method 'copy' must be implemented by subclasses");
 	}
 
@@ -206,7 +206,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<boolean>} A promise that resolves to true if the permissions were changed successfully.
 	 * @throws Will throw an error if the permissions cannot be changed.
 	 */
-	async chmod(path, mode) {
+	async chmod(_path, _mode) {
 		throw new Error("Method 'chmod' must be implemented by subclasses");
 	}
 
@@ -219,7 +219,7 @@ export default class FileSystemService extends Service {
 	 * @returns {Promise<Array<string>>} A promise that resolves to an array of matched file paths.
 	 * @throws Will throw an error if the glob operation fails.
 	 */
-	async glob(pattern, options = {}) {
+	async glob(_pattern, _options = {}) {
 		throw new Error("Method 'glob' must be implemented by subclasses");
 	}
 
@@ -235,7 +235,7 @@ export default class FileSystemService extends Service {
 	 *   on('error', callback), on('ready', callback), and close().
 	 * @throws Will throw an error if the directory cannot be watched.
 	 */
-	async watch(dir, options = {}) {
+	async watch(_dir, _options = {}) {
 		throw new Error("Method 'watch' must be implemented by subclasses");
 	}
 
@@ -255,7 +255,7 @@ export default class FileSystemService extends Service {
 	 * }>} A promise that resolves to an object containing command execution results.
 	 * @throws Will throw an error if the command cannot be executed.
 	 */
-	async executeCommand(command, options = {}) {
+	async executeCommand(_command, _options = {}) {
 		throw new Error(
 			"Method 'executeCommand' must be implemented by subclasses",
 		);
@@ -278,7 +278,7 @@ export default class FileSystemService extends Service {
 	 * }>>} A promise that resolves to an array of match objects.
 	 * @throws Will throw an error if the search operation fails.
 	 */
-	async grep(searchString, options = {}) {
+	async grep(_searchString, _options = {}) {
 		throw new Error("Method 'grep' must be implemented by subclasses");
 	}
 
@@ -354,7 +354,7 @@ export default class FileSystemService extends Service {
 	 * @generator
 	 * @yields {MemoryItem} Memory object with role and content.
 	 */
-	async *getMemories(registry) {
+	async *getMemories(_registry) {
 		for (const file of this.manuallySelectedFiles) {
 			const content = await this.getFile(file);
 			yield {

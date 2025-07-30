@@ -221,7 +221,7 @@ async function searchInFiles(
 	searchString,
 	linesBefore,
 	linesAfter,
-	fileSystem,
+	_fileSystem,
 	chatService,
 ) {
 	// If searchString is an array, log all strings being searched
@@ -319,8 +319,8 @@ function formatSearchResults(
 	results,
 	searchString,
 	linesBefore,
-	linesAfter,
-	chatService,
+	_linesAfter,
+	_chatService,
 ) {
 	const searchDesc = Array.isArray(searchString)
 		? `the specified patterns`
@@ -343,7 +343,7 @@ function formatSearchResults(
 		output += `File: ${file}\n`;
 
 		for (const match of matches) {
-			const matchedText = match.matchedString || searchString;
+			const _matchedText = match.matchedString || searchString;
 			output += `  Line ${match.line}: ${match.match.trim()}\n`;
 
 			if (match.content) {
