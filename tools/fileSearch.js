@@ -1,6 +1,6 @@
-import FileSystemService from "../FileSystemService.js";
 import ChatService from "@token-ring/chat/ChatService";
 import { z } from "zod";
+import FileSystemService from "../FileSystemService.js";
 
 /**
  * A unified file management API that combines functionality for retrieving and searching files.

@@ -1,7 +1,7 @@
-import ChatService from "@token-ring/chat/ChatService";
-import runChat from "@token-ring/ai-client/runChat";
-import FileSystemService from "../FileSystemService.js";
 import { ChatMessageStorage } from "@token-ring/ai-client";
+import runChat from "@token-ring/ai-client/runChat";
+import ChatService from "@token-ring/chat/ChatService";
+import FileSystemService from "../FileSystemService.js";
 
 /**
  * /foreach <globString> <prompt ...> - Run a prompt on each file matching the globString
@@ -48,7 +48,7 @@ export async function execute(remainder, registry) {
 	}
 
 	// Use FileSystem's glob to find matching files
-	let files = await fileSystem.glob(globString, { absolute: true });
+	const files = await fileSystem.glob(globString, { absolute: true });
 
 	if (files.length === 0) {
 		chatService.systemLine(`No files matched the pattern: ${globString}`);

@@ -1,7 +1,7 @@
-import ChatService from "@token-ring/chat/ChatService";
 import ModelRegistry from "@token-ring/ai-client/ModelRegistry";
-import FileSystemService from "../FileSystemService.js";
+import ChatService from "@token-ring/chat/ChatService";
 import { z } from "zod";
+import FileSystemService from "../FileSystemService.js";
 
 const systemPrompt = `
 The user has provided a file, and a natural language description of an adjustment or patch that needs to be made to the file.

@@ -1,6 +1,6 @@
 import ChatService from "@token-ring/chat/ChatService";
-import FileSystemService from "../FileSystemService.js";
 import { z } from "zod";
+import FileSystemService from "../FileSystemService.js";
 
 /**
  * Executes a shell command in the source directory using the configured file system.

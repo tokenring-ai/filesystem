@@ -1,5 +1,5 @@
-import { Service } from "@token-ring/registry";
 import ChatService from "@token-ring/chat/ChatService";
+import { Service } from "@token-ring/registry";
 import ignore from "ignore";
 /**
  * FileSystem is an abstract class that provides a unified interface

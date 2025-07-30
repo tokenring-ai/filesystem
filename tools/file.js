@@ -1,7 +1,7 @@
-import path from "path-browserify";
-import FileSystemService from "../FileSystemService.js";
 import ChatService from "@token-ring/chat/ChatService";
+import path from "path-browserify";
 import { z } from "zod";
+import FileSystemService from "../FileSystemService.js";
 
 /**
  * Unified file management tool that combines create, update, delete, rename, and permissions adjustment
@@ -57,7 +57,7 @@ export async function execute(
 				if (permissions) {
 					const numericPermissions =
 						typeof permissions === "string"
-							? parseInt(permissions, 8)
+							? Number.parseInt(permissions, 8)
 							: permissions;
 					await fileSystem.chmod(filePath, numericPermissions);
 				}
@@ -137,7 +137,7 @@ export async function execute(
 				if (permissions) {
 					const numericPermissions =
 						typeof permissions === "string"
-							? parseInt(permissions, 8)
+							? Number.parseInt(permissions, 8)
 							: permissions;
 					const chmodSuccess = await fileSystem.chmod(
 						filePath,
