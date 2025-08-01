@@ -126,13 +126,24 @@ export default class FileSystemService extends Service {
 	}
 
 	/**
-	 * Gets the content of the specified file.
-	 * @abstract
-	 * @param {string} path - Path to the file to read.
+	 * Gets the content of the specified file in UTF-8.
+	 * @param {string} _path - Path to the file to read.
 	 * @returns {Promise<string>} A promise that resolves to the content of the file as a string.
 	 * @throws Will throw an error if the file cannot be read.
 	 */
 	async getFile(_path) {
+		return this.readFile(_path, "utf8");
+	}
+
+	/**
+	 * Reads the content of the specified file.
+	 * @abstract
+	 * @param {string} _path - Path to the file to read.
+	 * @param {string} _encoding - Encoding for file (default, buffer)
+	 * @returns {Promise<string>} A promise that resolves to the content of the file as a string.
+	 * @throws Will throw an error if the file cannot be read.
+	 */
+	async getFile(_path, _encoding) {
 		throw new Error("Method 'getFile' must be implemented by subclasses");
 	}
 
