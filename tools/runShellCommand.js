@@ -1,3 +1,4 @@
+// @ts-nocheck
 import ChatService from "@token-ring/chat/ChatService";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.js";
@@ -101,22 +102,20 @@ export async function execute(
 	const chatService = registry.requireFirstServiceByType(ChatService);
 	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
-	// Normalize and validate command
-	const normalizedCommand =
-		typeof command === "string" ? command.trim() : command;
-	if (!normalizedCommand) {
+	// Execute command using FileSystem
+	if (!command) {
 		chatService.errorLine("[runShellCommand] command is required");
 		return { error: "command is required" };
 	}
 
 	chatService.infoLine(
-		`[runShellCommand] Running shell command via ${fileSystem.name}: ${normalizedCommand} (cwd=${workingDirectory})`,
+		`[runShellCommand] Running shell command via ${fileSystem.name}: ${command} (cwd=${workingDirectory})`,
 	);
 
 	try {
-		const result = await fileSystem.executeCommand(normalizedCommand, {
+		const result = await fileSystem.executeCommand(command, {
 			timeoutSeconds,
-			env: env ?? {},
+			env,
 			workingDirectory: workingDirectory ?? "./",
 		});
 

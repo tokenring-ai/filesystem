@@ -1,4 +1,4 @@
-export * as chatCommands from "./chatCommands.js";
+export * as chatCommands from "./chatCommands.ts";
 export { default as FileMatchResource } from "./FileMatchResource.js";
 export { default as FileSystemService } from "./FileSystemService.js";
 export * as tools from "./tools.js";

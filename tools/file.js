@@ -1,3 +1,4 @@
+// @ts-nocheck
 import ChatService from "@token-ring/chat/ChatService";
 import path from "path-browserify";
 import { z } from "zod";

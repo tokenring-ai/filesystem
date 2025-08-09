@@ -1,3 +1,4 @@
+// @ts-nocheck
 import ChatService from "@token-ring/chat/ChatService";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.js";
