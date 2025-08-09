@@ -101,20 +101,22 @@ export async function execute(
 	const chatService = registry.requireFirstServiceByType(ChatService);
 	const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
-	// Execute command using FileSystem
-	if (!command) {
+	// Normalize and validate command
+	const normalizedCommand =
+		typeof command === "string" ? command.trim() : command;
+	if (!normalizedCommand) {
 		chatService.errorLine("[runShellCommand] command is required");
 		return { error: "command is required" };
 	}
 
 	chatService.infoLine(
-		`[runShellCommand] Running shell command via ${fileSystem.name}: ${command} (cwd=${workingDirectory})`,
+		`[runShellCommand] Running shell command via ${fileSystem.name}: ${normalizedCommand} (cwd=${workingDirectory})`,
 	);
 
 	try {
-		const result = await fileSystem.executeCommand(command, {
+		const result = await fileSystem.executeCommand(normalizedCommand, {
 			timeoutSeconds,
-			env,
+			env: env ?? {},
 			workingDirectory: workingDirectory ?? "./",
 		});
 
