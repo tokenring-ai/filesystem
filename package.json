@@ -6,28 +6,26 @@
 		"@token-ring/chat": "0.1.0",
 		"@token-ring/registry": "0.1.0",
 		"ignore": "^7.0.5",
-		"path-browserify": "^1.0.1",
-		"@token-ring/eslint-config": "0.0.0"
+		"path-browserify": "^1.0.1"
 	},
 	"devDependencies": {
-		"@token-ring/eslint-config": "0.0.0",
+
 		"vitest": "^3.2.4",
 		"@vitest/coverage-v8": "^3.2.4"
 	},
 	"exports": {
-		".": "./index.js",
-		"./*": "./*.js"
+		".": "./index.ts",
+		"./*": "./*.ts"
 	},
 	"license": "MIT",
 	"scripts": {
-		"lint": "eslint .",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
-		"test:integration": "vitest run runShellCommand.integration.test.js",
-		"test:e2e": "vitest run runShellCommand.e2e.test.js",
-		"test:all": "vitest run && node test/integration-runner.js",
-		"eslint": "eslint --fix ./"
+		"test:integration": "vitest run runShellCommand.integration.test.ts",
+		"test:e2e": "vitest run runShellCommand.e2e.test.ts",
+		"test:all": "vitest run && node test/integration-runner.ts"
+
 	},
 	"type": "module"
 }
