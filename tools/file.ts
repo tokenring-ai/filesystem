@@ -14,8 +14,8 @@ export async function execute(
     toPath,
     fileSystemType,
   }: {
-    path: string;
-    action: "create" | "replace" | "delete" | "rename" | "adjust";
+    path?: string;
+    action?: "create" | "replace" | "delete" | "rename" | "adjust";
     content?: string;
     permissions?: number | string;
     owner?: string;
@@ -30,6 +30,11 @@ export async function execute(
   chatService.infoLine(
     `[fileManager] Performing ${action} operation via ${fileSystem.name}: ${filePath}`,
   );
+
+  if (!filePath) {
+      chatService.errorLine(`[fileManager] Error: 'path' parameter is required`);
+      return `Error: 'path' parameter is required`;
+  }
 
   try {
     switch (action) {
@@ -53,12 +58,6 @@ export async function execute(
           const numericPermissions =
             typeof permissions === "string" ? Number.parseInt(permissions, 8) : permissions;
           await fileSystem.chmod(filePath, numericPermissions);
-        }
-
-        // Update owner if specified and supported
-        if (owner && typeof (fileSystem as any).chown === "function") {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (fileSystem as any).chown(filePath, owner);
         }
 
         if (success) {
@@ -129,15 +128,6 @@ export async function execute(
             typeof permissions === "string" ? Number.parseInt(permissions, 8) : permissions;
           const chmodSuccess = await fileSystem.chmod(filePath, numericPermissions);
           if (chmodSuccess) {
-            modified = true;
-          }
-        }
-
-        // Update owner if specified and supported
-        if (owner && typeof (fileSystem as any).chown === "function") {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const chownSuccess = await (fileSystem as any).chown(filePath, owner);
-          if (chownSuccess) {
             modified = true;
           }
         }

@@ -49,7 +49,7 @@ describe("runShellCommand Comprehensive Integration Tests", () => {
 		it("should reject empty string command", async () => {
 			const result = await execute({ command: "" }, registry);
 
-			expect(result).toEqual({ error: "command is required" });
+			expect(result).toEqual("Error: command is required");
 			expect(mockChatService.errorLine).toHaveBeenCalledWith(
 				"[runShellCommand] command is required",
 			);
@@ -59,7 +59,7 @@ describe("runShellCommand Comprehensive Integration Tests", () => {
 		it("should reject null command", async () => {
 			const result = await execute({ command: null }, registry);
 
-			expect(result).toEqual({ error: "command is required" });
+			expect(result).toEqual("Error: command is required");
 			expect(mockChatService.errorLine).toHaveBeenCalledWith(
 				"[runShellCommand] command is required",
 			);
@@ -69,7 +69,7 @@ describe("runShellCommand Comprehensive Integration Tests", () => {
 		it("should reject undefined command", async () => {
 			const result = await execute({ command: undefined }, registry);
 
-			expect(result).toEqual({ error: "command is required" });
+			expect(result).toEqual("Error: command is required");
 			expect(mockChatService.errorLine).toHaveBeenCalledWith(
 				"[runShellCommand] command is required",
 			);
@@ -79,7 +79,7 @@ describe("runShellCommand Comprehensive Integration Tests", () => {
 		it("should handle whitespace-only command", async () => {
 			const result = await execute({ command: "   \t\n  " }, registry);
 
-			expect(result).toEqual({ error: "command is required" });
+			expect(result).toEqual("Error: command is required");
 			expect(mockChatService.errorLine).toHaveBeenCalledWith(
 				"[runShellCommand] command is required",
 			);
@@ -130,7 +130,7 @@ describe("runShellCommand Comprehensive Integration Tests", () => {
 
 			expect(mockFileSystem.executeCommand).toHaveBeenCalledWith("echo test", {
 				timeoutSeconds: 60,
-				env: {},
+				env: null,
 				workingDirectory: "./",
 			});
 		});

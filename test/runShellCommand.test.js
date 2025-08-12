@@ -86,7 +86,7 @@ describe("runShellCommand Integration Tests", () => {
 		it("should return error when command is missing", async () => {
 			const result = await execute({}, registry);
 
-			expect(result).toEqual({ error: "command is required" });
+			expect(result).toEqual("Error: command is required");
 			expect(mockChatService.errorLine).toHaveBeenCalledWith(
 				"[runShellCommand] command is required",
 			);
@@ -96,7 +96,7 @@ describe("runShellCommand Integration Tests", () => {
 		it("should handle empty string command", async () => {
 			const result = await execute({ command: "" }, registry);
 
-			expect(result).toEqual({ error: "command is required" });
+			expect(result).toEqual("Error: command is required");
 			expect(mockChatService.errorLine).toHaveBeenCalledWith(
 				"[runShellCommand] command is required",
 			);

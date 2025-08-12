@@ -1,6 +1,7 @@
 {
 	"name": "@token-ring/filesystem",
 	"version": "0.1.0",
+ "description": "A filesystem abstraction for Token Ring",
 	"dependencies": {
 		"@token-ring/ai-client": "0.1.0",
 		"@token-ring/chat": "0.1.0",

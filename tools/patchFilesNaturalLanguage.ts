@@ -10,7 +10,7 @@ const systemPrompt = `
 :`.trim();
 
 export async function execute(
-  { files, naturalLanguagePatch }: { files: string[]; naturalLanguagePatch: string },
+  { files, naturalLanguagePatch }: { files?: string[]; naturalLanguagePatch?: string },
   registry: Registry,
 ): Promise<string> {
   const chatService = registry.requireFirstServiceByType(ChatService);
@@ -18,6 +18,10 @@ export async function execute(
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
   const patchedFiles: string[] = [];
+  if (!files || files.length === 0) {
+      chatService.errorLine("No files provided to patch");
+      return "Error: No files provided to patch";
+  }
 
   for (const file of files) {
     try {

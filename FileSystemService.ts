@@ -21,6 +21,7 @@ export interface DirectoryTreeOptions {
 
 export interface GlobOptions {
   ig?: (path: string) => boolean;
+  absolute?: boolean;
 }
 
 export interface WatchOptions {
@@ -64,6 +65,7 @@ export default class FileSystemService extends Service {
   protected defaultSelectedFiles: string[];
   protected manuallySelectedFiles: Set<string>;
   protected dirty = false;
+  protected registry!: Registry;
 
   /**
    * Creates an instance of FileSystem
@@ -107,13 +109,14 @@ export default class FileSystemService extends Service {
   /** Starts the service by registering commands. */
   async start(registry: Registry): Promise<void> {
     const chatContext = registry.requireFirstServiceByType(ChatService);
-    chatContext.on("reset", this.clearFilesFromChat.bind(this));
+    this.registry = registry;
+    chatContext.on("clear", this.clearFilesFromChat.bind(this));
   }
 
   /** Stops the service by unregistering commands. */
   async stop(registry: Registry): Promise<void> {
     const chatContext = registry.requireFirstServiceByType(ChatService);
-    chatContext.off("reset", this.clearFilesFromChat.bind(this));
+    chatContext.off("clear", this.clearFilesFromChat.bind(this));
   }
 
   // ABSTRACT INTERFACE
@@ -164,10 +167,6 @@ export default class FileSystemService extends Service {
     throw new Error("Method 'chmod' must be implemented by subclasses");
   }
 
-  async chown(_path: string, _uid: number, _gid: number): Promise<boolean> {
-    throw new Error("Method chown must be implemented by subclasses");
-  }
-
   async glob(_pattern: string, _options: GlobOptions = {}): Promise<string[]> {
     throw new Error("Method 'glob' must be implemented by subclasses");
   }
@@ -215,15 +214,18 @@ export default class FileSystemService extends Service {
   }
 
   /**
-   * Clears file references from the chat when the chat is reset.
-   * This is a callback for the 'reset' event on ChatService.
+   * Clears file references from the chat when the chat is cleared
+   * This is a callback for the 'clear' event on ChatService.
    * @private
    */
-  clearFilesFromChat(): void {
-    this.manuallySelectedFiles.clear();
-    // Implementation can be overridden by subclasses if needed
-    // eslint-disable-next-line no-console
-    console.log("Chat reset: clearing file references");
+  clearFilesFromChat(type: string): void {
+    if (type === 'chat') {
+        this.manuallySelectedFiles.clear();
+        const chatService = this.registry.getFirstServiceByType(ChatService);
+        if (chatService) {
+            chatService.systemLine("[FileSystemService] Clearing file references");
+        }
+    }
   }
 
   getFilesInChat(): Set<string> {

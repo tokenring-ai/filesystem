@@ -4,11 +4,15 @@ import FileSystemService from "../FileSystemService.ts";
 import type { Registry } from "@token-ring/registry";
 
 export async function execute(
-  { file, fromLine, toLine, contents }: { file: string; fromLine: string; toLine: string; contents: string },
+  { file, fromLine, toLine, contents }: { file?: string; fromLine?: string; toLine?: string; contents?: string },
   registry: Registry,
 ): Promise<string> {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+
+  if (!file || !fromLine || !toLine || !contents) {
+    return `Missing required parameters: file, fromLine, toLine, contents`;
+  }
 
   try {
     // Read the original file content

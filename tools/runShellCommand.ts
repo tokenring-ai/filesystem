@@ -3,9 +3,8 @@ import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import type { Registry } from "@token-ring/registry";
 
-export default execute;
 export async function execute(
-  { command, timeoutSeconds = 60, env = {}, workingDirectory }: { command: string | string[]; timeoutSeconds?: number; env?: Record<string, string>; workingDirectory?: string },
+  { command, timeoutSeconds = 60, env = {}, workingDirectory }: { command?: string | string[]; timeoutSeconds?: number; env?: Record<string, string>; workingDirectory?: string },
   registry: Registry,
 ): Promise<{ ok: boolean; exitCode: number; stdout: string; stderr: string; error?: string | null } | { error: string } | any> {
   const chatService = registry.requireFirstServiceByType(ChatService);
@@ -14,10 +13,14 @@ export async function execute(
   // Execute command using FileSystem
   if (!command) {
     chatService.errorLine("[runShellCommand] command is required");
-    return { error: "command is required" };
+    return "Error: command is required";
   }
 
-  const cmdString = Array.isArray(command) ? command.join(" ") : command;
+  const cmdString = (Array.isArray(command) ? command.join(" ") : command).trim();
+  if (! cmdString) {
+      chatService.errorLine("[runShellCommand] command is required");
+      return "Error: command is required";
+  }
   chatService.infoLine(
     `[runShellCommand] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory})`,
   );

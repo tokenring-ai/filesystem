@@ -1,7 +1,8 @@
 import { ChatMessageStorage } from "@token-ring/ai-client";
-import runChat from "@token-ring/ai-client/runChat";
+import * as runChat from "@token-ring/ai-client/runChat";
 import ChatService from "@token-ring/chat/ChatService";
 import FileSystemService from "../FileSystemService.ts";
+import { Registry } from "@token-ring/registry";
 
 /**
  * /foreach <globString> <prompt ...> - Run a prompt on each file matching the globString
@@ -10,7 +11,7 @@ import FileSystemService from "../FileSystemService.ts";
 export const description: string =
   "/foreach <globString> <prompt ...> - Run a prompt on each file matching the globString.";
 
-export async function execute(remainder: string, registry: any) {
+export async function execute(remainder: string, registry: Registry) {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
@@ -73,7 +74,7 @@ export function help(): string[] {
   ];
 }
 
-async function runPromptOnFile(filePath: string, prompt: string, registry: any) {
+async function runPromptOnFile(filePath: string, prompt: string, registry: Registry) {
   const systemPrompt = `Retrieve the file ${filePath} with the getFiles tool. Then modify the code in the file, based on the user prompt that follows, and then write out the file using the createFile command, and print a one sentence summary of the changes made to the file.`;
 
   const chatService = registry.requireFirstServiceByType(ChatService);
@@ -84,7 +85,7 @@ async function runPromptOnFile(filePath: string, prompt: string, registry: any) 
   chatMessageStorage.setCurrentMessage(null);
   //chatService.resetAbortController();
 
-  await runChat(
+  await runChat.execute(
     {
       systemPrompt,
       input: prompt,
