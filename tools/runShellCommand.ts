@@ -1,7 +1,7 @@
 import ChatService from "@token-ring/chat/ChatService";
-import { z } from "zod";
+import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
-import type { Registry } from "@token-ring/registry";
+import type {Registry} from "@token-ring/registry";
 
 export async function execute(
   { command, timeoutSeconds = 60, env = {}, workingDirectory }: { command?: string | string[]; timeoutSeconds?: number; env?: Record<string, string>; workingDirectory?: string },

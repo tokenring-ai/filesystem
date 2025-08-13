@@ -1,7 +1,7 @@
 import ChatService from "@token-ring/chat/ChatService";
-import { z } from "zod";
+import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
-import type { Registry } from "@token-ring/registry";
+import type {Registry} from "@token-ring/registry";
 
 export async function execute(
   { file, fromLine, toLine, contents }: { file?: string; fromLine?: string; toLine?: string; contents?: string },

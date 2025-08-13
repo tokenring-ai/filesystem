@@ -1,4 +1,4 @@
-import { Resource, type Registry } from "@token-ring/registry";
+import {type Registry, Resource} from "@token-ring/registry";
 // Keep .ts extension for NodeNext/ESM compatibility in TS source
 import FileSystemService from "./FileSystemService.ts";
 

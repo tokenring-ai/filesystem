@@ -1,8 +1,8 @@
-import { ChatMessageStorage } from "@token-ring/ai-client";
+import {ChatMessageStorage} from "@token-ring/ai-client";
 import * as runChat from "@token-ring/ai-client/runChat";
 import ChatService from "@token-ring/chat/ChatService";
 import FileSystemService from "../FileSystemService.ts";
-import { Registry } from "@token-ring/registry";
+import {Registry} from "@token-ring/registry";
 
 /**
  * /foreach <globString> <prompt ...> - Run a prompt on each file matching the globString

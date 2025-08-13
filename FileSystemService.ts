@@ -1,5 +1,5 @@
 import ChatService from "@token-ring/chat/ChatService";
-import { Service, type Registry } from "@token-ring/registry";
+import {type Registry, Service} from "@token-ring/registry";
 import ignore from "ignore";
 
 export interface StatLike {
