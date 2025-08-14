@@ -32,6 +32,9 @@ export async function execute(
 
       // Read the original file content
       const originalContent = await fileSystem.getFile(file);
+      if (!originalContent) {
+          throw new Error(`Failed to read file content: ${file}`);
+      }
 
       // Generate patch using LLM via the new chat API
       const patchRequest = {

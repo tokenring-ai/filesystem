@@ -17,6 +17,9 @@ export async function execute(
   try {
     // Read the original file content
     const originalContent = await fileSystem.getFile(file);
+    if (!originalContent) {
+        return `Failed to read file content: ${file}`;
+    }
     const lines = originalContent.split("\n");
 
     // Normalize whitespace for comparison

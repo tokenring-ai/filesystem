@@ -62,6 +62,20 @@ export default class FileSystemService extends Service {
   name = "FileSystem";
   description = "Abstract interface for virtual file system operations";
 
+  // Base directory getter for implementations that are rooted (e.g., local FS)
+  getBaseDirectory(): string {
+    throw new Error("Method 'getBaseDirectory' must be implemented by subclasses");
+  }
+
+  // Path helpers for implementations that map relative/absolute paths
+  relativeOrAbsolutePathToAbsolutePath(_p: string): string {
+    throw new Error("Method 'relativeOrAbsolutePathToAbsolutePath' must be implemented by subclasses");
+  }
+
+  relativeOrAbsolutePathToRelativePath(_p: string): string {
+    throw new Error("Method 'relativeOrAbsolutePathToRelativePath' must be implemented by subclasses");
+  }
+
   protected defaultSelectedFiles: string[];
   protected manuallySelectedFiles: Set<string>;
   protected dirty = false;
@@ -92,15 +106,19 @@ export default class FileSystemService extends Service {
     const gitIgnorePath = ".gitignore";
     if (await this.exists(gitIgnorePath)) {
       const data = await this.getFile(gitIgnorePath);
-      const lines = data.split(/\r?\n/).filter(Boolean);
-      ig.add(lines);
+      if (data) {
+          const lines = data.split(/\r?\n/).filter(Boolean);
+          ig.add(lines);
+      }
     }
 
     const aiIgnorePath = ".aiignore";
     if (await this.exists(aiIgnorePath)) {
       const data = await this.getFile(aiIgnorePath);
-      const lines = data.split(/\r?\n/).filter(Boolean);
-      ig.add(lines);
+      if (data) {
+          const lines = data.split(/\r?\n/).filter(Boolean);
+          ig.add(lines);
+      }
     }
 
     return ig.ignores.bind(ig);
@@ -135,8 +153,8 @@ export default class FileSystemService extends Service {
     throw new Error("Method 'deleteFile' must be implemented by subclasses");
   }
 
-  async getFile(path: string): Promise<string> {
-    return await this.readFile(path, "utf8" as BufferEncoding) as unknown as string;
+  async getFile(path: string): Promise<string|null> {
+    return await this.readFile(path, "utf8" as BufferEncoding);
   }
 
   async readFile(_path: string, _encoding?: BufferEncoding | "buffer"): Promise<any> {
