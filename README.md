@@ -1,4 +1,3 @@
-```markdown
 # @token-ring/filesystem
 
 This package, `@token-ring/filesystem`, provides an abstract service definition for file system interactions and a collection of tools and chat commands to operate on this abstraction. It forms a core part of the file system capabilities within the Token Ring ecosystem.
@@ -92,4 +91,3 @@ When developing tools that use `FileSystemService` or when creating concrete imp
 -   `async copy(source, destination, options)`
 
 Refer to the source code of `core/filesystem/FileSystemService.js` for the full signatures and JSDoc comments for these methods. The `borrowFile` method is not part of the abstract `FileSystemService` interface.
-```
