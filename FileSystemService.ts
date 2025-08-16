@@ -41,7 +41,7 @@ export interface ExecuteCommandResult {
   stdout: string;
   stderr: string;
   exitCode: number;
-  error?: string | null;
+  error?: string;
 }
 
 export interface GrepOptions {

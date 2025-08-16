@@ -9,18 +9,26 @@ const systemPrompt = `
 :Apply the adjustment to the file, and return the raw updated file content.
 :`.trim();
 
+/**
+ * Executes the natural language patch tool.
+ *
+ * Returns either a success message string or an error object `{ error: string }`.
+ */
 export async function execute(
   { files, naturalLanguagePatch }: { files?: string[]; naturalLanguagePatch?: string },
   registry: Registry,
-): Promise<string> {
+): Promise<string|{ error: string}> {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const modelRegistry = registry.requireFirstServiceByType(ModelRegistry);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
+  const toolName = "patchFilesNaturalLanguage";
   const patchedFiles: string[] = [];
+
   if (!files || files.length === 0) {
-      chatService.errorLine("No files provided to patch");
-      return "Error: No files provided to patch";
+    const msg = "No files provided to patch";
+    chatService.errorLine(`[${toolName}] ${msg}`);
+    return { error: msg };
   }
 
   for (const file of files) {
@@ -33,7 +41,7 @@ export async function execute(
       // Read the original file content
       const originalContent = await fileSystem.getFile(file);
       if (!originalContent) {
-          throw new Error(`Failed to read file content: ${file}`);
+        throw new Error(`Failed to read file content: ${file}`);
       }
 
       // Generate patch using LLM via the new chat API
@@ -76,7 +84,7 @@ export async function execute(
       // Check if the patched content is different from the original
       if (patchedContent.trim() === originalContent.trim()) {
         chatService.warningLine(
-          `No changes made to file: ${file} - content is identical`,
+          `[${toolName}] No changes made to file: ${file} - content is identical`,
         );
         continue;
       }
@@ -84,9 +92,12 @@ export async function execute(
       await fileSystem.writeFile(file, patchedContent);
 
       patchedFiles.push(file);
-      chatService.infoLine(`Successfully patched file: ${file}`);
+      chatService.infoLine(`[${toolName}] Successfully patched file: ${file}`);
     } catch (error: any) {
-      chatService.errorLine(`Failed to patch file ${file}: ${error.message}`);
+      const errMsg = `Failed to patch file ${file}: ${error.message}`;
+      chatService.errorLine(`[${toolName}] ${errMsg}`);
+      // Return the first encountered error as the tool result
+      return { error: errMsg };
     }
   }
 

@@ -3,6 +3,11 @@ import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import type {Registry} from "@token-ring/registry";
 
+/**
+ * Executes a regex based patch on a file.
+ * All informational messages are prefixed with the tool name `[regexPatch]`.
+ * Errors are returned as an object `{ error: string }` rather than throwing.
+ */
 export async function execute(
     { file, startRegex, endRegex, replacement }: {
         file: string;
@@ -11,7 +16,7 @@ export async function execute(
         replacement: string;
     },
     registry: Registry,
-): Promise<string> {
+): Promise<string | { error: string }> {
     const chatService = registry.requireFirstServiceByType(ChatService);
     const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
@@ -19,14 +24,21 @@ export async function execute(
         // Read the original file content
         const originalContent = await fileSystem.getFile(file);
 
+        if (! originalContent) {
+            const msg = `Failed to read file content: ${file}`;
+            chatService.errorLine(`[regexPatch] ${msg}`);
+            return { error: msg };
+        }
+
         // Create a regex pattern that matches from startRegex to endRegex
         const pattern = new RegExp(`(${startRegex})[\\s\\S]*?(${endRegex})`, "gm");
 
+
         // Check if the pattern matches anything in the file
         if (!pattern.test(originalContent)) {
-            throw new Error(
-                `Could not find a match for the provided regex patterns in file ${file}`,
-            );
+            const msg = `Could not find a match for the provided regex patterns in file ${file}`;
+            chatService.errorLine(`[regexPatch] ${msg}`);
+            return { error: msg };
         }
 
         // Reset the regex lastIndex
@@ -41,13 +53,15 @@ export async function execute(
         // Write the patched content back to the file
         await fileSystem.writeFile(file, patchedContent);
 
-        chatService.infoLine(`Patched file: ${file}`);
+        chatService.infoLine(`[regexPatch] Patched file: ${file}`);
         fileSystem.setDirty(true);
 
+        // Return a plain success string without tool name prefix
         return `Successfully patched file ${file} using regex pattern`;
     } catch (error) {
-        chatService.errorLine(`Failed to patch file ${file}: ${error instanceof Error ? error.message : String(error)}`);
-        throw error;
+        const errMsg = error instanceof Error ? error.message : String(error);
+        chatService.errorLine(`[regexPatch] Failed to patch file ${file}: ${errMsg}`);
+        return { error: errMsg };
     }
 }
 
