@@ -12,9 +12,6 @@ export interface MatchItem {
  * Class representing a file tree context extending DirectoryService.
  */
 export default class FileMatchResource extends Resource {
-  name = "FileMatchResource";
-  description = "Provides file matching functionality";
-
   static constructorProperties = {
     items: {
       type: "array",
@@ -35,10 +32,11 @@ export default class FileMatchResource extends Resource {
       },
     },
   } as const;
-
+  name = "FileMatchResource";
+  description = "Provides file matching functionality";
   private readonly items: MatchItem[];
 
-  constructor({ items }: { items: MatchItem[] }) {
+  constructor({items}: { items: MatchItem[] }) {
     super();
     this.items = items;
   }
@@ -48,10 +46,10 @@ export default class FileMatchResource extends Resource {
    * @param registry The package registry
    * @yields The relative path of the matched files
    */
-  async *getMatchedFiles(registry: Registry): AsyncGenerator<string> {
+  async* getMatchedFiles(registry: Registry): AsyncGenerator<string> {
     const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
-    for (const { path, include, exclude } of this.items) {
+    for (const {path, include, exclude} of this.items) {
       for await (const relPath of fileSystem.getDirectoryTree(path)) {
         if (exclude?.test(relPath) || include?.test(relPath) === false) continue;
         yield relPath;

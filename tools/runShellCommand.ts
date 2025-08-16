@@ -1,13 +1,19 @@
 import ChatService from "@token-ring/chat/ChatService";
+import type {Registry} from "@token-ring/registry";
 import {z} from "zod";
 import FileSystemService, {ExecuteCommandResult} from "../FileSystemService.ts";
-import type {Registry} from "@token-ring/registry";
 
+export const name = "runShellCommand";
 export async function execute(
-  { command, timeoutSeconds = 60, env = {}, workingDirectory }: { command?: string | string[]; timeoutSeconds?: number; env?: Record<string, string>; workingDirectory?: string },
+  {command, timeoutSeconds = 60, env = {}, workingDirectory}: {
+    command?: string | string[];
+    timeoutSeconds?: number;
+    env?: Record<string, string>;
+    workingDirectory?: string
+  },
   registry: Registry,
 ): Promise<
-    ExecuteCommandResult|{ error: string }
+  ExecuteCommandResult
 > {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
@@ -15,13 +21,13 @@ export async function execute(
   // Validate command input
   if (!command) {
     chatService.errorLine("[runShellCommand] command is required");
-    return { error: "command is required" };
+    return {error: "command is required"};
   }
 
   const cmdString = (Array.isArray(command) ? command.join(" ") : command).trim();
   if (!cmdString) {
     chatService.errorLine("[runShellCommand] command is required");
-    return { error: "command is required" };
+    return {error: "command is required"};
   }
   chatService.infoLine(
     `[runShellCommand] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory})`,

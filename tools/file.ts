@@ -1,8 +1,8 @@
 import ChatService from "@token-ring/chat/ChatService";
+import type {Registry} from "@token-ring/registry";
 import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
-import type {Registry} from "@token-ring/registry";
 
 export async function execute(
   {
@@ -23,7 +23,7 @@ export async function execute(
     fileSystemType?: string;
   },
   registry: Registry,
-): Promise<string| { error: string }> {
+): Promise<string | { error: string }> {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
@@ -32,8 +32,8 @@ export async function execute(
   );
 
   if (!filePath) {
-      chatService.errorLine(`[fileManager] Error: 'path' parameter is required`);
-      return { error: "'path' parameter is required" };
+    chatService.errorLine(`[fileManager] Error: 'path' parameter is required`);
+    return {error: "'path' parameter is required"};
   }
 
   try {
@@ -41,13 +41,13 @@ export async function execute(
       case "create":
       case "replace": {
         if (!content) {
-          return { error: "Content is required when creating a file" };
+          return {error: "Content is required when creating a file"};
         }
 
         // Ensure parent directory exists
         const dirPath = path.dirname(filePath);
         if (dirPath !== "." && dirPath !== "/") {
-          await fileSystem.createDirectory(dirPath, { recursive: true });
+          await fileSystem.createDirectory(dirPath, {recursive: true});
         }
 
         // Create or update the file
@@ -71,7 +71,7 @@ export async function execute(
         const fileExists = await fileSystem.exists(filePath);
         if (!fileExists) {
           chatService.infoLine(`[fileManager] Cannot delete file ${filePath}: file not found.`);
-          return { error: `Cannot delete file ${filePath}: file not found.` };
+          return {error: `Cannot delete file ${filePath}: file not found.`};
         }
 
         // Delete the file
@@ -85,20 +85,20 @@ export async function execute(
       }
       case "rename": {
         if (!toPath) {
-          return { error: "'toPath' parameter is required for rename operations" };
+          return {error: "'toPath' parameter is required for rename operations"};
         }
 
         // Check if source file exists
         const sourceExists = await fileSystem.exists(filePath);
         if (!sourceExists) {
           chatService.errorLine(`[fileManager] Cannot rename file ${filePath}: file not found.`);
-          return { error: `Cannot rename file ${filePath}: file not found.` };
+          return {error: `Cannot rename file ${filePath}: file not found.`};
         }
 
         // Ensure destination directory exists
         const destDir = path.dirname(toPath);
         if (destDir !== "." && destDir !== "/") {
-          await fileSystem.createDirectory(destDir, { recursive: true });
+          await fileSystem.createDirectory(destDir, {recursive: true});
         }
 
         // Rename the file
@@ -117,7 +117,7 @@ export async function execute(
           chatService.errorLine(
             `[fileManager] Cannot modify permissions for file ${filePath}: file not found.`,
           );
-          return { error: "File not found" };
+          return {error: "File not found"};
         }
 
         let modified = false;
@@ -140,11 +140,11 @@ export async function execute(
         }
       }
       default:
-        return { error: `Unsupported action '${action}'. Supported actions are: create, update, delete, rename, adjust` };
+        return {error: `Unsupported action '${action}'. Supported actions are: create, update, delete, rename, adjust`};
     }
   } catch (err: any) {
     chatService.errorLine(`[fileManager] Error: ${err.message}`);
-    return { error: `Error performing ${action} operation: ${err.message}` };
+    return {error: `Error performing ${action} operation: ${err.message}`};
   }
 }
 

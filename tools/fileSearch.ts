@@ -1,7 +1,7 @@
 import ChatService from "@token-ring/chat/ChatService";
+import type {Registry} from "@token-ring/registry";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
-import type {Registry} from "@token-ring/registry";
 
 export async function execute(
   {
@@ -96,16 +96,16 @@ export async function execute(
       const exists = await fileSystem.exists(file);
       if (!exists) {
         chatService.errorLine(`Cannot retrieve file ${file}: file not found.`);
-        fileResults.push({ file, exists: false, content: null });
+        fileResults.push({file, exists: false, content: null});
         continue;
       }
 
       const content = await fileSystem.getFile(file);
       chatService.infoLine(`Retrieved file ${file}`);
-      fileResults.push({ file, exists: true, content });
+      fileResults.push({file, exists: true, content});
     } catch (err: any) {
       chatService.errorLine(`Error retrieving ${file}: ${err.message}`);
-      fileResults.push({ file, exists: false, content: null, error: err.message });
+      fileResults.push({file, exists: false, content: null, error: err.message});
     }
   }
 

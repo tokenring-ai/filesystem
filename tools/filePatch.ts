@@ -1,24 +1,24 @@
 import ChatService from "@token-ring/chat/ChatService";
+import type {Registry} from "@token-ring/registry";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
-import type {Registry} from "@token-ring/registry";
 
 export async function execute(
-  { file, fromLine, toLine, contents }: { file?: string; fromLine?: string; toLine?: string; contents?: string },
+  {file, fromLine, toLine, contents}: { file?: string; fromLine?: string; toLine?: string; contents?: string },
   registry: Registry,
-): Promise<string| { error: string }> {
+): Promise<string | { error: string }> {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
   if (!file || !fromLine || !toLine || !contents) {
-    return { error: "Missing required parameters: file, fromLine, toLine, contents" };
+    return {error: "Missing required parameters: file, fromLine, toLine, contents"};
   }
 
   try {
     // Read the original file content
     const originalContent = await fileSystem.getFile(file);
     if (!originalContent) {
-        return { error: `Failed to read file content: ${file}` };
+      return {error: `Failed to read file content: ${file}`};
     }
     const lines = originalContent.split("\n");
 
@@ -37,10 +37,10 @@ export async function execute(
 
     // Check if there's exactly one fromLine match
     if (fromLineMatches.length === 0) {
-      return { error: `Could not find the fromLine "${fromLine}" in file ${file}` };
+      return {error: `Could not find the fromLine "${fromLine}" in file ${file}`};
     }
     if (fromLineMatches.length > 1) {
-      return { error: `Found ${fromLineMatches.length} matches for fromLine "${fromLine}" in file ${file}. Expected exactly one match.` };
+      return {error: `Found ${fromLineMatches.length} matches for fromLine "${fromLine}" in file ${file}. Expected exactly one match.`};
     }
 
     const fromLineIndex = fromLineMatches[0];
@@ -58,10 +58,10 @@ export async function execute(
 
     // Check if there's exactly one toLine match after fromLine
     if (toLineMatches === 0) {
-      return { error: `Could not find the toLine "${toLine}" after fromLine "${fromLine}" in file ${file}` };
+      return {error: `Could not find the toLine "${toLine}" after fromLine "${fromLine}" in file ${file}`};
     }
     if (toLineMatches > 1) {
-      return { error: `Found ${toLineMatches} matches for toLine "${toLine}" after fromLine "${fromLine}" in file ${file}. Expected exactly one match.` };
+      return {error: `Found ${toLineMatches} matches for toLine "${toLine}" after fromLine "${fromLine}" in file ${file}. Expected exactly one match.`};
     }
 
     // Replace the content between fromLine and toLine (inclusive)
@@ -84,7 +84,7 @@ export async function execute(
   } catch (error: any) {
     const errMsg = `Failed to patch file ${file}: ${error.message}`;
     chatService.errorLine(`[filePatch] ${errMsg}`);
-    return { error: errMsg };
+    return {error: errMsg};
   }
 }
 
