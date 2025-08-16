@@ -1,36 +1,37 @@
 import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
-import {z} from "zod";
-import FileSystemService, {ExecuteCommandResult} from "../FileSystemService.ts";
+import type { Registry } from "@token-ring/registry";
+import { z } from "zod";
+import FileSystemService, { ExecuteCommandResult } from "../FileSystemService.ts";
 
-export const name = "runShellCommand";
+// Export tool name with package prefix
+export const name = "filesystem/runShellCommand";
+
 export async function execute(
-  {command, timeoutSeconds = 60, env = {}, workingDirectory}: {
+  { command, timeoutSeconds = 60, env = {}, workingDirectory }: {
     command?: string | string[];
     timeoutSeconds?: number;
     env?: Record<string, string>;
-    workingDirectory?: string
+    workingDirectory?: string;
   },
   registry: Registry,
-): Promise<
-  ExecuteCommandResult
-> {
+): Promise<ExecuteCommandResult> {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
   // Validate command input
   if (!command) {
-    chatService.errorLine("[runShellCommand] command is required");
-    return {error: "command is required"};
+    // Throw error instead of returning and logging via chatService.errorLine
+    throw new Error(`[${name}] command is required`);
   }
 
   const cmdString = (Array.isArray(command) ? command.join(" ") : command).trim();
   if (!cmdString) {
-    chatService.errorLine("[runShellCommand] command is required");
-    return {error: "command is required"};
+    throw new Error(`[${name}] command is required`);
   }
+
+  // Informational message using the tool name variable
   chatService.infoLine(
-    `[runShellCommand] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory})`,
+    `[${name}] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory})`,
   );
 
   try {
@@ -47,13 +48,8 @@ export async function execute(
 
     return result;
   } catch (err: any) {
-    return {
-      ok: false,
-      exitCode: 1,
-      stdout: "",
-      stderr: "",
-      error: err.message,
-    };
+    // Throw the error to conform with specification
+    throw new Error(`[${name}] ${err.message}`);
   }
 }
 

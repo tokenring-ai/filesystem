@@ -1,7 +1,7 @@
 import ModelRegistry from "@token-ring/ai-client/ModelRegistry";
 import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
-import {z} from "zod";
+import type { Registry } from "@token-ring/registry";
+import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
 const systemPrompt = `
@@ -9,26 +9,31 @@ const systemPrompt = `
 :Apply the adjustment to the file, and return the raw updated file content.
 :`.trim();
 
+// Export tool name with package prefix
+export const name = "filesystem/patchFilesNaturalLanguage";
+
 /**
  * Executes the natural language patch tool.
  *
- * Returns either a success message string or an error object `{ error: string }`.
+ * Returns a success message string. Errors are thrown.
  */
 export async function execute(
-  {files, naturalLanguagePatch}: { files?: string[]; naturalLanguagePatch?: string },
+  { files, naturalLanguagePatch }: { files?: string[]; naturalLanguagePatch?: string },
   registry: Registry,
-): Promise<string | { error: string }> {
+): Promise<string> {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const modelRegistry = registry.requireFirstServiceByType(ModelRegistry);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
-  const toolName = "patchFilesNaturalLanguage";
   const patchedFiles: string[] = [];
 
   if (!files || files.length === 0) {
     const msg = "No files provided to patch";
-    chatService.errorLine(`[${toolName}] ${msg}`);
-    return {error: msg};
+    throw new Error(`[${name}] ${msg}`);
+  }
+
+  if (!naturalLanguagePatch) {
+    throw new Error(`[${name}] Natural language patch description is required`);
   }
 
   for (const file of files) {
@@ -47,7 +52,7 @@ export async function execute(
       // Generate patch using LLM via the new chat API
       const patchRequest = {
         input: [
-          {role: "system", content: systemPrompt},
+          { role: "system", content: systemPrompt },
           {
             role: "user",
             content: `Original File Content (${file}):\n\`\`\`\n${originalContent}\n\`\`\`\n\nNatural Language Patch Description:\n\`\`\`${naturalLanguagePatch}\`\`\``,
@@ -64,14 +69,14 @@ export async function execute(
       let patchClient: any;
       try {
         patchClient = await modelRegistry.chat.getFirstOnlineClient({
-          name: "default", // or other requirement selection; uses chat registry
+          name: "default",
         });
       } catch (error: any) {
         throw new Error(`No online chat client available: ${error.message}`);
       }
 
       // Get patched content from LLM
-      const [{patchedContent}] = await patchClient.generateObject(
+      const [{ patchedContent }] = await patchClient.generateObject(
         patchRequest,
         registry,
       );
@@ -84,7 +89,7 @@ export async function execute(
       // Check if the patched content is different from the original
       if (patchedContent.trim() === originalContent.trim()) {
         chatService.warningLine(
-          `[${toolName}] No changes made to file: ${file} - content is identical`,
+          `[${name}] No changes made to file: ${file} - content is identical`,
         );
         continue;
       }
@@ -92,12 +97,9 @@ export async function execute(
       await fileSystem.writeFile(file, patchedContent);
 
       patchedFiles.push(file);
-      chatService.infoLine(`[${toolName}] Successfully patched file: ${file}`);
+      chatService.infoLine(`[${name}] Successfully patched file: ${file}`);
     } catch (error: any) {
-      const errMsg = `Failed to patch file ${file}: ${error.message}`;
-      chatService.errorLine(`[${toolName}] ${errMsg}`);
-      // Return the first encountered error as the tool result
-      return {error: errMsg};
+      throw new Error(`[${name}] Failed to patch file ${file}: ${error.message}`);
     }
   }
 

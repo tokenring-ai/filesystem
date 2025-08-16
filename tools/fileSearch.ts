@@ -1,7 +1,10 @@
 import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
-import {z} from "zod";
+import type { Registry } from "@token-ring/registry";
+import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
+
+// Export tool name
+export const name = "filesystem/fileSearch";
 
 export async function execute(
   {
@@ -24,15 +27,15 @@ export async function execute(
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
-  chatService.infoLine(`[fileManager] Using ${fileSystem.name} file system`);
+  chatService.infoLine(`[${name}] Using ${fileSystem.name} file system`);
 
   // Validate parameters
   if (!files && !searches) {
-    throw new Error("Either 'files' or 'searches' parameter must be provided");
+    throw new Error(`[${name}] Either 'files' or 'searches' parameter must be provided`);
   }
 
   if (returnType !== "names" && returnType !== "content" && returnType !== "matches") {
-    throw new Error("returnType must be one of: 'names', 'content', or 'matches'");
+    throw new Error(`[${name}] returnType must be one of: 'names', 'content', or 'matches'`);
   }
 
   // When returnType is 'matches', set linesBefore and linesAfter to 10
@@ -55,7 +58,7 @@ export async function execute(
       try {
         // If it's a glob pattern, resolve it
         if (filePattern.includes("*") || filePattern.includes("?")) {
-          chatService.infoLine(`Resolving glob pattern: ${filePattern}`);
+          chatService.infoLine(`[${name}] Resolving glob pattern: ${filePattern}`);
           const matchedFiles = await fileSystem.glob(filePattern);
           resolvedFiles.push(...matchedFiles);
         } else {
@@ -63,7 +66,8 @@ export async function execute(
           resolvedFiles.push(filePattern);
         }
       } catch (err: any) {
-        chatService.errorLine(`Error resolving pattern ${filePattern}: ${err.message}`);
+        // Treat pattern resolution errors as informational
+        chatService.infoLine(`[${name}] Error resolving pattern ${filePattern}: ${err.message}`);
       }
     }
 
@@ -74,12 +78,12 @@ export async function execute(
       return returnType === "matches" ? "No files found matching the specified patterns" : [];
     }
 
-    chatService.infoLine(`Resolved ${resolvedFiles.length} files`);
+    chatService.infoLine(`[${name}] Resolved ${resolvedFiles.length} files`);
   }
 
   if (resolvedFiles.length > 50 && returnType !== "names") {
     chatService.infoLine(
-      `Found ${resolvedFiles.length} files which exceeds the limit of 50 for '${returnType}' mode. Degrading to 'names' mode.`,
+      `[${name}] Found ${resolvedFiles.length} files which exceeds the limit of 50 for '${returnType}' mode. Degrading to 'names' mode.`,
     );
     returnType = "names";
   }
@@ -95,17 +99,17 @@ export async function execute(
     try {
       const exists = await fileSystem.exists(file);
       if (!exists) {
-        chatService.errorLine(`Cannot retrieve file ${file}: file not found.`);
-        fileResults.push({file, exists: false, content: null});
+        chatService.infoLine(`[${name}] Cannot retrieve file ${file}: file not found.`);
+        fileResults.push({ file, exists: false, content: null });
         continue;
       }
 
       const content = await fileSystem.getFile(file);
-      chatService.infoLine(`Retrieved file ${file}`);
-      fileResults.push({file, exists: true, content});
+      chatService.infoLine(`[${name}] Retrieved file ${file}`);
+      fileResults.push({ file, exists: true, content });
     } catch (err: any) {
-      chatService.errorLine(`Error retrieving ${file}: ${err.message}`);
-      fileResults.push({file, exists: false, content: null, error: err.message});
+      chatService.infoLine(`[${name}] Error retrieving ${file}: ${err.message}`);
+      fileResults.push({ file, exists: false, content: null, error: err.message });
     }
   }
 
@@ -133,9 +137,9 @@ async function fileSearch(
 ): Promise<string> {
   // If searchString is an array, log all strings being searched
   if (Array.isArray(searchString)) {
-    chatService.infoLine(`[fileManager] Searching for multiple patterns: ${JSON.stringify(searchString)}`);
+    chatService.infoLine(`[${name}] Searching for multiple patterns: ${JSON.stringify(searchString)}`);
   } else {
-    chatService.infoLine(`[fileManager] Searching for "${searchString}"`);
+    chatService.infoLine(`[${name}] Searching for "${searchString}"`);
   }
 
   try {
@@ -156,7 +160,7 @@ async function fileSearch(
     // Check for match limits and degrade if necessary
     if (results.length > 50 && returnType === "matches") {
       chatService.infoLine(
-        `Found ${results.length} matches which exceeds the limit of 50 for 'matches' mode. Degrading to 'names' mode.`,
+        `[${name}] Found ${results.length} matches which exceeds the limit of 50 for 'matches' mode. Degrading to 'names' mode.`,
       );
 
       // Return only the unique file names
@@ -169,8 +173,7 @@ async function fileSearch(
     // Format results
     return formatSearchResults(results, searchString, linesBefore);
   } catch (err: any) {
-    chatService.errorLine(`[fileManager] Search error: ${err.message}`);
-    return `Error searching files: ${err.message}`;
+    throw new Error(`[${name}] Search error: ${err.message}`);
   }
 }
 
@@ -188,11 +191,11 @@ async function searchInFiles(
   // If searchString is an array, log all strings being searched
   if (Array.isArray(searchString)) {
     chatService.infoLine(
-      `[fileManager] Searching for multiple patterns: ${JSON.stringify(searchString)} in ${fileResults.length} files`,
+      `[${name}] Searching for multiple patterns: ${JSON.stringify(searchString)} in ${fileResults.length} files`,
     );
   } else {
     chatService.infoLine(
-      `[fileManager] Searching for "${searchString}" in ${fileResults.length} files`,
+      `[${name}] Searching for "${searchString}" in ${fileResults.length} files`,
     );
   }
 
@@ -262,7 +265,7 @@ async function searchInFiles(
   // Check for match limits and degrade if necessary
   if (allMatches.length > 50) {
     chatService.infoLine(
-      `Found ${allMatches.length} matches which exceeds the limit of 50 for 'matches' mode. Degrading to file names only.`,
+      `[${name}] Found ${allMatches.length} matches which exceeds the limit of 50 for 'matches' mode. Degrading to file names only.`,
     );
 
     // Return only the unique file names

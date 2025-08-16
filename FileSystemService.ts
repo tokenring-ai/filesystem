@@ -63,7 +63,7 @@ export default class FileSystemService extends Service {
   description = "Abstract interface for virtual file system operations";
   protected defaultSelectedFiles: string[];
   protected manuallySelectedFiles: Set<string>;
-  protected dirty = false;
+  dirty = false;
   protected registry!: Registry;
 
   /**

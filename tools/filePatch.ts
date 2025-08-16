@@ -1,24 +1,27 @@
 import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
-import {z} from "zod";
+import type { Registry } from "@token-ring/registry";
+import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
+// Exported name for the tool
+export const name = "filesystem/filePatch";
+
 export async function execute(
-  {file, fromLine, toLine, contents}: { file?: string; fromLine?: string; toLine?: string; contents?: string },
+  { file, fromLine, toLine, contents }: { file?: string; fromLine?: string; toLine?: string; contents?: string },
   registry: Registry,
-): Promise<string | { error: string }> {
+): Promise<string> {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
   if (!file || !fromLine || !toLine || !contents) {
-    return {error: "Missing required parameters: file, fromLine, toLine, contents"};
+    throw new Error(`[${name}] Missing required parameters: file, fromLine, toLine, contents`);
   }
 
   try {
     // Read the original file content
     const originalContent = await fileSystem.getFile(file);
     if (!originalContent) {
-      return {error: `Failed to read file content: ${file}`};
+      throw new Error(`[${name}] Failed to read file content: ${file}`);
     }
     const lines = originalContent.split("\n");
 
@@ -35,12 +38,12 @@ export async function execute(
       }
     });
 
-    // Check if there's exactly one fromLine match
+    // Ensure exactly one fromLine match
     if (fromLineMatches.length === 0) {
-      return {error: `Could not find the fromLine "${fromLine}" in file ${file}`};
+      throw new Error(`[${name}] Could not find the fromLine "${fromLine}" in file ${file}`);
     }
     if (fromLineMatches.length > 1) {
-      return {error: `Found ${fromLineMatches.length} matches for fromLine "${fromLine}" in file ${file}. Expected exactly one match.`};
+      throw new Error(`[${name}] Found ${fromLineMatches.length} matches for fromLine "${fromLine}" in file ${file}. Expected exactly one match.`);
     }
 
     const fromLineIndex = fromLineMatches[0];
@@ -48,7 +51,6 @@ export async function execute(
     // Find toLine matches after the fromLine
     let toLineIndex = -1;
     let toLineMatches = 0;
-
     for (let i = fromLineIndex + 1; i < lines.length; i++) {
       if (normalizeWhitespace(lines[i]) === normalizedToLine) {
         toLineIndex = i;
@@ -56,19 +58,17 @@ export async function execute(
       }
     }
 
-    // Check if there's exactly one toLine match after fromLine
+    // Ensure exactly one toLine match after fromLine
     if (toLineMatches === 0) {
-      return {error: `Could not find the toLine "${toLine}" after fromLine "${fromLine}" in file ${file}`};
+      throw new Error(`[${name}] Could not find the toLine "${toLine}" after fromLine "${fromLine}" in file ${file}`);
     }
     if (toLineMatches > 1) {
-      return {error: `Found ${toLineMatches} matches for toLine "${toLine}" after fromLine "${fromLine}" in file ${file}. Expected exactly one match.`};
+      throw new Error(`[${name}] Found ${toLineMatches} matches for toLine "${toLine}" after fromLine "${fromLine}" in file ${file}. Expected exactly one match.`);
     }
 
     // Replace the content between fromLine and toLine (inclusive)
     const beforeLines = lines.slice(0, fromLineIndex);
     const afterLines = lines.slice(toLineIndex + 1);
-
-    // Split contents by newlines and combine with before/after
     const contentsLines = contents.split("\n");
     const patchedLines = [...beforeLines, ...contentsLines, ...afterLines];
     const patchedContent = patchedLines.join("\n");
@@ -76,15 +76,13 @@ export async function execute(
     // Write the patched content back to the file
     await fileSystem.writeFile(file, patchedContent);
 
-    chatService.infoLine(`[filePatch] Patched file: ${file}`);
+    chatService.infoLine(`[${name}] Patched file: ${file}`);
     fileSystem.setDirty(true);
 
-    // Return success message without tool prefix
     return `Successfully patched file ${file} replacing content from line "${fromLine}" to line "${toLine}"`;
   } catch (error: any) {
     const errMsg = `Failed to patch file ${file}: ${error.message}`;
-    chatService.errorLine(`[filePatch] ${errMsg}`);
-    return {error: errMsg};
+    throw new Error(`[${name}] ${errMsg}`);
   }
 }
 
