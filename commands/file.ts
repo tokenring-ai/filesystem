@@ -17,7 +17,12 @@ import FileSystemService from "../FileSystemService.ts";
 export const description: string =
   "/file [action] [files...] - Manage files in the chat session (select, add, remove, list, clear, defaults).";
 
-async function selectFiles(filesystem: any, chatService: any, humanInterfaceService: any) {
+// Updated function signatures to use concrete types instead of `any`
+async function selectFiles(
+  filesystem: FileSystemService,
+  chatService: ChatService,
+  humanInterfaceService: HumanInterfaceService,
+) {
   try {
     const selectedFiles = await humanInterfaceService.askForFileSelection(
       filesystem,
@@ -36,9 +41,9 @@ async function selectFiles(filesystem: any, chatService: any, humanInterfaceServ
 }
 
 async function addFiles(
-  filesystem: any,
-  chatService: any,
-  _humanInterfaceService: any,
+  filesystem: FileSystemService,
+  chatService: ChatService,
+  _humanInterfaceService: HumanInterfaceService,
   filesToAdd: string[],
 ) {
   let addedCount = 0;
@@ -60,9 +65,9 @@ async function addFiles(
 }
 
 async function removeFiles(
-  filesystem: any,
-  chatService: any,
-  _humanInterfaceService: any,
+  filesystem: FileSystemService,
+  chatService: ChatService,
+  _humanInterfaceService: HumanInterfaceService,
   filesToRemove: string[],
 ) {
   let removedCount = 0;
@@ -83,7 +88,7 @@ async function removeFiles(
   }
 }
 
-async function listFiles(filesystem: any, chatService: any) {
+async function listFiles(filesystem: FileSystemService, chatService: ChatService) {
   const filesInChat: string[] = Array.from(await filesystem.getFilesInChat());
 
   if (!filesInChat || filesInChat.length === 0) {
@@ -97,12 +102,12 @@ async function listFiles(filesystem: any, chatService: any) {
   });
 }
 
-async function clearFiles(filesystem: any, chatService: any) {
+async function clearFiles(filesystem: FileSystemService, chatService: ChatService) {
   await filesystem.setFilesInChat([]);
   chatService.systemLine("Cleared all files from the chat session.");
 }
 
-async function defaultFiles(filesystem: any, chatService: any) {
+async function defaultFiles(filesystem: FileSystemService, chatService: ChatService) {
   const defaultFiles: string[] = filesystem.getDefaultFiles();
 
   await filesystem.setFilesInChat(defaultFiles);

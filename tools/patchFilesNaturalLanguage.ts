@@ -3,6 +3,7 @@ import ChatService from "@token-ring/chat/ChatService";
 import type { Registry } from "@token-ring/registry";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
+import type AIChatClient from "@token-ring/ai-client/client/AIChatClient";
 
 const systemPrompt = `
 :The user has provided a file, and a natural language description of an adjustment or patch that needs to be made to the file.
@@ -66,13 +67,14 @@ export async function execute(
       } as const;
 
       // Get an online chat client
-      let patchClient: any;
+      let patchClient: AIChatClient;
       try {
         patchClient = await modelRegistry.chat.getFirstOnlineClient({
           name: "default",
         });
-      } catch (error: any) {
-        throw new Error(`No online chat client available: ${error.message}`);
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        throw new Error(`No online chat client available: ${errMsg}`);
       }
 
       // Get patched content from LLM
@@ -98,8 +100,9 @@ export async function execute(
 
       patchedFiles.push(file);
       chatService.infoLine(`[${name}] Successfully patched file: ${file}`);
-    } catch (error: any) {
-      throw new Error(`[${name}] Failed to patch file ${file}: ${error.message}`);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(`[${name}] Failed to patch file ${file}: ${errMsg}`);
     }
   }
 

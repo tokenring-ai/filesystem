@@ -23,11 +23,13 @@ export async function execute(
     fileSystemType?: string;
   },
   registry: Registry,
-): Promise<any> {
+): Promise<string | string[] | Array<{ file: string; exists: boolean; content: string | null; error?: string }>> {
   const chatService = registry.requireFirstServiceByType(ChatService);
   const fileSystem = registry.requireFirstServiceByType(FileSystemService);
 
   chatService.infoLine(`[${name}] Using ${fileSystem.name} file system`);
+
+  console.log({ files, searches, linesBefore, linesAfter, returnType, fileSystemType});
 
   // Validate parameters
   if (!files && !searches) {

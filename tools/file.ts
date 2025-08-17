@@ -140,8 +140,9 @@ export async function execute(
       default:
         throw new Error(`[${name}] Unsupported action '${action}'. Supported actions are: create, update, delete, rename, adjust`);
     }
-  } catch (err: any) {
-    throw new Error(`[${name}] Error performing ${action} operation: ${err.message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`[${name}] Error performing ${action} operation: ${message}`);
   }
 }
 

@@ -7,10 +7,9 @@ import FileSystemService, { ExecuteCommandResult } from "../FileSystemService.ts
 export const name = "filesystem/runShellCommand";
 
 export async function execute(
-  { command, timeoutSeconds = 60, env = {}, workingDirectory }: {
+  { command, timeoutSeconds = 60, workingDirectory }: {
     command?: string | string[];
     timeoutSeconds?: number;
-    env?: Record<string, string>;
     workingDirectory?: string;
   },
   registry: Registry,
@@ -37,7 +36,6 @@ export async function execute(
   try {
     const result = await fileSystem.executeCommand(command, {
       timeoutSeconds,
-      env,
       workingDirectory: workingDirectory ?? "./",
     });
 
@@ -47,9 +45,10 @@ export async function execute(
     }
 
     return result;
-  } catch (err: any) {
-    // Throw the error to conform with specification
-    throw new Error(`[${name}] ${err.message}`);
+  } catch (err: unknown) {
+    // Extract error message safely
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`[${name}] ${message}`);
   }
 }
 
@@ -63,10 +62,6 @@ export const parameters = z.object({
     .int()
     .optional()
     .describe("Timeout for the command in seconds (default 60, max 600)"),
-  env: z
-    .record(z.string())
-    .optional()
-    .describe("Environment variables as key/value pairs."),
   workingDirectory: z
     .string()
     .optional()

@@ -80,9 +80,14 @@ export async function execute(
     fileSystem.setDirty(true);
 
     return `Successfully patched file ${file} replacing content from line "${fromLine}" to line "${toLine}"`;
-  } catch (error: any) {
-    const errMsg = `Failed to patch file ${file}: ${error.message}`;
-    throw new Error(`[${name}] ${errMsg}`);
+  } catch (error: unknown) {
+    let errMsg: string;
+    if (error instanceof Error) {
+      errMsg = error.message;
+    } else {
+      errMsg = String(error);
+    }
+    throw new Error(`[${name}] Failed to patch file ${file}: ${errMsg}`);
   }
 }
 

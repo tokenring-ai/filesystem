@@ -12,26 +12,6 @@ export interface MatchItem {
  * Class representing a file tree context extending DirectoryService.
  */
 export default class FileMatchResource extends Resource {
-  static constructorProperties = {
-    items: {
-      type: "array",
-      description: "Files to match",
-      items: {
-        type: "object",
-        properties: {
-          path: {
-            type: "string",
-            required: true,
-            description: "Path to directory to include",
-          },
-          ignore: {
-            type: "string",
-            description: "A .gitignore/node-glob ignore style list of files to ignore",
-          },
-        },
-      },
-    },
-  } as const;
   name = "FileMatchResource";
   description = "Provides file matching functionality";
   private readonly items: MatchItem[];
