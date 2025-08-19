@@ -23,20 +23,18 @@ async function selectFiles(
   chatService: ChatService,
   humanInterfaceService: HumanInterfaceService,
 ) {
-  try {
-    const selectedFiles = await humanInterfaceService.askForFileSelection(
-      filesystem,
-      {
-        initialSelection: Array.from(filesystem.getFilesInChat()),
-      },
-    );
-
+  const selectedFiles = await humanInterfaceService.askForFileSelection(
+    filesystem,
+    {
+      initialSelection: Array.from(filesystem.getFilesInChat()),
+    },
+  );
+  if (selectedFiles) {
     filesystem.setFilesInChat(selectedFiles);
+
     chatService.systemLine(
       `Selected ${selectedFiles.length} files for chat session`,
     );
-  } catch (error) {
-    chatService.errorLine("Error during file selection:", error);
   }
 }
 
@@ -120,6 +118,7 @@ async function defaultFiles(filesystem: FileSystemService, chatService: ChatServ
 /**
  * Returns help information for the file command
  */
+// noinspection JSUnusedGlobalSymbols
 export function help(): Array<string> {
   return [
     "/file [action] [files...] - Manage files in the chat session",

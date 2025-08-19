@@ -1,13 +1,13 @@
 import ChatService from "@token-ring/chat/ChatService";
-import type { Registry } from "@token-ring/registry";
-import { z } from "zod";
-import FileSystemService, { ExecuteCommandResult } from "../FileSystemService.ts";
+import type {Registry} from "@token-ring/registry";
+import {z} from "zod";
+import FileSystemService, {ExecuteCommandResult} from "../FileSystemService.ts";
 
 // Export tool name with package prefix
-export const name = "filesystem/runShellCommand";
+export const name = "terminal/runShellCommand";
 
 export async function execute(
-  { command, timeoutSeconds = 60, workingDirectory }: {
+  {command, timeoutSeconds = 60, workingDirectory}: {
     command?: string | string[];
     timeoutSeconds?: number;
     workingDirectory?: string;
@@ -55,7 +55,7 @@ export async function execute(
 export const description =
   "Run a shell command using the specified file system. Output is truncated to reasonable size. WARNING: Use with caution. Not sandboxed!";
 
-export const parameters = z.object({
+export const inputSchema = z.object({
   command: z.string().describe("The shell command to execute."),
   timeoutSeconds: z
     .number()

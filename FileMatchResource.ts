@@ -23,8 +23,6 @@ export default class FileMatchResource extends Resource {
 
   /**
    * Asynchronously gets matched files
-   * @param registry The package registry
-   * @yields The relative path of the matched files
    */
   async* getMatchedFiles(registry: Registry): AsyncGenerator<string> {
     const fileSystem = registry.requireFirstServiceByType(FileSystemService);

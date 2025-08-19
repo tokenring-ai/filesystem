@@ -1,32 +1,30 @@
 {
-	"name": "@token-ring/filesystem",
-	"version": "0.1.0",
+ "name": "@token-ring/filesystem",
+ "version": "0.1.0",
  "description": "A filesystem abstraction for Token Ring",
-	"dependencies": {
-		"@token-ring/ai-client": "0.1.0",
-		"@token-ring/chat": "0.1.0",
-		"@token-ring/registry": "0.1.0",
-		"ignore": "^7.0.5",
-		"path-browserify": "^1.0.1"
-	},
-	"devDependencies": {
-
-		"vitest": "^3.2.4",
-		"@vitest/coverage-v8": "^3.2.4"
-	},
-	"exports": {
-		".": "./index.ts",
-		"./*": "./*.ts"
-	},
-	"license": "MIT",
-	"scripts": {
-		"test": "vitest run",
-		"test:watch": "vitest",
-		"test:coverage": "vitest run --coverage",
-		"test:integration": "vitest run runShellCommand.integration.test.ts",
-		"test:e2e": "vitest run runShellCommand.e2e.test.ts",
-		"test:all": "vitest run && node test/integration-runner.ts"
-
-	},
-	"type": "module"
+ "dependencies": {
+  "@token-ring/ai-client": "0.1.0",
+  "@token-ring/chat": "0.1.0",
+  "@token-ring/registry": "0.1.0",
+  "ignore": "^7.0.5",
+  "path-browserify": "^1.0.1"
+ },
+ "devDependencies": {
+  "vitest": "^3.2.4",
+  "@vitest/coverage-v8": "^3.2.4"
+ },
+ "exports": {
+  ".": "./index.ts",
+  "./*": "./*.ts"
+ },
+ "license": "MIT",
+ "scripts": {
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "test:coverage": "vitest run --coverage",
+  "test:integration": "vitest run runShellCommand.integration.test.ts",
+  "test:e2e": "vitest run runShellCommand.e2e.test.ts",
+  "test:all": "vitest run && node test/integration-runner.ts"
+ },
+ "type": "module"
 }

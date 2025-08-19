@@ -1,6 +1,6 @@
 import ChatService from "@token-ring/chat/ChatService";
-import type { Registry } from "@token-ring/registry";
-import { z } from "zod";
+import type {Registry} from "@token-ring/registry";
+import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
 /**
@@ -8,7 +8,7 @@ import FileSystemService from "../FileSystemService.ts";
  * All informational messages are prefixed with the tool name `[regexPatch]`.
  * Errors are thrown as exceptions with the tool name prefix.
  */
-export const name = "filesystem/regexPatch";
+export const name = "file/regexPatch";
 const toolName = name.split("/")[1]; // "regexPatch"
 
 export async function execute(
@@ -69,7 +69,7 @@ export async function execute(
 export const description =
   "Patches a file using regular expressions to match the beginning and end of a code block to replace.";
 
-export const parameters = z.object({
+export const inputSchema = z.object({
   file: z
     .string()
     .describe("Path to the file to patch, relative to the source directory."),

@@ -1,5 +1,6 @@
 import ChatService from "@token-ring/chat/ChatService";
 import {type Registry, Service} from "@token-ring/registry";
+import {MemoryItemMessage} from "@token-ring/registry/Service";
 import ignore from "ignore";
 
 export interface StatLike {
@@ -49,11 +50,6 @@ export interface GrepOptions {
   includeContent?: { linesBefore?: number; linesAfter?: number };
 }
 
-export interface MemoryItem {
-  role: "system" | "user" | string;
-  content: string;
-}
-
 /**
  * FileSystem is an abstract class that provides a unified interface
  * for file operations, allowing for different implementations of file systems.
@@ -61,9 +57,9 @@ export interface MemoryItem {
 export default class FileSystemService extends Service {
   name = "FileSystem";
   description = "Abstract interface for virtual file system operations";
+  dirty = false;
   protected defaultSelectedFiles: string[];
   protected manuallySelectedFiles: Set<string>;
-  dirty = false;
   protected registry!: Registry;
 
   /**
@@ -91,7 +87,6 @@ export default class FileSystemService extends Service {
 
   /**
    * Create an ignore filter for files
-   * @returns A filter function that returns true for files to ignore
    * @private
    */
   async createIgnoreFilter(): Promise<(p: string) => boolean> {
@@ -146,6 +141,10 @@ export default class FileSystemService extends Service {
   // file ops
   async writeFile(_path: string, _content: string | Buffer): Promise<boolean> {
     throw new Error("Method 'writeFile' must be implemented by subclasses");
+  }
+
+  async appendFile(_filePath: string, _finalContent: string | Buffer): Promise<boolean> {
+    throw new Error("Method 'appendFile' must be implemented by subclasses");
   }
 
   async deleteFile(_path: string): Promise<boolean> {
@@ -263,7 +262,7 @@ export default class FileSystemService extends Service {
   /**
    * Asynchronously yields memories from manually selected files.
    */
-  async* getMemories(_registry: Registry): AsyncGenerator<MemoryItem> {
+  async* getMemories(_registry: Registry): AsyncGenerator<MemoryItemMessage> {
     for (const file of this.manuallySelectedFiles) {
       const content = await this.getFile(file);
       yield {

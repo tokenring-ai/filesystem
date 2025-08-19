@@ -1,9 +1,9 @@
+import type AIChatClient from "@token-ring/ai-client/client/AIChatClient";
 import ModelRegistry from "@token-ring/ai-client/ModelRegistry";
 import ChatService from "@token-ring/chat/ChatService";
-import type { Registry } from "@token-ring/registry";
-import { z } from "zod";
+import type {Registry} from "@token-ring/registry";
+import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
-import type AIChatClient from "@token-ring/ai-client/client/AIChatClient";
 
 const systemPrompt = `
 :The user has provided a file, and a natural language description of an adjustment or patch that needs to be made to the file.
@@ -11,7 +11,7 @@ const systemPrompt = `
 :`.trim();
 
 // Export tool name with package prefix
-export const name = "filesystem/patchFilesNaturalLanguage";
+export const name = "file/patchFilesNaturalLanguage";
 
 /**
  * Executes the natural language patch tool.
@@ -19,7 +19,7 @@ export const name = "filesystem/patchFilesNaturalLanguage";
  * Returns a success message string. Errors are thrown.
  */
 export async function execute(
-  { files, naturalLanguagePatch }: { files?: string[]; naturalLanguagePatch?: string },
+  {files, naturalLanguagePatch}: { files?: string[]; naturalLanguagePatch?: string },
   registry: Registry,
 ): Promise<string> {
   const chatService = registry.requireFirstServiceByType(ChatService);
@@ -53,7 +53,7 @@ export async function execute(
       // Generate patch using LLM via the new chat API
       const patchRequest = {
         input: [
-          { role: "system", content: systemPrompt },
+          {role: "system", content: systemPrompt},
           {
             role: "user",
             content: `Original File Content (${file}):\n\`\`\`\n${originalContent}\n\`\`\`\n\nNatural Language Patch Description:\n\`\`\`${naturalLanguagePatch}\`\`\``,
@@ -78,7 +78,7 @@ export async function execute(
       }
 
       // Get patched content from LLM
-      const [{ patchedContent }] = await patchClient.generateObject(
+      const [{patchedContent}] = await patchClient.generateObject(
         patchRequest,
         registry,
       );
@@ -113,7 +113,7 @@ export async function execute(
 export const description =
   "Patches multiple files using a natural language description, processed by an LLM. Includes code extraction from markdown, line ending preservation, file type validation, and optional diff preview for critical files.";
 
-export const parameters = z.object({
+export const inputSchema = z.object({
   files: z.array(z.string(), {
     description: "List of file paths to patch, relative to the source directory.",
   }),

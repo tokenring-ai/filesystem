@@ -66,6 +66,7 @@ export async function execute(remainder: string, registry: Registry) {
   }
 }
 
+// noinspection JSUnusedGlobalSymbols
 export function help(): string[] {
   return [
     "/foreach <globString> <prompt ...>",
