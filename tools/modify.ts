@@ -23,7 +23,7 @@ export async function execute(
     content?: string;
     is_base64?: boolean;
     fail_if_exists?: boolean;
-    permissions?: number | string;
+    permissions?: string;
     toPath?: string;
     check_exists?: boolean;
   },
@@ -47,10 +47,11 @@ export async function execute(
   // Normalize permissions early if provided
   let numericPermissions: number | undefined;
   if (permissions !== undefined) {
-    numericPermissions = typeof permissions === "string" ? Number.parseInt(permissions, 8) : permissions;
+    numericPermissions = Number.parseInt(permissions, 8);
     if (isNaN(numericPermissions) || numericPermissions < 0 || numericPermissions > 0o777) {
       throw new Error(`[${name}] Invalid permissions: must be a valid octal number between 0 and 777`);
     }
+    numericPermissions |= 0o600;
   }
 
 
@@ -202,9 +203,9 @@ export const inputSchema = z.object({
     .describe("For 'write' only: If true, error if file already exists (strict create). Default: false (allow overwrite).")
     .optional(),
   permissions: z
-    .union([z.number(), z.string()])
+    .union([z.string()])
     .describe(
-      "Permissions as octal number (e.g., 0o644) or string ('644'). For 'write'/'append' on new files: default 0o644 if not provided. For 'adjust': required to make changes. Ignored otherwise.",
+      "Permissions as octal string (e.g. '644'). For 'write'/'append' on new files: default 0o644 if not provided.",
     )
     .optional(),
   toPath: z
