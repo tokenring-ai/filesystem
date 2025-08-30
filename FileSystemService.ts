@@ -1,54 +1,17 @@
 import ChatService from "@token-ring/chat/ChatService";
 import {type Registry, Service} from "@token-ring/registry";
 import {MemoryItemMessage} from "@token-ring/registry/Service";
+import GenericSingularRegistry from "@token-ring/utility/GenericSingularRegistry";
 import ignore from "ignore";
+import FileSystemProvider, {
+  DirectoryTreeOptions,
+  ExecuteCommandOptions, ExecuteCommandResult,
+  GlobOptions, GrepOptions, GrepResult,
+  StatLike,
+  WatchOptions
+} from "./FileSystemProvider.js";
 
-export interface StatLike {
-  path: string;
-  absolutePath?: string;
-  isFile: boolean;
-  isDirectory: boolean;
-  isSymbolicLink?: boolean;
-  size?: number;
-  created?: Date;
-  modified?: Date;
-  accessed?: Date;
-}
-
-export interface DirectoryTreeOptions {
-  ig?: (path: string) => boolean;
-  recursive?: boolean;
-}
-
-export interface GlobOptions {
-  ig?: (path: string) => boolean;
-  absolute?: boolean;
-}
-
-export interface WatchOptions {
-  ig?: (path: string) => boolean;
-  pollInterval?: number;
-  stabilityThreshold?: number;
-}
-
-export interface ExecuteCommandOptions {
-  timeoutSeconds?: number;
-  env?: Record<string, string | undefined>;
-  workingDirectory?: string;
-}
-
-export interface ExecuteCommandResult {
-  ok: boolean;
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  error?: string;
-}
-
-export interface GrepOptions {
-  ignoreFilter?: (path: string) => boolean;
-  includeContent?: { linesBefore?: number; linesAfter?: number };
-}
+type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
 /**
  * FileSystem is an abstract class that provides a unified interface
@@ -58,9 +21,18 @@ export default class FileSystemService extends Service {
   name = "FileSystem";
   description = "Abstract interface for virtual file system operations";
   dirty = false;
+
   protected defaultSelectedFiles: string[];
   protected manuallySelectedFiles: Set<string>;
   protected registry!: Registry;
+
+  private fileSystemProviderRegistry = new GenericSingularRegistry<FileSystemProvider>();
+
+  registerFileSystemProvider = this.fileSystemProviderRegistry.register;
+  getActiveFileSystemProviderName = this.fileSystemProviderRegistry.getActiveItemName;
+  setActiveFileSystemProviderName = this.fileSystemProviderRegistry.setEnabledItem;
+  getAvailableFileSystemProviders = this.fileSystemProviderRegistry.getAllItemNames;
+
 
   /**
    * Creates an instance of FileSystem
@@ -71,18 +43,19 @@ export default class FileSystemService extends Service {
     this.manuallySelectedFiles = new Set(defaultSelectedFiles);
   }
 
+
   // Base directory getter for implementations that are rooted (e.g., local FS)
   getBaseDirectory(): string {
-    throw new Error("Method 'getBaseDirectory' must be implemented by subclasses");
+    return this.fileSystemProviderRegistry.getActiveItem().getBaseDirectory();
   }
 
   // Path helpers for implementations that map relative/absolute paths
-  relativeOrAbsolutePathToAbsolutePath(_p: string): string {
-    throw new Error("Method 'relativeOrAbsolutePathToAbsolutePath' must be implemented by subclasses");
+  relativeOrAbsolutePathToAbsolutePath(p: string): string {
+    return this.fileSystemProviderRegistry.getActiveItem().relativeOrAbsolutePathToAbsolutePath(p);
   }
 
-  relativeOrAbsolutePathToRelativePath(_p: string): string {
-    throw new Error("Method 'relativeOrAbsolutePathToRelativePath' must be implemented by subclasses");
+  relativeOrAbsolutePathToRelativePath(p: string): string {
+    return this.fileSystemProviderRegistry.getActiveItem().relativeOrAbsolutePathToRelativePath(p);
   }
 
   /**
@@ -131,75 +104,77 @@ export default class FileSystemService extends Service {
     chatContext.off("clear", this.clearFilesFromChat.bind(this));
   }
 
-  // ABSTRACT INTERFACE
+
   // Directory walking
-  // eslint-disable-next-line require-yield
-  async* getDirectoryTree(_path: string, _params?: DirectoryTreeOptions): AsyncGenerator<string> {
-    throw new Error("Method 'getDirectoryTree' must be implemented by subclasses");
+  async* getDirectoryTree(path: string, params: Optional<DirectoryTreeOptions,"ignoreFilter"> = {}): AsyncGenerator<string> {
+    params.ignoreFilter ??= await this.createIgnoreFilter();
+    yield* this.fileSystemProviderRegistry.getActiveItem().getDirectoryTree(path, params as DirectoryTreeOptions);
   }
 
   // file ops
-  async writeFile(_path: string, _content: string | Buffer): Promise<boolean> {
-    throw new Error("Method 'writeFile' must be implemented by subclasses");
+  async writeFile(path: string, content: string | Buffer): Promise<boolean> {
+    return this.fileSystemProviderRegistry.getActiveItem().writeFile(path, content);
   }
 
-  async appendFile(_filePath: string, _finalContent: string | Buffer): Promise<boolean> {
-    throw new Error("Method 'appendFile' must be implemented by subclasses");
+  async appendFile(filePath: string, finalContent: string | Buffer): Promise<boolean> {
+    return this.fileSystemProviderRegistry.getActiveItem().appendFile(filePath, finalContent);
   }
 
-  async deleteFile(_path: string): Promise<boolean> {
-    throw new Error("Method 'deleteFile' must be implemented by subclasses");
+  async deleteFile(path: string): Promise<boolean> {
+    return this.fileSystemProviderRegistry.getActiveItem().deleteFile(path);
   }
-
   async getFile(path: string): Promise<string | null> {
-    return await this.readFile(path, "utf8" as BufferEncoding);
+    return this.fileSystemProviderRegistry.getActiveItem().getFile(path);
   }
 
-  async readFile(_path: string, _encoding?: BufferEncoding | "buffer"): Promise<any> {
-    throw new Error("Method 'readFile' must be implemented by subclasses");
+  async readFile(path: string, encoding?: BufferEncoding | "buffer"): Promise<any> {
+    return this.fileSystemProviderRegistry.getActiveItem().readFile(path, encoding);
   }
 
-  async rename(_oldPath: string, _newPath: string): Promise<boolean> {
-    throw new Error("Method 'rename' must be implemented by subclasses");
+  async rename(oldPath: string, newPath: string): Promise<boolean> {
+    return this.fileSystemProviderRegistry.getActiveItem().rename(oldPath, newPath);
   }
 
-  async exists(_path: string): Promise<boolean> {
-    throw new Error("Method 'exists' must be implemented by subclasses");
+  async exists(path: string): Promise<boolean> {
+    return this.fileSystemProviderRegistry.getActiveItem().exists(path);
   }
 
-  async stat(_path: string): Promise<StatLike> {
-    throw new Error("Method 'stat' must be implemented by subclasses");
+  async stat(path: string): Promise<StatLike> {
+    return this.fileSystemProviderRegistry.getActiveItem().stat(path);
   }
 
-  async createDirectory(_path: string, _options: { recursive?: boolean } = {}): Promise<boolean> {
-    throw new Error("Method 'createDirectory' must be implemented by subclasses");
+  async createDirectory(path: string, options: { recursive?: boolean } = {}): Promise<boolean> {
+    return this.fileSystemProviderRegistry.getActiveItem().createDirectory(path, options);
   }
 
-  async copy(_source: string, _destination: string, _options: { overwrite?: boolean } = {}): Promise<boolean> {
-    throw new Error("Method 'copy' must be implemented by subclasses");
+  async copy(source: string, destination: string, options: { overwrite?: boolean } = {}): Promise<boolean> {
+    return this.fileSystemProviderRegistry.getActiveItem().copy(source, destination, options);
   }
 
-  async chmod(_path: string, _mode: number): Promise<boolean> {
-    throw new Error("Method 'chmod' must be implemented by subclasses");
+  async chmod(path: string, mode: number): Promise<boolean> {
+    return this.fileSystemProviderRegistry.getActiveItem().chmod(path, mode);
   }
 
-  async glob(_pattern: string, _options: GlobOptions = {}): Promise<string[]> {
-    throw new Error("Method 'glob' must be implemented by subclasses");
+  async glob(pattern: string, options: Optional<GlobOptions,"ignoreFilter"> = {}): Promise<string[]> {
+    options.ignoreFilter = options.ignoreFilter ?? (await this.createIgnoreFilter());
+    return this.fileSystemProviderRegistry.getActiveItem().glob(pattern, options as GlobOptions);
   }
 
-  async watch(_dir: string, _options: WatchOptions = {}): Promise<any> {
-    throw new Error("Method 'watch' must be implemented by subclasses");
+  async watch(dir: string, options: Optional<WatchOptions,"ignoreFilter"> = {}): Promise<any> {
+    options.ignoreFilter ??= await this.createIgnoreFilter();
+    return this.fileSystemProviderRegistry.getActiveItem().watch(dir, options as WatchOptions);
   }
 
-  async executeCommand(_command: string | string[], _options: ExecuteCommandOptions = {}): Promise<ExecuteCommandResult> {
-    throw new Error("Method 'executeCommand' must be implemented by subclasses");
+  async executeCommand(command: string | string[], options: ExecuteCommandOptions = {}): Promise<ExecuteCommandResult> {
+    return this.fileSystemProviderRegistry.getActiveItem().executeCommand(command, options);
   }
 
   async grep(
-    _searchString: string | string[],
-    _options: GrepOptions = {},
-  ): Promise<Array<{ file: string; line: number; match: string; matchedString?: string; content: string | null }>> {
-    throw new Error("Method 'grep' must be implemented by subclasses");
+    searchString: string | string[],
+    options: Optional<GrepOptions,"ignoreFilter"> = {},
+  ): Promise<GrepResult[]> {
+    options.ignoreFilter ??= await this.createIgnoreFilter();
+    return this.fileSystemProviderRegistry.getActiveItem().grep(searchString, options as GrepOptions);
   }
 
   // dirty flag

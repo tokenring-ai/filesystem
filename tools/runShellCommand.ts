@@ -1,7 +1,8 @@
 import ChatService from "@token-ring/chat/ChatService";
 import type {Registry} from "@token-ring/registry";
 import {z} from "zod";
-import FileSystemService, {ExecuteCommandResult} from "../FileSystemService.ts";
+import {ExecuteCommandResult} from "../FileSystemProvider.js";
+import FileSystemService from "../FileSystemService.ts";
 
 // Export tool name with package prefix
 export const name = "terminal/runShellCommand";

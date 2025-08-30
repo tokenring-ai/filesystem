@@ -1,4 +1,4 @@
-import {type Registry, Resource} from "@token-ring/registry";
+import {type Registry} from "@token-ring/registry";
 // Keep .ts extension for NodeNext/ESM compatibility in TS source
 import FileSystemService from "./FileSystemService.ts";
 
@@ -8,16 +8,17 @@ export interface MatchItem {
   exclude?: RegExp;
 }
 
+export interface FileMatchResourceConfig {
+  items: MatchItem[];
+}
+
 /**
  * Class representing a file tree context extending DirectoryService.
  */
-export default class FileMatchResource extends Resource {
-  name = "FileMatchResource";
-  description = "Provides file matching functionality";
+export default class FileMatchResource {
   private readonly items: MatchItem[];
 
   constructor({items}: { items: MatchItem[] }) {
-    super();
     this.items = items;
   }
 
