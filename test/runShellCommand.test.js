@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execute } from "../tools/runShellCommand.js";
 
 // Mock the required service modules
-vi.mock("@token-ring/chat/ChatService", () => ({
+vi.mock("@tokenring-ai/chat/ChatService", () => ({
 	default: class ChatService {},
 }));
 

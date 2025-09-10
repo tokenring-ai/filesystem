@@ -1,5 +1,4 @@
-import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -46,12 +45,11 @@ export async function execute(
     caseSensitive?: boolean;
     matchType?: "substring" | "whole-word" | "regex";
   },
-  registry: Registry,
+  agent: Agent,
 ): Promise<FileSearchResult> {
-  const chatService = registry.requireFirstServiceByType(ChatService);
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
-  chatService.infoLine(`[${name}] Using ${fileSystem.name} file system`);
+  agent.infoLine(`[${name}] Using ${fileSystem.name} file system`);
 
   //console.log({files, searches, linesBefore, linesAfter, returnType, caseSensitive, matchType});
 
@@ -91,7 +89,7 @@ export async function execute(
 
   // Search mode - searching across all files
   if (searches && !files) {
-    return await fileSearch(searches, linesBefore, linesAfter, returnType, caseSensitive, matchType, fileSystem, chatService);
+    return await fileSearch(searches, linesBefore, linesAfter, returnType, caseSensitive, matchType, fileSystem, agent);
   }
 
   // Retrieve files first (whether to return them directly or search within them)
@@ -105,7 +103,7 @@ export async function execute(
         // Use Unix-style '/' separators regardless of platform.
         // If it's a glob pattern, resolve it
         if (filePattern.includes("*") || filePattern.includes("?")) {
-          chatService.infoLine(`[${name}] Resolving glob pattern: ${filePattern}`);
+          agent.infoLine(`[${name}] Resolving glob pattern: ${filePattern}`);
           const matchedFiles = await fileSystem.glob(filePattern);
           resolvedFiles.push(...matchedFiles);
         } else {
@@ -114,7 +112,7 @@ export async function execute(
         }
       } catch (err: any) {
         // Treat pattern resolution errors as informational
-        chatService.infoLine(`[${name}] Error resolving pattern ${filePattern}: ${err.message}`);
+        agent.infoLine(`[${name}] Error resolving pattern ${filePattern}: ${err.message}`);
       }
     }
 
@@ -126,11 +124,11 @@ export async function execute(
       return result;
     }
 
-    chatService.infoLine(`[${name}] Resolved ${resolvedFiles.length} files`);
+    agent.infoLine(`[${name}] Resolved ${resolvedFiles.length} files`);
   }
 
   if (resolvedFiles.length > 50 && returnType !== "names") {
-    chatService.infoLine(
+    agent.infoLine(
       `[${name}] Found ${resolvedFiles.length} files which exceeds the limit of 50 for '${returnType}' mode. Degrading to 'names' mode.`,
     );
     returnType = "names";
@@ -144,18 +142,18 @@ export async function execute(
     try {
       const exists = await fileSystem.exists(file);
       if (!exists) {
-        chatService.infoLine(`[${name}] Cannot retrieve file ${file}: file not found.`);
+        agent.infoLine(`[${name}] Cannot retrieve file ${file}: file not found.`);
         fileResults.push({file, exists: false, content: null});
         continue;
       }
 
       const content = returnType === "names" ? null : await fileSystem.getFile(file);
       if (returnType !== "names") {
-        chatService.infoLine(`[${name}] Retrieved file ${file}`);
+        agent.infoLine(`[${name}] Retrieved file ${file}`);
       }
       fileResults.push({file, exists: true, content});
     } catch (err: any) {
-      chatService.infoLine(`[${name}] Error retrieving ${file}: ${err.message}`);
+      agent.infoLine(`[${name}] Error retrieving ${file}: ${err.message}`);
       fileResults.push({file, exists: false, content: null, error: err.message});
     }
   }
@@ -165,7 +163,7 @@ export async function execute(
 
   // If we need to search within specific files
   if (searches && returnType === "matches") {
-    const matches = await searchInFiles(fileResults, searches, linesBefore, linesAfter, caseSensitive, matchType, chatService);
+    const matches = await searchInFiles(fileResults, searches, linesBefore, linesAfter, caseSensitive, matchType, agent);
     result.matches = matches.matches;
     result.summary.totalMatches = matches.matches.length;
     result.summary.limitExceeded = matches.limitExceeded;
@@ -185,9 +183,9 @@ async function fileSearch(
   caseSensitive: boolean,
   matchType: "substring" | "whole-word" | "regex",
   fileSystem: FileSystemService,
-  chatService: any,
+  agent: Agent,
 ): Promise<FileSearchResult> {
-  chatService.infoLine(`[${name}] Searching for patterns: ${JSON.stringify(searchPatterns)} with matchType: ${matchType}, caseSensitive: ${caseSensitive}`);
+  agent.infoLine(`[${name}] Searching for patterns: ${JSON.stringify(searchPatterns)} with matchType: ${matchType}, caseSensitive: ${caseSensitive}`);
 
   const result: FileSearchResult = {
     files: [],
@@ -218,7 +216,7 @@ async function fileSearch(
     }
 
     if (results.length > 50 && returnType === "matches") {
-      chatService.infoLine(
+      agent.infoLine(
         `[${name}] Found ${results.length} matches which exceeds the limit of 50 for 'matches' mode. Degrading to 'names' mode.`,
       );
 
@@ -264,12 +262,12 @@ async function searchInFiles(
   linesAfter: number,
   caseSensitive: boolean,
   matchType: "substring" | "whole-word" | "regex",
-  chatService: any,
+  agent: Agent,
 ): Promise<{
   matches: Array<{ file: string; line: number; match: string; matchedPattern: string; content: string | null }>;
   limitExceeded: boolean
 }> {
-  chatService.infoLine(
+  agent.infoLine(
     `[${name}] Searching for patterns: ${JSON.stringify(searchPatterns)} in ${fileResults.length} files with matchType: ${matchType}, caseSensitive: ${caseSensitive}`,
   );
 
@@ -325,7 +323,7 @@ async function searchInFiles(
                 matchedPattern = pattern;
               }
             } catch (e) {
-              chatService.infoLine(`[${name}] Invalid regex pattern: ${pattern}`);
+              agent.infoLine(`[${name}] Invalid regex pattern: ${pattern}`);
               continue;
             }
             break;
@@ -353,7 +351,7 @@ async function searchInFiles(
 
   let limitExceeded = false;
   if (allMatches.length > 50) {
-    chatService.infoLine(
+    agent.infoLine(
       `[${name}] Found ${allMatches.length} matches which exceeds the limit of 50 for 'matches' mode.`,
     );
     limitExceeded = true;

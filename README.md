@@ -1,12 +1,12 @@
-# @token-ring/filesystem
+# @tokenring-ai/filesystem
 
-This package, `@token-ring/filesystem`, provides an abstract service definition for file system interactions and a
+This package, `@tokenring-ai/filesystem`, provides an abstract service definition for file system interactions and a
 collection of tools and chat commands to operate on this abstraction. It forms a core part of the file system
 capabilities within the Token Ring ecosystem.
 
 **Important:** This package defines the *abstract* `FileSystemService`. Concrete implementations that provide actual
 file system access (e.g., for local disk operations or remote SSH connections) are expected to be provided by **other
-packages**, such as `@[token-ring]/local-filesystem` or `@[token-ring]/ssh-filesystem` (please replace these
+packages**, such as `@[tokenring-ai]/local-filesystem` or `@[tokenring-ai]/ssh-filesystem` (please replace these
 placeholders with the actual package names if known, or refer to the project's overall architecture documentation).
 
 ## Core Components

@@ -1,32 +1,51 @@
-import ChatService from "@token-ring/chat/ChatService";
-import {type Registry, Service} from "@token-ring/registry";
-import {MemoryItemMessage} from "@token-ring/registry/Service";
-import GenericSingularRegistry from "@token-ring/utility/GenericSingularRegistry";
+import Agent, {AgentStateSlice} from "@tokenring-ai/agent/Agent";
+import {ResetWhat} from "@tokenring-ai/agent/AgentEvents";
+import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceProvider";
+import {AskForMultipleTreeSelectionRequest} from "@tokenring-ai/agent/HumanInterfaceRequest";
+import {MemoryItemMessage, TokenRingService} from "@tokenring-ai/agent/types";
+import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/KeyedRegistryWithSingleSelection";
 import ignore from "ignore";
 import FileSystemProvider, {
   DirectoryTreeOptions,
-  ExecuteCommandOptions, ExecuteCommandResult,
-  GlobOptions, GrepOptions, GrepResult,
+  ExecuteCommandOptions,
+  ExecuteCommandResult,
+  GlobOptions,
+  GrepOptions,
+  GrepResult,
   StatLike,
   WatchOptions
 } from "./FileSystemProvider.js";
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
+class FileSystemState implements AgentStateSlice {
+  readonly initialSelectedFiles: Set<string>
+  selectedFiles: Set<string>
+
+  constructor({selectedFiles}: { selectedFiles: Set<string> }) {
+    this.initialSelectedFiles = new Set(selectedFiles);
+    this.selectedFiles = new Set(selectedFiles);
+  }
+
+  reset(what: ResetWhat[]): void {
+    if (what.includes('chat')) {
+      this.selectedFiles = new Set(this.initialSelectedFiles);
+    }
+  }
+}
+
 /**
  * FileSystem is an abstract class that provides a unified interface
  * for file operations, allowing for different implementations of file systems.
  */
-export default class FileSystemService extends Service {
+export default class FileSystemService implements TokenRingService {
   name = "FileSystem";
   description = "Abstract interface for virtual file system operations";
   dirty = false;
 
   protected defaultSelectedFiles: string[];
-  protected manuallySelectedFiles: Set<string>;
-  protected registry!: Registry;
 
-  private fileSystemProviderRegistry = new GenericSingularRegistry<FileSystemProvider>();
+  private fileSystemProviderRegistry = new KeyedRegistryWithSingleSelection<FileSystemProvider>();
 
   registerFileSystemProvider = this.fileSystemProviderRegistry.register;
   getActiveFileSystemProviderName = this.fileSystemProviderRegistry.getActiveItemName;
@@ -38,9 +57,7 @@ export default class FileSystemService extends Service {
    * Creates an instance of FileSystem
    */
   constructor({defaultSelectedFiles = [] as string[]}: { defaultSelectedFiles?: string[] } = {}) {
-    super();
     this.defaultSelectedFiles = defaultSelectedFiles;
-    this.manuallySelectedFiles = new Set(defaultSelectedFiles);
   }
 
 
@@ -91,22 +108,13 @@ export default class FileSystemService extends Service {
     return ig.ignores.bind(ig);
   }
 
-  /** Starts the service by registering commands. */
-  async start(registry: Registry): Promise<void> {
-    const chatContext = registry.requireFirstServiceByType(ChatService);
-    this.registry = registry;
-    chatContext.on("clear", this.clearFilesFromChat.bind(this));
+  async attach(agent: Agent): Promise<void> {
+    agent.initializeState(FileSystemState, {
+      selectedFiles: new Set(this.defaultSelectedFiles),
+    });
   }
-
-  /** Stops the service by unregistering commands. */
-  async stop(registry: Registry): Promise<void> {
-    const chatContext = registry.requireFirstServiceByType(ChatService);
-    chatContext.off("clear", this.clearFilesFromChat.bind(this));
-  }
-
-
   // Directory walking
-  async* getDirectoryTree(path: string, params: Optional<DirectoryTreeOptions,"ignoreFilter"> = {}): AsyncGenerator<string> {
+  async* getDirectoryTree(path: string, params: Optional<DirectoryTreeOptions, "ignoreFilter"> = {}): AsyncGenerator<string> {
     params.ignoreFilter ??= await this.createIgnoreFilter();
     yield* this.fileSystemProviderRegistry.getActiveItem().getDirectoryTree(path, params as DirectoryTreeOptions);
   }
@@ -123,6 +131,7 @@ export default class FileSystemService extends Service {
   async deleteFile(path: string): Promise<boolean> {
     return this.fileSystemProviderRegistry.getActiveItem().deleteFile(path);
   }
+
   async getFile(path: string): Promise<string | null> {
     return this.fileSystemProviderRegistry.getActiveItem().getFile(path);
   }
@@ -155,12 +164,12 @@ export default class FileSystemService extends Service {
     return this.fileSystemProviderRegistry.getActiveItem().chmod(path, mode);
   }
 
-  async glob(pattern: string, options: Optional<GlobOptions,"ignoreFilter"> = {}): Promise<string[]> {
+  async glob(pattern: string, options: Optional<GlobOptions, "ignoreFilter"> = {}): Promise<string[]> {
     options.ignoreFilter = options.ignoreFilter ?? (await this.createIgnoreFilter());
     return this.fileSystemProviderRegistry.getActiveItem().glob(pattern, options as GlobOptions);
   }
 
-  async watch(dir: string, options: Optional<WatchOptions,"ignoreFilter"> = {}): Promise<any> {
+  async watch(dir: string, options: Optional<WatchOptions, "ignoreFilter"> = {}): Promise<any> {
     options.ignoreFilter ??= await this.createIgnoreFilter();
     return this.fileSystemProviderRegistry.getActiveItem().watch(dir, options as WatchOptions);
   }
@@ -171,7 +180,7 @@ export default class FileSystemService extends Service {
 
   async grep(
     searchString: string | string[],
-    options: Optional<GrepOptions,"ignoreFilter"> = {},
+    options: Optional<GrepOptions, "ignoreFilter"> = {},
   ): Promise<GrepResult[]> {
     options.ignoreFilter ??= await this.createIgnoreFilter();
     return this.fileSystemProviderRegistry.getActiveItem().grep(searchString, options as GrepOptions);
@@ -187,47 +196,40 @@ export default class FileSystemService extends Service {
   }
 
   // chat file selection
-  async addFileToChat(file: string): Promise<void> {
+  async addFileToChat(file: string, agent: Agent): Promise<void> {
     if (!(await this.exists(file))) {
       throw new Error(`Could not find file to add to chat: ${file}`);
     }
-    this.manuallySelectedFiles.add(file);
+    agent.mutateState(FileSystemState, (state: FileSystemState) => {
+      state.selectedFiles.add(file);
+    })
   }
 
-  removeFileFromChat(file: string): void {
-    if (this.manuallySelectedFiles.has(file)) {
-      this.manuallySelectedFiles.delete(file);
-    } else {
-      throw new Error(
-        `File ${file} was not found in the chat context and could not be removed.`,
-      );
-    }
+  removeFileFromChat(file: string, agent: Agent): void {
+    agent.mutateState(FileSystemState, (state: FileSystemState) => {
+      if (state.selectedFiles.has(file)) {
+        state.selectedFiles.delete(file);
+      } else {
+        throw new Error(
+          `File ${file} was not found in the chat context and could not be removed.`,
+        );
+      }
+    });
   }
 
-  /**
-   * Clears file references from the chat when the chat is cleared
-   * This is a callback for the 'clear' event on ChatService.
-   * @private
-   */
-  clearFilesFromChat(type: string): void {
-    if (type === 'chat') {
-      this.manuallySelectedFiles.clear();
-      const chatService = this.registry.getFirstServiceByType(ChatService);
-      if (chatService) {
-        chatService.systemLine("[FileSystemService] Clearing file references");
+  getFilesInChat(agent: Agent): Set<string> {
+    return agent.getState(FileSystemState).selectedFiles;
+  }
+
+  async setFilesInChat(files: Iterable<string>, agent: Agent): Promise<void> {
+    for (const file of files) {
+      if (!(await this.exists(file))) {
+        throw new Error(`Could not find file to add to chat: ${file}`);
       }
     }
-  }
-
-  getFilesInChat(): Set<string> {
-    return this.manuallySelectedFiles;
-  }
-
-  setFilesInChat(files: Iterable<string>): void {
-    this.manuallySelectedFiles.clear();
-    for (const file of files) {
-      this.manuallySelectedFiles.add(file);
-    }
+    agent.mutateState(FileSystemState, (state: FileSystemState) => {
+      state.selectedFiles = new Set(files);
+    });
   }
 
   getDefaultFiles(): string[] {
@@ -237,13 +239,63 @@ export default class FileSystemService extends Service {
   /**
    * Asynchronously yields memories from manually selected files.
    */
-  async* getMemories(_registry: Registry): AsyncGenerator<MemoryItemMessage> {
-    for (const file of this.manuallySelectedFiles) {
+  async* getMemories(agent: Agent): AsyncGenerator<MemoryItemMessage> {
+    for (const file of agent.getState(FileSystemState).selectedFiles) {
       const content = await this.getFile(file);
       yield {
         role: "user",
         content: `// ${file}\n${content}`,
       };
     }
+  }
+
+
+  /**
+   * Asks the user to select an item from a tree structure using
+   */
+  async askForFileSelection(
+    options: { initialSelection?: Iterable<string> | undefined } = {},
+    agent: Agent,
+  ): Promise<Array<string> | null> {
+    const buildTree = async (path = ""): Promise<Array<TreeLeaf>> => {
+      const children: Array<TreeLeaf> = [];
+
+      for await (const itemPath of this.getDirectoryTree(path, {
+        recursive: false,
+      })) {
+        if (itemPath.endsWith("/")) {
+          // Directory
+          const dirName = itemPath.substring(0, itemPath.length - 1).split("/").pop()!;
+          children.push({
+            name: dirName,
+            value: itemPath,
+            hasChildren: true,
+            children: () => buildTree(itemPath),
+          });
+        } else {
+          // File
+          const fileName = itemPath.split("/").pop()!;
+          children.push({
+            name: fileName,
+            value: itemPath,
+          });
+        }
+      }
+
+      return children;
+    };
+
+    const {initialSelection} = options;
+
+    return await agent.askHuman({
+      type: "askForMultipleTreeSelection",
+      message: "Select a file or directory:",
+      tree: {
+        name: "File Selection",
+        children: buildTree,
+      },
+      loop: false,
+      ...(initialSelection && {initialSelection}),
+    } as AskForMultipleTreeSelectionRequest);
   }
 }

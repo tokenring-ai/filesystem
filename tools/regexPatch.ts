@@ -1,5 +1,4 @@
-import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -23,17 +22,16 @@ export async function execute(
     endRegex: string;
     replacement: string;
   },
-  registry: Registry,
+  agent: Agent,
 ): Promise<string> {
-  const chatService = registry.requireFirstServiceByType(ChatService);
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
   // Read the original file content
   const originalContent = await fileSystem.getFile(file);
 
   if (!originalContent) {
     const msg = `Failed to read file content: ${file}`;
-    chatService.errorLine(`[${toolName}] ${msg}`);
+    agent.errorLine(`[${toolName}] ${msg}`);
     throw new Error(`[${toolName}] ${msg}`);
   }
 
@@ -43,7 +41,7 @@ export async function execute(
   // Check if the pattern matches anything in the file
   if (!pattern.test(originalContent)) {
     const msg = `Could not find a match for the provided regex patterns in file ${file}`;
-    chatService.errorLine(`[${toolName}] ${msg}`);
+    agent.errorLine(`[${toolName}] ${msg}`);
     throw new Error(`[${toolName}] ${msg}`);
   }
 
@@ -59,7 +57,7 @@ export async function execute(
   // Write the patched content back to the file
   await fileSystem.writeFile(file, patchedContent);
 
-  chatService.infoLine(`[${toolName}] Patched file: ${file}`);
+  agent.infoLine(`[${toolName}] Patched file: ${file}`);
   fileSystem.setDirty(true);
 
   // Return a plain success string without tool name prefix

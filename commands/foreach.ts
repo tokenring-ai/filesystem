@@ -1,7 +1,6 @@
-import {ChatMessageStorage} from "@token-ring/ai-client";
-import * as runChat from "@token-ring/ai-client/runChat";
-import ChatService from "@token-ring/chat/ChatService";
-import {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
+import {ChatMessageStorage} from "@tokenring-ai/ai-client";
+import runChat from "@tokenring-ai/ai-client/runChat";
 import FileSystemService from "../FileSystemService.ts";
 
 /**
@@ -11,24 +10,23 @@ import FileSystemService from "../FileSystemService.ts";
 export const description: string =
   "/foreach <globString> <prompt ...> - Run a prompt on each file matching the globString.";
 
-export async function execute(remainder: string, registry: Registry) {
-  const chatService = registry.requireFirstServiceByType(ChatService);
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+export async function execute(remainder: string, agent: Agent) {
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
   if (!remainder || !remainder.trim()) {
-    chatService.errorLine("Usage: /foreach <globString> <prompt ...>");
+    agent.errorLine("Usage: /foreach <globString> <prompt ...>");
     return;
   }
 
   if (!fileSystem) {
-    chatService.errorLine(
+    agent.errorLine(
       "FileSystem not found. Please add it to your context configuration.",
     );
     return;
   }
 
   if (!fileSystem) {
-    chatService.errorLine(
+    agent.errorLine(
       "FileSystem not found. Please add it to your context configuration.",
     );
     return;
@@ -36,7 +34,7 @@ export async function execute(remainder: string, registry: Registry) {
 
   const firstSpaceIndex = remainder.indexOf(" ");
   if (firstSpaceIndex === -1) {
-    chatService.errorLine("Usage: /foreach <globString> <prompt ...>");
+    agent.errorLine("Usage: /foreach <globString> <prompt ...>");
     return;
   }
 
@@ -44,7 +42,7 @@ export async function execute(remainder: string, registry: Registry) {
   const prompt = remainder.substring(firstSpaceIndex + 1).trim();
 
   if (!globString || !prompt) {
-    chatService.errorLine("Usage: /foreach <globString> <prompt ...>");
+    agent.errorLine("Usage: /foreach <globString> <prompt ...>");
     return;
   }
 
@@ -52,16 +50,16 @@ export async function execute(remainder: string, registry: Registry) {
   const files: string[] = await fileSystem.glob(globString, {absolute: true});
 
   if (files.length === 0) {
-    chatService.systemLine(`No files matched the pattern: ${globString}`);
+    agent.infoLine(`No files matched the pattern: ${globString}`);
     return;
   }
 
   for (const file of files) {
     try {
-      chatService.systemLine(`Running prompt on file: ${file}`);
-      await runPromptOnFile(file, prompt, registry);
+      agent.infoLine(`Running prompt on file: ${file}`);
+      await runPromptOnFile(file, prompt, agent);
     } catch (error) {
-      chatService.errorLine(`Error running prompt on file ${file}:`, error);
+      agent.errorLine(`Error running prompt on file ${file}:`, error as Error);
     }
   }
 }
@@ -75,26 +73,24 @@ export function help(): string[] {
   ];
 }
 
-async function runPromptOnFile(filePath: string, prompt: string, registry: Registry) {
+async function runPromptOnFile(filePath: string, prompt: string, agent: Agent) {
   const systemPrompt = `Retrieve the file ${filePath} with the getFiles tool. Then modify the code in the file, based on the user prompt that follows, and then write out the file using the createFile command, and print a one sentence summary of the changes made to the file.`;
 
-  const chatService = registry.requireFirstServiceByType(ChatService);
   const chatMessageStorage: ChatMessageStorage =
-    registry.requireFirstServiceByType(ChatMessageStorage);
+    agent.requireFirstServiceByType(ChatMessageStorage);
 
   const currentMessage = chatMessageStorage.getCurrentMessage();
   chatMessageStorage.setCurrentMessage(null);
-  //chatService.resetAbortController();
+  //agent.resetAbortController();
 
-  await runChat.execute(
+  await runChat(
     {
       systemPrompt,
       input: prompt,
-      model: chatService.getModel(),
     },
-    registry,
+    agent
   );
 
-  //chatService.clearAbortController();
+  //agent.clearAbortController();
   chatMessageStorage.setCurrentMessage(currentMessage);
 }

@@ -1,5 +1,4 @@
-import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
 import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
@@ -27,10 +26,9 @@ export async function execute(
     toPath?: string;
     check_exists?: boolean;
   },
-  registry: Registry,
+  agent: Agent,
 ): Promise<string> {
-  const chatService = registry.requireFirstServiceByType(ChatService);
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
   if (!filePath) {
     throw new Error(`[${name}] 'path' parameter is required for all actions`);
@@ -40,7 +38,7 @@ export async function execute(
   }
 
   // Informational messages use the tool name
-  chatService.infoLine(
+  agent.infoLine(
     `[${name}] Performing ${action} operation via ${fileSystem.name}: ${filePath}`,
   );
 

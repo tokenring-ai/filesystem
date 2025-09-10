@@ -1,11 +1,10 @@
 {
- "name": "@token-ring/filesystem",
+ "name": "@tokenring-ai/filesystem",
  "version": "0.1.0",
  "description": "A filesystem abstraction for Token Ring",
  "dependencies": {
-  "@token-ring/ai-client": "0.1.0",
-  "@token-ring/chat": "0.1.0",
-  "@token-ring/registry": "0.1.0",
+  "@tokenring-ai/ai-client": "0.1.0",
+  "@tokenring-ai/agent": "0.1.0",
   "ignore": "^7.0.5",
   "path-browserify": "^1.0.1"
  },

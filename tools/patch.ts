@@ -1,5 +1,4 @@
-import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -8,10 +7,9 @@ export const name = "file/patch";
 
 export async function execute(
   {file, fromLine, toLine, contents}: { file?: string; fromLine?: string; toLine?: string; contents?: string },
-  registry: Registry,
+  agent: Agent,
 ): Promise<string> {
-  const chatService = registry.requireFirstServiceByType(ChatService);
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
   if (!file || !fromLine || !toLine || !contents) {
     throw new Error(`[${name}] Missing required parameters: file, fromLine, toLine, contents`);
@@ -75,7 +73,7 @@ export async function execute(
   // Write the patched content back to the file
   await fileSystem.writeFile(file, patchedContent);
 
-  chatService.infoLine(`[${name}] Patched file: ${file}`);
+  agent.infoLine(`[${name}] Patched file: ${file}`);
   fileSystem.setDirty(true);
 
   return `Successfully patched file ${file} replacing content from line "${fromLine}" to line "${toLine}"`;

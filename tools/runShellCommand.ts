@@ -1,5 +1,4 @@
-import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
 import {z} from "zod";
 import {ExecuteCommandResult} from "../FileSystemProvider.js";
 import FileSystemService from "../FileSystemService.ts";
@@ -13,14 +12,13 @@ export async function execute(
     timeoutSeconds?: number;
     workingDirectory?: string;
   },
-  registry: Registry,
+  agent: Agent,
 ): Promise<ExecuteCommandResult> {
-  const chatService = registry.requireFirstServiceByType(ChatService);
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
   // Validate command input
   if (!command) {
-    // Throw error instead of returning and logging via chatService.errorLine
+    // Throw error instead of returning and logging via agent.errorLine
     throw new Error(`[${name}] command is required`);
   }
 
@@ -30,7 +28,7 @@ export async function execute(
   }
 
   // Informational message using the tool name variable
-  chatService.infoLine(
+  agent.infoLine(
     `[${name}] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory})`,
   );
 

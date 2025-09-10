@@ -1,7 +1,6 @@
-import type AIChatClient from "@token-ring/ai-client/client/AIChatClient";
-import ModelRegistry from "@token-ring/ai-client/ModelRegistry";
-import ChatService from "@token-ring/chat/ChatService";
-import type {Registry} from "@token-ring/registry";
+import Agent from "@tokenring-ai/agent/Agent";
+import {GenerateRequest} from "@tokenring-ai/ai-client/client/AIChatClient";
+import ModelRegistry from "@tokenring-ai/ai-client/ModelRegistry";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -20,11 +19,10 @@ export const name = "file/patchFilesNaturalLanguage";
  */
 export async function execute(
   {files, naturalLanguagePatch}: { files?: string[]; naturalLanguagePatch?: string },
-  registry: Registry,
+  agent: Agent,
 ): Promise<string> {
-  const chatService = registry.requireFirstServiceByType(ChatService);
-  const modelRegistry = registry.requireFirstServiceByType(ModelRegistry);
-  const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  const modelRegistry = agent.requireFirstServiceByType(ModelRegistry);
+  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
   const patchedFiles: string[] = [];
 
@@ -51,36 +49,30 @@ export async function execute(
       }
 
       // Generate patch using LLM via the new chat API
-      const patchRequest = {
-        input: [
+      const patchRequest: GenerateRequest = {
+        messages: [
           {role: "system", content: systemPrompt},
           {
             role: "user",
             content: `Original File Content (${file}):\n\`\`\`\n${originalContent}\n\`\`\`\n\nNatural Language Patch Description:\n\`\`\`${naturalLanguagePatch}\`\`\``,
           },
         ],
-        responseSchema: z.object({
+        schema: z.object({
           patchedContent: z
             .string()
             .describe("The complete file contents for the patched file"),
         }),
-      } as const;
+        tools: {}
+      };
 
       // Get an online chat client
-      let patchClient: AIChatClient;
-      try {
-        patchClient = await modelRegistry.chat.getFirstOnlineClient({
-          name: "default",
-        });
-      } catch (error) {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        throw new Error(`No online chat client available: ${errMsg}`);
-      }
+      const patchClient = await modelRegistry.chat.getFirstOnlineClient(agent.getAIConfig().model);
+
 
       // Get patched content from LLM
       const [{patchedContent}] = await patchClient.generateObject(
         patchRequest,
-        registry,
+        agent,
       );
 
       // Validate that we got meaningful content back
@@ -90,7 +82,7 @@ export async function execute(
 
       // Check if the patched content is different from the original
       if (patchedContent.trim() === originalContent.trim()) {
-        chatService.warningLine(
+        agent.warningLine(
           `[${name}] No changes made to file: ${file} - content is identical`,
         );
         continue;
@@ -99,7 +91,7 @@ export async function execute(
       await fileSystem.writeFile(file, patchedContent);
 
       patchedFiles.push(file);
-      chatService.infoLine(`[${name}] Successfully patched file: ${file}`);
+      agent.infoLine(`[${name}] Successfully patched file: ${file}`);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       throw new Error(`[${name}] Failed to patch file ${file}: ${errMsg}`);
@@ -114,11 +106,9 @@ export const description =
   "Patches multiple files using a natural language description, processed by an LLM. Includes code extraction from markdown, line ending preservation, file type validation, and optional diff preview for critical files.";
 
 export const inputSchema = z.object({
-  files: z.array(z.string(), {
-    description: "List of file paths to patch, relative to the source directory.",
-  }),
-  naturalLanguagePatch: z.string({
-    description:
-      "Detailed natural language description of the patch to apply to the code.",
-  }),
+  files: z.array(z.string()).describe(
+    "List of file paths to patch, relative to the source directory."),
+  naturalLanguagePatch: z.string().describe(
+    "Detailed natural language description of the patch to apply to the code.",
+  )
 });

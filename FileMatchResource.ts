@@ -1,5 +1,5 @@
-import {type Registry} from "@token-ring/registry";
 // Keep .ts extension for NodeNext/ESM compatibility in TS source
+import {Agent} from "@tokenring-ai/agent";
 import FileSystemService from "./FileSystemService.ts";
 
 export interface MatchItem {
@@ -25,8 +25,8 @@ export default class FileMatchResource {
   /**
    * Asynchronously gets matched files
    */
-  async* getMatchedFiles(registry: Registry): AsyncGenerator<string> {
-    const fileSystem = registry.requireFirstServiceByType(FileSystemService);
+  async* getMatchedFiles(agent: Agent): AsyncGenerator<string> {
+    const fileSystem = agent.requireFirstServiceByType(FileSystemService);
 
     for (const {path, include, exclude} of this.items) {
       for await (const relPath of fileSystem.getDirectoryTree(path)) {
@@ -36,8 +36,8 @@ export default class FileMatchResource {
     }
   }
 
-  async addFilesToSet(set: Set<string>, registry: Registry): Promise<void> {
-    for await (const relPath of this.getMatchedFiles(registry)) {
+  async addFilesToSet(set: Set<string>, agent: Agent): Promise<void> {
+    for await (const relPath of this.getMatchedFiles(agent)) {
       set.add(relPath);
     }
   }

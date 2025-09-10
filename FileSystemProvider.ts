@@ -1,4 +1,3 @@
-
 export interface StatLike {
   path: string;
   absolutePath?: string;
@@ -18,6 +17,7 @@ export interface GrepResult {
   matchedString?: string;
   content: string | null;
 }
+
 export interface DirectoryTreeOptions {
   ignoreFilter: (path: string) => boolean;
   recursive?: boolean;
