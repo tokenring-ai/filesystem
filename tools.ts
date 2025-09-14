@@ -1,5 +1,5 @@
-export * as modifyFiles from "./tools/modify.ts";
-export * as filePatch from "./tools/patch.ts";
-export * as searchFiles from "./tools/search.ts";
+export * as modify from "./tools/modify.ts";
+export * as patch from "./tools/patch.ts";
+export * as search from "./tools/search.ts";
 export * as runShellCommand from "./tools/runShellCommand.ts";
 //export * as patchFilesNaturalLanguage from "./tools/patchFilesNaturalLanguage.ts";

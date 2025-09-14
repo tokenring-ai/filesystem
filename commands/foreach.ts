@@ -1,5 +1,4 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {ChatMessageStorage} from "@tokenring-ai/ai-client";
 import runChat from "@tokenring-ai/ai-client/runChat";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -54,13 +53,28 @@ export async function execute(remainder: string, agent: Agent) {
     return;
   }
 
-  for (const file of files) {
-    try {
-      agent.infoLine(`Running prompt on file: ${file}`);
-      await runPromptOnFile(file, prompt, agent);
-    } catch (error) {
-      agent.errorLine(`Error running prompt on file ${file}:`, error as Error);
+
+  const checkPoint = agent.generateCheckpoint()
+
+  try {
+    for (const file of files) {
+      try {
+        agent.infoLine(`Running prompt on file: ${file}`);
+
+        await runChat(
+          {
+            systemPrompt: `Retrieve the file ${file} with the getFiles tool. Then modify the code in the file, based on the user prompt that follows, and then write out the file using the createFile command, and print a one sentence summary of the changes made to the file.`,
+            input: prompt,
+          },
+          agent
+        );
+      } catch (error) {
+        agent.errorLine(`Error running prompt on file ${file}:`, error as Error);
+      }
+      agent.restoreCheckpoint(checkPoint);
     }
+  } finally {
+    agent.restoreCheckpoint(checkPoint);
   }
 }
 
@@ -71,26 +85,4 @@ export function help(): string[] {
     "  - Run a prompt on each file matching the globString",
     '  - Example: /foreach *.js "Add error handling"',
   ];
-}
-
-async function runPromptOnFile(filePath: string, prompt: string, agent: Agent) {
-  const systemPrompt = `Retrieve the file ${filePath} with the getFiles tool. Then modify the code in the file, based on the user prompt that follows, and then write out the file using the createFile command, and print a one sentence summary of the changes made to the file.`;
-
-  const chatMessageStorage: ChatMessageStorage =
-    agent.requireFirstServiceByType(ChatMessageStorage);
-
-  const currentMessage = chatMessageStorage.getCurrentMessage();
-  chatMessageStorage.setCurrentMessage(null);
-  //agent.resetAbortController();
-
-  await runChat(
-    {
-      systemPrompt,
-      input: prompt,
-    },
-    agent
-  );
-
-  //agent.clearAbortController();
-  chatMessageStorage.setCurrentMessage(currentMessage);
 }

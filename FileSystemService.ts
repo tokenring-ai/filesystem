@@ -19,6 +19,7 @@ import FileSystemProvider, {
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
 class FileSystemState implements AgentStateSlice {
+  name = "FileSystemState";
   readonly initialSelectedFiles: Set<string>
   selectedFiles: Set<string>
 
@@ -31,6 +32,14 @@ class FileSystemState implements AgentStateSlice {
     if (what.includes('chat')) {
       this.selectedFiles = new Set(this.initialSelectedFiles);
     }
+  }
+  serialize() : object {
+    return {
+      selectedFiles: Array.from(this.selectedFiles),
+    }
+  }
+  deserialize(data: any) : void {
+    this.selectedFiles = new Set(data.selectedFiles);
   }
 }
 
@@ -56,7 +65,7 @@ export default class FileSystemService implements TokenRingService {
   /**
    * Creates an instance of FileSystem
    */
-  constructor({defaultSelectedFiles = [] as string[]}: { defaultSelectedFiles?: string[] } = {}) {
+  constructor({defaultSelectedFiles = []}: { defaultSelectedFiles?: string[] } = {}) {
     this.defaultSelectedFiles = defaultSelectedFiles;
   }
 
