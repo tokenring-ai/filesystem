@@ -1,112 +1,234 @@
-# @tokenring-ai/filesystem
+# Filesystem Package Documentation
 
-This package, `@tokenring-ai/filesystem`, provides an abstract service definition for file system interactions and a
-collection of tools and chat commands to operate on this abstraction. It forms a core part of the file system
-capabilities within the Token Ring ecosystem.
+## Overview
 
-**Important:** This package defines the *abstract* `FileSystemService`. Concrete implementations that provide actual
-file system access (e.g., for local disk operations or remote SSH connections) are expected to be provided by **other
-packages**, such as `@[tokenring-ai]/local-filesystem` or `@[tokenring-ai]/ssh-filesystem` (please replace these
-placeholders with the actual package names if known, or refer to the project's overall architecture documentation).
+The `@tokenring-ai/filesystem` package provides an abstract filesystem interface designed for integration with AI agents in the Token Ring framework. It enables virtual filesystem operations such as reading/writing files, directory traversal, globbing, searching, and executing shell commands. The package supports multiple filesystem providers (e.g., local FS) and integrates seamlessly with the `@tokenring-ai/agent` for agent-state management, including file selection for chat sessions and memory injection.
+
+Key features:
+- Unified API for file operations (create, read, update, delete, rename, permissions).
+- Ignore filters based on `.gitignore` and `.aiignore`.
+- Tools for AI-driven interactions: file modification, patching, searching, and shell execution.
+- Chat commands for managing files in agent conversations (e.g., `/file add`, `/foreach`).
+- Async generators for directory trees and memories from selected files.
+- Dirty flag for tracking changes.
+
+This package abstracts filesystem access, making it suitable for sandboxed or virtual environments in AI workflows, while warning about non-sandboxed shell commands.
+
+## Installation/Setup
+
+1. Install the package via npm:
+   ```
+   npm install @tokenring-ai/filesystem
+   ```
+
+2. Ensure dependencies are met (see [Dependencies](#dependencies) below). The package uses ES modules (`type: "module"`).
+
+3. In your Token Ring agent setup, register the `FileSystemService`:
+   ```typescript
+   import { FileSystemService } from '@tokenring-ai/filesystem';
+   import Agent from '@tokenring-ai/agent';
+
+   const fsService = new FileSystemService({ defaultSelectedFiles: ['src/index.ts'] });
+   agent.addService(fsService);
+   await fsService.attach(agent);
+   ```
+
+4. Configure default files or providers as needed. For local FS, implement a `FileSystemProvider` subclass (see [Core Components](#core-components)).
+
+5. Run tests:
+   ```
+   npm test
+   ```
+
+## Package Structure
+
+The package is organized as follows:
+- **Root files**:
+  - `index.ts`: Main entry point, exports `FileSystemService` and `FileMatchResource`.
+  - `FileSystemService.ts`: Core service class implementing `TokenRingService`.
+  - `FileSystemProvider.ts`: Abstract base for filesystem implementations.
+  - `package.json`: Package metadata, scripts (e.g., `npm test` for Vitest).
+  - `tsconfig.json`: TypeScript configuration.
+  - `vitest.config.js`: Test configuration.
+  - `README.md`: This documentation.
+  - `LICENSE`: MIT license.
+- **tools/**: AI tool implementations (exported via `tools.ts`):
+  - `modify.ts`: File write/append/delete/rename/adjust (permissions).
+  - `search.ts`: File retrieval and full-text search (globs, substrings/regex).
+  - `patch.ts`: Line-based patching.
+  - `runShellCommand.ts`: Execute shell commands (with timeout).
+- **commands/**: Chat commands (exported via `chatCommands.ts`):
+  - `file.ts`: Manage chat files (`/file add/remove/list/clear`).
+  - `foreach.ts`: Run prompts on glob-matched files.
+- **test/**: Unit/integration tests (e.g., `runShellCommand.test.js`).
+- Other: `FileMatchResource.ts` for pattern-based file matching.
 
 ## Core Components
 
-### 1. `FileSystemService` (Abstract Base Class)
+### FileSystemService
 
-- **Location:** `core/filesystem/FileSystemService.js`
-- **Description:** The heart of the package. It's an abstract class defining a standardized interface for file
-  operations. Concrete implementations (from other packages) will extend this class.
-- **Key Responsibilities (Interface Definition):**
-- File operations: `readFile`, `writeFile`, `deleteFile`, `rename`, `exists`, `stat`, `createDirectory`, `copy`,
-  `chmod`, `chown`.
-- Directory operations: `glob`, `getDirectoryTree`.
-- Execution: `executeCommand`, `grep`.
-- Watching: `watch`.
-- **Chat Context Management:** `FileSystemService` also includes built-in logic for managing a set of files relevant to
-  the current chat session (see "Files in Chat Context" below).
+The main service class, implementing `TokenRingService`. It manages filesystem providers, state (e.g., selected files for chat), and delegates operations.
 
-### 2. Tools
+- **Key Properties/Methods**:
+  - `registerFileSystemProvider(provider: FileSystemProvider)`: Registers a provider (uses `KeyedRegistryWithSingleSelection`).
+  - `getActiveFileSystemProviderName()`: Gets the current provider name.
+  - `attach(agent: Agent)`: Initializes state with `FileSystemState` (tracks `selectedFiles: Set<string>`).
+  - `getDirectoryTree(path: string, options?: DirectoryTreeOptions)`: Async generator for directory contents (ignores via filter).
+    - Options: `{ ignoreFilter: (p: string) => boolean, recursive?: boolean }`.
+  - `writeFile(path: string, content: string | Buffer)`: Writes/overwrites file (returns `boolean` success).
+  - `appendFile(path: string, content: string | Buffer)`: Appends to file.
+  - `deleteFile(path: string)`, `rename(oldPath: string, newPath: string)`, `copy(source: string, dest: string, {overwrite?: boolean})`: Standard ops (return `boolean`).
+  - `getFile(path: string)`: Reads as UTF-8 string (or `null` if missing).
+  - `readFile(path: string, encoding?: 'utf8' | 'buffer')`: Raw read.
+  - `exists(path: string)`, `stat(path: string)`: Returns `boolean` or `StatLike` (e.g., `{ isFile: boolean, size?: number }`).
+  - `createDirectory(path: string, {recursive?: boolean})`: Creates dir.
+  - `chmod(path: string, mode: number)`: Sets permissions.
+  - `glob(pattern: string, {ignoreFilter, absolute?: boolean})`: Returns `string[]` matches.
+  - `grep(searchString: string | string[], {ignoreFilter, includeContent?: {linesBefore/After}})`: Returns `GrepResult[]` (e.g., `{file, line, match}`).
+  - `executeCommand(command: string | string[], {timeoutSeconds, env, workingDirectory})`: Returns `ExecuteCommandResult` (e.g., `{ok: boolean, stdout, stderr, exitCode}`).
+  - `watch(dir: string, {ignoreFilter, pollInterval})`: Watches for changes (returns watcher).
+  - Chat-specific: `addFileToChat(file: string, agent)`, `getFilesInChat(agent)`, `setFilesInChat(files: Iterable<string>, agent)`, `getMemories(agent)`: Yields file contents as agent memories.
+  - `askForFileSelection({initialSelection?}, agent)`: Interactive tree-based selection via agent UI.
+  - `setDirty(dirty: boolean)` / `getDirty()`: Tracks modifications.
 
-Tools are specific, reusable functions designed to be called by AI agents or other services, operating on a registered
-`FileSystemService` instance. They are exported via `core/filesystem/tools.js`.
+Interactions: Delegates to active `FileSystemProvider`. Auto-creates ignore filters from `.gitignore`/`.aiignore`. State persists across agent resets.
 
-**Available Tools:**
+### FileSystemProvider
 
-- **`file`** (from `tools/file.js`): Provides sub-operations for creating, reading, updating, deleting, and renaming
-  files.
-- Typically invoked as `file.create`, `file.read`, `file.update`, `file.delete`, `file.rename`.
-- **`retrieveFiles`** (from `tools/search.js`): For fetching files by name/glob pattern or searching for content within
-  files (using the underlying `FileSystemService.grep` or `glob` methods).
-- **`filePatch`** (from `tools/filePatch.js`): Applies changes to files based on a provided patch format (e.g., diffs).
-- **`runShellCommand`** (from `tools/runShellCommand.js`): Executes arbitrary shell commands using the
-  `FileSystemService.executeCommand` method.
+Abstract base class for concrete implementations (e.g., local FS, virtual FS).
 
-*(Note: Other tool files like `patchFilesNaturalLanguage.js` and `regexPatch.js` exist in the `tools/` directory but are
-not currently exported by `tools.js` and thus not considered part of the direct public API of this package.)*
+- **Key Abstract Methods**: All ops mirror `FileSystemService` (e.g., `abstract writeFile(...)`).
+- Subclasses must implement `getBaseDirectory()`, path conversions (`relativeOrAbsolutePathToAbsolutePath`), and all file ops.
+- `getFile(path)`: Convenience wrapper for `readFile(path, 'utf8')`.
 
-**Structure (Typical):**
-Each tool module generally exports:
+### Tools
 
-- `execute`: An `async` function performing the action.
-- `description`: A brief explanation.
-- `spec` or `parameters`: An object (often a Zod schema) defining expected arguments.
+Exported via `tools.ts` for AI agent use (e.g., in `@tokenring-ai/agent`).
 
-### 3. Files in Chat Context
+- **file/modify**:
+  - Actions: `write` (full content, optional base64), `append`, `delete`, `rename` (to `toPath`), `adjust` (permissions as octal string, e.g., '644').
+  - Params: `{path, action, content?, is_base64?, fail_if_exists?, permissions?, toPath?, check_exists?}`.
+  - Example: Write a file – returns success message.
+  - Auto-creates dirs, sets default 0o644 perms for new files.
 
-The `FileSystemService` maintains a concept of files being "in context" for the current chat session. This allows for
-easy reference and operation by users, tools, and AI agents.
+- **file/search**:
+  - Retrieves files by paths/globs or searches text (substring/whole-word/regex).
+  - Modes: `names` (paths), `content` (full text, limit 50), `matches` (lines with context).
+  - Params: `{files?, searches?, returnType='content', linesBefore/After?, caseSensitive=true, matchType='substring'}`.
+  - Returns: `{files: [{file, exists, content}], matches: [...], summary: {...}}`.
+  - Skips binaries/.gitignore; OR-based searches.
 
-- **Management:** Managed by a `Set` called `manuallySelectedFiles` within `FileSystemService`.
-- **Key Methods on `FileSystemService`:**
-- `addFileToChat(filePath)`
-- `removeFileFromChat(filePath)`
-- `getFilesInChat()`
-- `clearFilesFromChat()` (also triggered by `ChatService` 'reset' event)
-- `setFilesInChat(filesArray)`
-- `getDefaultFiles()`
-- `async* getMemories(registry)`: Yields content of files in context, formatted for LLM prompts.
+- **file/patch**:
+  - Replaces content between exact line matches (ignores whitespace).
+  - Params: `{file, fromLine, toLine, contents}`.
+  - Ensures single match; overwrites file.
 
-### 4. Chat Commands
+- **terminal/runShellCommand**:
+  - Executes shell cmd (string or array).
+  - Params: `{command, timeoutSeconds=60, workingDirectory?}`.
+  - Returns `ExecuteCommandResult`; not sandboxed – use cautiously.
+  - Marks dirty on success.
 
-Chat commands provide a user-facing interface to interact with the `FileSystemService` via a chat client. They are
-exported via `core/filesystem/chatCommands.js`.
+### Chat Commands
 
-**Available Commands:**
+Exported via `chatCommands.ts` for agent chat (e.g., `/file ...`).
 
-- **`file`** (from `commands/file.js`): Manages files in the chat session.
-- **Sub-commands:**
-- `/file select`: Interactive file selection to set the chat context.
-- `/file add [files...]`: Adds specified file(s) to the chat context.
-- `/file remove <files...>` (or `/file rm <files...>`): Removes specified file(s) from the chat context.
-- `/file list` (or `/file ls`): Lists files currently in the chat context.
-- `/file clear`: Clears all files from the chat context.
-- `/file default`: Resets the chat context to a default set of files (if configured).
-- **`foreach`** (from `commands/foreach.js`):
-- `/foreach <glob_pattern> -- <prompt_or_command>`: Executes a given prompt or another command for each file matching
-  the glob pattern, using the `FileSystemService.glob` method.
+- **/file**: Manage chat files.
+  - `select`: Interactive tree selection.
+  - `add/remove [files...]`: Add/remove specific files (or interactive).
+  - `list`: Show current files.
+  - `clear`: Remove all.
+  - `default`: Reset to config defaults.
+  - Validates existence; updates agent state.
 
-*(Note: The `/guidelines` command mentioned in a previous version of a README is not part of this package.)*
+- **/foreach <glob> <prompt ...>**: Runs AI prompt on each matching file (uses `runChat` with file retrieval/modify instructions). Restores checkpoint per file.
 
-## Key `FileSystemService` Abstract Methods for Tool/Implementation Developers
+### FileMatchResource
 
-When developing tools that use `FileSystemService` or when creating concrete implementations of it, these are some of
-the core abstract methods you will interact with or implement:
+Utility for pattern-based file selection.
 
-- `async getFile(path)`
-- `async writeFile(path, content)`
-- `async exists(path)`
-- `async deleteFile(path)`
-- `async createDirectory(path, options)`
-- `async rename(oldPath, newPath)`
-- `async glob(pattern, options)`
-- `async executeCommand(command, options)`
-- `async grep(searchString, options)`
-- `async stat(path)`
-- `async chmod(path, mode)`
-- `async chown(path, uid, gid)`
-- `async* getDirectoryTree(path, params)`
-- `async watch(dir, options)`
-- `async copy(source, destination, options)`
+- Constructor: `{items: MatchItem[]}` where `MatchItem = {path: string, include?: RegExp, exclude?: RegExp}`.
+- `getMatchedFiles(agent)`: Async generator yields matching paths via directory tree.
+- `addFilesToSet(set: Set<string>, agent)`: Populates set with matches.
 
-Refer to the source code of `core/filesystem/FileSystemService.js` for the full signatures and JSDoc comments for these
-methods. The `borrowFile` method is not part of the abstract `FileSystemService` interface.
+## Usage Examples
+
+1. **Basic File Operations**:
+   ```typescript
+   const fs = new FileSystemService();
+   await fs.writeFile('example.txt', 'Hello, world!');
+   const content = await fs.getFile('example.txt'); // 'Hello, world!'
+   console.log(content);
+   ```
+
+2. **Directory Traversal and Glob**:
+   ```typescript
+   for await (const path of fs.getDirectoryTree('./src', {recursive: true})) {
+     console.log(path);
+   }
+   const tsFiles = await fs.glob('**/*.ts'); // ['src/index.ts', ...]
+   ```
+
+3. **Agent Integration – Add File to Chat and Get Memories**:
+   ```typescript
+   await fs.addFileToChat('src/main.ts', agent);
+   for await (const memory of fs.getMemories(agent)) {
+     console.log(memory.content); // '// src/main.ts\n<content>'
+   }
+   ```
+
+4. **Using Tools in Agent (e.g., via AI prompt)**:
+   - AI can call `file/modify` to write: `{path: 'new.js', action: 'write', content: 'console.log("Hi");'}`.
+
+5. **Shell Command**:
+   ```typescript
+   const result = await fs.executeCommand('ls -la', {workingDirectory: './src'});
+   if (result.ok) console.log(result.stdout);
+   ```
+
+## Configuration Options
+
+- **Constructor**: `FileSystemService({defaultSelectedFiles?: string[]})` – Initial chat files.
+- **Ignore Filters**: Auto-loads `.gitignore` (ignores `.git`, `node_modules`, etc.) and `.aiignore`. Custom via `ignoreFilter` in options.
+- **Providers**: Register multiple via `registerFileSystemProvider`; active one via `setActiveFileSystemProviderName(name)`.
+- **Permissions**: Octal strings (e.g., '644'); defaults to 0o644 for new files.
+- **Search**: Case-sensitive by default; limits (50) for content/matches to prevent overload.
+- **Shell**: `timeoutSeconds` (default 60, max 600); `env` and `workingDirectory` (relative to root).
+- **Environment**: No specific vars; relies on agent config for root dir.
+
+## API Reference
+
+- **FileSystemService Methods**: See [Core Components](#core-components) for signatures.
+- **Tool Schemas** (Zod-validated inputs):
+  - `file/modify`: `z.object({path: z.string(), action: z.enum(['write', ...]), ...})`.
+  - `file/search`: `z.object({files?: z.array(z.string()), searches?: z.array(z.string()), ...})`.
+  - `file/patch`: `z.object({file: z.string(), fromLine: z.string(), toLine: z.string(), contents: z.string()})`.
+  - `terminal/runShellCommand`: `z.object({command: z.string(), timeoutSeconds?: z.number(), workingDirectory?: z.string()})`.
+- **Interfaces**:
+  - `StatLike`: `{path: string, isFile: boolean, ...}`.
+  - `GrepResult`: `{file: string, line: number, match: string, ...}`.
+  - `ExecuteCommandResult`: `{ok: boolean, stdout: string, ...}`.
+
+Public exports: `FileSystemService`, `FileMatchResource`, tools/commands via index.
+
+## Dependencies
+
+- `@tokenring-ai/ai-client`: 0.1.0 (for `runChat` in commands).
+- `@tokenring-ai/agent`: 0.1.0 (core agent integration).
+- `ignore`: ^7.0.5 (gitignore parsing).
+- `path-browserify`: ^1.0.1 (path utils).
+- Dev: `vitest` (^3.2.4), `@vitest/coverage-v8`.
+
+## Contributing/Notes
+
+- **Testing**: Run `npm test` (unit), `npm run test:integration` (shell cmds), `npm run test:all` (full suite). Uses Vitest; covers core ops and tools.
+- **Building**: TypeScript compiles to ESM; no build step needed beyond `tsc`.
+- **Limitations**:
+  - Shell commands (`terminal/runShellCommand`) are not sandboxed – potential security risk.
+  - Searches skip binaries and ignored files; limits degrade to 'names' mode if >50 results.
+  - Path handling assumes Unix-style `/`; relative to virtual root.
+  - No multi-provider switching in tools yet (uses active provider).
+- **Contributing**: Fork, add tests, PR to main. Focus on new providers, tools, or agent integrations.
+- **License**: MIT (see LICENSE).
+
+For issues or extensions, reference the Token Ring AI framework docs.
