@@ -1,7 +1,7 @@
 import Agent, {AgentStateSlice} from "@tokenring-ai/agent/Agent";
 import {ResetWhat} from "@tokenring-ai/agent/AgentEvents";
 import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceProvider";
-import {AskForMultipleTreeSelectionRequest} from "@tokenring-ai/agent/HumanInterfaceRequest";
+import {AskForMultipleTreeSelectionRequest, AskForConfirmationRequest} from "@tokenring-ai/agent/HumanInterfaceRequest";
 import {MemoryItemMessage, TokenRingService} from "@tokenring-ai/agent/types";
 import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/KeyedRegistryWithSingleSelection";
 import ignore from "ignore";
@@ -53,6 +53,7 @@ export default class FileSystemService implements TokenRingService {
   dirty = false;
 
   protected defaultSelectedFiles: string[];
+  protected dangerousCommandPatterns: (string | RegExp)[];
 
   private fileSystemProviderRegistry = new KeyedRegistryWithSingleSelection<FileSystemProvider>();
 
@@ -65,8 +66,12 @@ export default class FileSystemService implements TokenRingService {
   /**
    * Creates an instance of FileSystem
    */
-  constructor({defaultSelectedFiles = []}: { defaultSelectedFiles?: string[] } = {}) {
+  constructor({defaultSelectedFiles = [], dangerousCommandPatterns = [/\brm\b/, /\bmv\b/]}: { 
+    defaultSelectedFiles?: string[], 
+    dangerousCommandPatterns?: (string | RegExp)[] 
+  } = {}) {
     this.defaultSelectedFiles = defaultSelectedFiles;
+    this.dangerousCommandPatterns = dangerousCommandPatterns;
   }
 
 
@@ -183,8 +188,36 @@ export default class FileSystemService implements TokenRingService {
     return this.fileSystemProviderRegistry.getActiveItem().watch(dir, options as WatchOptions);
   }
 
-  async executeCommand(command: string | string[], options: ExecuteCommandOptions = {}): Promise<ExecuteCommandResult> {
+  async executeCommand(command: string | string[], options: ExecuteCommandOptions = {}, agent?: Agent): Promise<ExecuteCommandResult> {
+    const cmdString = Array.isArray(command) ? command.join(' ') : command;
+    
+    if (agent && this.isDangerousCommand(cmdString)) {
+      const confirmed = await agent.askHuman({
+        type: "askForConfirmation",
+        message: `Execute potentially dangerous command: ${cmdString}?`,
+      } as AskForConfirmationRequest);
+      
+      if (!confirmed) {
+        return {
+          ok: false,
+          stdout: '',
+          stderr: 'Command execution cancelled by user',
+          exitCode: 1,
+          error: 'User cancelled command execution'
+        };
+      }
+    }
+    
     return this.fileSystemProviderRegistry.getActiveItem().executeCommand(command, options);
+  }
+
+  private isDangerousCommand(command: string): boolean {
+    return this.dangerousCommandPatterns.some(pattern => {
+      if (typeof pattern === 'string') {
+        return command.includes(pattern);
+      }
+      return pattern.test(command);
+    });
   }
 
   async grep(
