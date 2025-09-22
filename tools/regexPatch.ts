@@ -24,7 +24,7 @@ export async function execute(
   },
   agent: Agent,
 ): Promise<string> {
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Read the original file content
   const originalContent = await fileSystem.getFile(file);

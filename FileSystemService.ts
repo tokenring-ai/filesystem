@@ -1,7 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceProvider";
 import {AskForConfirmationRequest, AskForMultipleTreeSelectionRequest} from "@tokenring-ai/agent/HumanInterfaceRequest";
-import {MemoryItemMessage, TokenRingService} from "@tokenring-ai/agent/types";
+import {ContextItem, TokenRingService} from "@tokenring-ai/agent/types";
 import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/KeyedRegistryWithSingleSelection";
 import ignore from "ignore";
 import FileSystemProvider, {
@@ -23,7 +23,7 @@ type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
  * for file operations, allowing for different implementations of file systems.
  */
 export default class FileSystemService implements TokenRingService {
-  name = "FileSystem";
+  name = "FileSystemService";
   description = "Abstract interface for virtual file system operations";
   dirty = false;
 
@@ -256,10 +256,11 @@ export default class FileSystemService implements TokenRingService {
   /**
    * Asynchronously yields memories from manually selected files.
    */
-  async* getMemories(agent: Agent): AsyncGenerator<MemoryItemMessage> {
+  async* getContextItems(agent: Agent): AsyncGenerator<ContextItem> {
     for (const file of agent.getState(FileSystemState).selectedFiles) {
       const content = await this.getFile(file);
       yield {
+        position: "afterPriorMessages",
         role: "user",
         content: `// ${file}\n${content}`,
       };

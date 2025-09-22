@@ -21,8 +21,8 @@ export async function execute(
   {files, naturalLanguagePatch}: { files?: string[]; naturalLanguagePatch?: string },
   agent: Agent,
 ): Promise<string> {
-  const modelRegistry = agent.requireFirstServiceByType(ModelRegistry);
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const modelRegistry = agent.requireServiceByType(ModelRegistry);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   const patchedFiles: string[] = [];
 

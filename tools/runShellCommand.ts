@@ -14,7 +14,7 @@ export async function execute(
   },
   agent: Agent,
 ): Promise<ExecuteCommandResult> {
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Validate command input
   if (!command) {

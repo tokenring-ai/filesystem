@@ -9,7 +9,7 @@ export async function execute(
   {file, fromLine, toLine, contents}: { file?: string; fromLine?: string; toLine?: string; contents?: string },
   agent: Agent,
 ): Promise<string> {
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   if (!file || !fromLine || !toLine || !contents) {
     throw new Error(`[${name}] Missing required parameters: file, fromLine, toLine, contents`);

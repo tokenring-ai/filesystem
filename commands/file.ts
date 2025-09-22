@@ -136,7 +136,7 @@ export function help(): Array<string> {
 }
 
 export async function execute(remainder: string, agent: Agent) {
-  const filesystem = agent.requireFirstServiceByType(FileSystemService);
+  const filesystem = agent.requireServiceByType(FileSystemService);
 
   const args = remainder ? remainder.trim().split(/\s+/) : [];
   const action = args[0];

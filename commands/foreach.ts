@@ -10,7 +10,7 @@ export const description: string =
   "/foreach <globString> <prompt ...> - Run a prompt on each file matching the globString.";
 
 export async function execute(remainder: string, agent: Agent) {
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   if (!remainder || !remainder.trim()) {
     agent.errorLine("Usage: /foreach <globString> <prompt ...>");

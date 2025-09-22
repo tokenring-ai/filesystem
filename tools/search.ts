@@ -47,7 +47,7 @@ export async function execute(
   },
   agent: Agent,
 ): Promise<FileSearchResult> {
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   agent.infoLine(`[${name}] Using ${fileSystem.name} file system`);
 

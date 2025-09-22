@@ -28,7 +28,7 @@ export async function execute(
   },
   agent: Agent,
 ): Promise<string> {
-  const fileSystem = agent.requireFirstServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   if (!filePath) {
     throw new Error(`[${name}] 'path' parameter is required for all actions`);
