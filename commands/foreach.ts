@@ -63,8 +63,7 @@ export async function execute(remainder: string, agent: Agent) {
 
         await runChat(
           {
-            systemPrompt: `Retrieve the file ${file} with the getFiles tool. Then modify the code in the file, based on the user prompt that follows, and then write out the file using the createFile command, and print a one sentence summary of the changes made to the file.`,
-            input: prompt,
+            input: `File: ${file}\n${prompt}`,
           },
           agent
         );
