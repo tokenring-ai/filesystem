@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceProvider";
+import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceRequest";
 import {AskForConfirmationRequest, AskForMultipleTreeSelectionRequest} from "@tokenring-ai/agent/HumanInterfaceRequest";
 import {ContextItem, TokenRingService} from "@tokenring-ai/agent/types";
 import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/KeyedRegistryWithSingleSelection";
