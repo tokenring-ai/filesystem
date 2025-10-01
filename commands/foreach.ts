@@ -17,20 +17,6 @@ export async function execute(remainder: string, agent: Agent) {
     return;
   }
 
-  if (!fileSystem) {
-    agent.errorLine(
-      "FileSystem not found. Please add it to your context configuration.",
-    );
-    return;
-  }
-
-  if (!fileSystem) {
-    agent.errorLine(
-      "FileSystem not found. Please add it to your context configuration.",
-    );
-    return;
-  }
-
   const firstSpaceIndex = remainder.indexOf(" ");
   if (firstSpaceIndex === -1) {
     agent.errorLine("Usage: /foreach <globString> <prompt ...>");

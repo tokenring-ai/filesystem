@@ -96,9 +96,6 @@ async function listFiles(filesystem: FileSystemService, agent: Agent) {
 
 async function clearFiles(filesystem: FileSystemService, agent: Agent) {
   await filesystem.setFilesInChat([], agent);
-  agent.infoLine(
-    "Cleared all files from the chat session.",
-  )
   agent.infoLine("Cleared all files from the chat session.");
 }
 
