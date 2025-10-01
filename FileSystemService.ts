@@ -109,7 +109,15 @@ export default class FileSystemService implements TokenRingService {
   }
 
   // file ops
-  async writeFile(path: string, content: string | Buffer): Promise<boolean> {
+  async writeFile(path: string, content: string | Buffer, agent: Agent): Promise<boolean> {
+    if (await this.exists(path)) {
+      const confirmed = await agent.askHuman({
+        type: "askForConfirmation",
+        message: `Execute potentially dangerous command: Overwrite ${path}?`,
+      } as AskForConfirmationRequest);
+
+      if (! confirmed) throw new Error('User did not approve command execution');
+    }
     return this.fileSystemProviderRegistry.getActiveItem().writeFile(path, content);
   }
 
@@ -117,19 +125,36 @@ export default class FileSystemService implements TokenRingService {
     return this.fileSystemProviderRegistry.getActiveItem().appendFile(filePath, finalContent);
   }
 
-  async deleteFile(path: string): Promise<boolean> {
+  async deleteFile(path: string, agent: Agent): Promise<boolean> {
+    if (await this.exists(path)) {
+      const confirmed = await agent.askHuman({
+        type: "askForConfirmation",
+        message: `Execute potentially dangerous command: Delete ${path}?`,
+      } as AskForConfirmationRequest);
+
+      if (! confirmed) throw new Error('User did not approve command execution');
+    }
     return this.fileSystemProviderRegistry.getActiveItem().deleteFile(path);
   }
 
   async getFile(path: string): Promise<string | null> {
-    return this.fileSystemProviderRegistry.getActiveItem().getFile(path);
+    return await this.readFile(path, "utf8" as BufferEncoding);
   }
 
   async readFile(path: string, encoding?: BufferEncoding | "buffer"): Promise<any> {
     return this.fileSystemProviderRegistry.getActiveItem().readFile(path, encoding);
   }
 
-  async rename(oldPath: string, newPath: string): Promise<boolean> {
+  async rename(oldPath: string, newPath: string, agent: Agent): Promise<boolean> {
+    if (await this.exists(newPath)) {
+      const confirmed = await agent.askHuman({
+        type: "askForConfirmation",
+        message: `Execute potentially dangerous command: Rename ${oldPath} over existing ${newPath}?`,
+      } as AskForConfirmationRequest);
+
+
+      if (! confirmed) throw new Error('User did not approve command execution');
+    }
     return this.fileSystemProviderRegistry.getActiveItem().rename(oldPath, newPath);
   }
 
@@ -145,7 +170,15 @@ export default class FileSystemService implements TokenRingService {
     return this.fileSystemProviderRegistry.getActiveItem().createDirectory(path, options);
   }
 
-  async copy(source: string, destination: string, options: { overwrite?: boolean } = {}): Promise<boolean> {
+  async copy(source: string, destination: string, options: { overwrite?: boolean } = {}, agent: Agent): Promise<boolean> {
+    if (await this.exists(destination)) {
+      const confirmed = await agent.askHuman({
+        type: "askForConfirmation",
+        message: `Execute potentially dangerous command: Overwrite ${destination} over ${source}?`,
+      } as AskForConfirmationRequest);
+
+      if (! confirmed) throw new Error('User did not approve command execution');
+    }
     return this.fileSystemProviderRegistry.getActiveItem().copy(source, destination, options);
   }
 
@@ -172,15 +205,7 @@ export default class FileSystemService implements TokenRingService {
         message: `Execute potentially dangerous command: ${cmdString}?`,
       } as AskForConfirmationRequest);
       
-      if (!confirmed) {
-        return {
-          ok: false,
-          stdout: '',
-          stderr: 'Command execution cancelled by user',
-          exitCode: 1,
-          error: 'User cancelled command execution'
-        };
-      }
+      if (! confirmed) throw new Error('User did not approve command execution');
     }
     
     return this.fileSystemProviderRegistry.getActiveItem().executeCommand(command, options);

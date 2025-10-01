@@ -26,6 +26,7 @@ export interface DirectoryTreeOptions {
 export interface GlobOptions {
   ignoreFilter: (path: string) => boolean;
   absolute?: boolean;
+  includeDirectories?: boolean;
 }
 
 export interface WatchOptions {
@@ -53,56 +54,50 @@ export interface GrepOptions {
   includeContent?: { linesBefore?: number; linesAfter?: number };
 }
 
-
 /**
- * FileSystemProvider is an abstract class that provides a unified interface
+ * FileSystemProvider is an interface that provides a unified interface
  * for file operations, allowing for different implementations of file systems.
  */
-export default abstract class FileSystemProvider {
+export default interface FileSystemProvider {
   // Base directory getter for implementations that are rooted (e.g., local FS)
-  abstract getBaseDirectory(): string;
+  getBaseDirectory(): string;
 
   // Path helpers for implementations that map relative/absolute paths
-  abstract relativeOrAbsolutePathToAbsolutePath(p: string): string;
+  relativeOrAbsolutePathToAbsolutePath(p: string): string;
 
-  abstract relativeOrAbsolutePathToRelativePath(p: string): string;
+  relativeOrAbsolutePathToRelativePath(p: string): string;
 
   // Directory walking
-  abstract getDirectoryTree(path: string, params?: DirectoryTreeOptions): AsyncGenerator<string>;
+  getDirectoryTree(path: string, params?: DirectoryTreeOptions): AsyncGenerator<string>;
 
   // file ops
-  abstract writeFile(path: string, content: string | Buffer): Promise<boolean>;
+  writeFile(path: string, content: string | Buffer): Promise<boolean>;
 
-  abstract appendFile(filePath: string, finalContent: string | Buffer): Promise<boolean>;
+  appendFile(filePath: string, finalContent: string | Buffer): Promise<boolean>;
 
-  abstract deleteFile(path: string): Promise<boolean>;
+  deleteFile(path: string): Promise<boolean>;
 
-  abstract readFile(path: string, encoding?: BufferEncoding | "buffer"): Promise<any>;
+  readFile(path: string, encoding?: BufferEncoding | "buffer"): Promise<any>;
 
-  async getFile(path: string): Promise<string | null> {
-    return await this.readFile(path, "utf8" as BufferEncoding);
-  }
+  rename(oldPath: string, newPath: string): Promise<boolean>;
 
+  exists(path: string): Promise<boolean>;
 
-  abstract rename(oldPath: string, newPath: string): Promise<boolean>;
+  stat(path: string): Promise<StatLike>;
 
-  abstract exists(path: string): Promise<boolean>;
+  createDirectory(path: string, options?: { recursive?: boolean }): Promise<boolean>;
 
-  abstract stat(path: string): Promise<StatLike>;
+  copy(source: string, destination: string, options?: { overwrite?: boolean }): Promise<boolean>;
 
-  abstract createDirectory(path: string, options?: { recursive?: boolean }): Promise<boolean>;
+  chmod(path: string, mode: number): Promise<boolean>;
 
-  abstract copy(source: string, destination: string, options?: { overwrite?: boolean }): Promise<boolean>;
+  glob(pattern: string, options?: GlobOptions): Promise<string[]>;
 
-  abstract chmod(path: string, mode: number): Promise<boolean>;
+  watch(dir: string, options?: WatchOptions): Promise<any>;
 
-  abstract glob(pattern: string, options?: GlobOptions): Promise<string[]>;
+  executeCommand(command: string | string[], options?: ExecuteCommandOptions): Promise<ExecuteCommandResult>;
 
-  abstract watch(dir: string, options?: WatchOptions): Promise<any>;
-
-  abstract executeCommand(command: string | string[], options?: ExecuteCommandOptions): Promise<ExecuteCommandResult>;
-
-  abstract grep(
+  grep(
     searchString: string | string[],
     options?: GrepOptions,
   ): Promise<GrepResult[]>;

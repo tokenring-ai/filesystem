@@ -83,7 +83,7 @@ export async function execute(
       // Write or append
       let success: boolean;
       if (action === "write") {
-        success = await fileSystem.writeFile(filePath, finalContent);
+        success = await fileSystem.writeFile(filePath, finalContent, agent);
       } else { // append
         success = await fileSystem.appendFile(filePath, finalContent);
       }
@@ -108,7 +108,7 @@ export async function execute(
         throw new Error(`[${name}] Cannot delete file ${filePath}: file not found`);
       }
       if (fileExists) {
-        const success = await fileSystem.deleteFile(filePath);
+        const success = await fileSystem.deleteFile(filePath, agent);
         if (success) {
           fileSystem.setDirty(true);
           return "File successfully deleted";
@@ -137,7 +137,7 @@ export async function execute(
         await fileSystem.createDirectory(destDir, {recursive: true});
       }
 
-      const success = await fileSystem.rename(filePath, toPath);
+      const success = await fileSystem.rename(filePath, toPath, agent);
       if (success) {
         fileSystem.setDirty(true);
       }

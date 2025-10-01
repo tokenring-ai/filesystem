@@ -45,8 +45,8 @@ export async function execute(remainder: string, agent: Agent) {
     return;
   }
 
-  // Use FileSystem's glob to find matching files
-  const files: string[] = await fileSystem.glob(globString, {absolute: true});
+  // Use FileSystem's glob to find matching files and directories
+  const files: string[] = await fileSystem.glob(globString, {absolute: true, includeDirectories: true});
 
   if (files.length === 0) {
     agent.infoLine(`No files matched the pattern: ${globString}`);
