@@ -1,14 +1,10 @@
 import {AgentTeam, TokenRingPackage} from "@tokenring-ai/agent";
-import {IterableService} from "@tokenring-ai/iterables";
 import {ScriptingService} from "@tokenring-ai/scripting";
 import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService.ts";
 import {z} from "zod";
 
 import * as chatCommands from "./chatCommands.ts";
-import FilesIterableProvider from "./FilesIterableProvider.js";
 import FileSystemService from "./FileSystemService.js";
-import GlobIterableProvider from "./GlobIterableProvider.js";
-import LinesIterableProvider from "./LinesIterableProvider.js";
 import packageJSON from "./package.json" with {type: "json"};
 import * as tools from "./tools.ts";
 
@@ -26,11 +22,6 @@ export const packageInfo: TokenRingPackage = {
   install(agentTeam: AgentTeam) {
     const filesystemConfig = agentTeam.getConfigSlice("filesystem", FileSystemConfigSchema);
     if (filesystemConfig) {
-      agentTeam.services.waitForItemByType(IterableService).then((iterableService: IterableService) => {
-        iterableService.registerProvider("glob", new GlobIterableProvider());
-        iterableService.registerProvider("files", new FilesIterableProvider());
-        iterableService.registerProvider("lines", new LinesIterableProvider());
-      });
       agentTeam.services.waitForItemByType(ScriptingService).then((scriptingService: ScriptingService) => {
         scriptingService.registerFunction("createFile", {
             type: 'native',
