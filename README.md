@@ -143,6 +143,49 @@ Exported via `chatCommands.ts` for agent chat (e.g., `/file ...`).
 
 - **/foreach <glob> <prompt ...>**: Runs AI prompt on each matching file (uses `runChat` with file retrieval/modify instructions). Restores checkpoint per file.
 
+### Global Scripting Functions
+
+When `@tokenring-ai/scripting` is available, the filesystem package registers native functions for use in scripts:
+
+- **createFile(path, content)**: Creates a file with the specified content.
+  ```bash
+  /var $result = createFile("output.txt", "Hello World")
+  /call createFile("data.json", '{"key": "value"}')
+  ```
+
+- **deleteFile(path)**: Deletes a file at the specified path.
+  ```bash
+  /var $result = deleteFile("temp.txt")
+  /call deleteFile("old-file.log")
+  ```
+
+- **globFiles(pattern)**: Returns an array of files matching a glob pattern.
+  ```bash
+  /var $tsFiles = globFiles("src/**/*.ts")
+  /var $allDocs = globFiles("docs/**/*.md")
+  ```
+
+- **searchFiles(searchString)**: Searches for text across files and returns matches in format `file:line: match`.
+  ```bash
+  /var $todos = searchFiles("TODO")
+  /var $errors = searchFiles("ERROR")
+  ```
+
+These functions integrate seamlessly with the scripting system's variables, loops, and control flow:
+
+```bash
+# Find and process all TypeScript files
+/var $files = globFiles("src/**/*.ts")
+/list @tsFiles = $files
+/for $file in @tsFiles {
+  /echo Processing $file
+}
+
+# Search for TODOs and create a report
+/var $todos = searchFiles("TODO")
+/call createFile("todo-report.txt", $todos)
+```
+
 ### FileMatchResource
 
 Utility for pattern-based file selection.
@@ -194,6 +237,7 @@ Utility for pattern-based file selection.
 - **Permissions**: Octal strings (e.g., '644'); defaults to 0o644 for new files.
 - **Search**: Case-sensitive by default; limits (50) for content/matches to prevent overload.
 - **Shell**: `timeoutSeconds` (default 60, max 600); `env` and `workingDirectory` (relative to root).
+- **Scripting Integration**: Automatically registers global functions when `@tokenring-ai/scripting` is available.
 - **Environment**: No specific vars; relies on agent config for root dir.
 
 ## API Reference
@@ -215,6 +259,8 @@ Public exports: `FileSystemService`, `FileMatchResource`, tools/commands via ind
 
 - `@tokenring-ai/ai-client`: 0.1.0 (for `runChat` in commands).
 - `@tokenring-ai/agent`: 0.1.0 (core agent integration).
+- `@tokenring-ai/iterables`: 0.1.0 (iterable providers for glob, files, lines).
+- `@tokenring-ai/scripting`: 0.1.0 (optional, for global scripting functions).
 - `ignore`: ^7.0.5 (gitignore parsing).
 - `path-browserify`: ^1.0.1 (path utils).
 - Dev: `vitest` (^3.2.4), `@vitest/coverage-v8`.

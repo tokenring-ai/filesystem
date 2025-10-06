@@ -1,5 +1,7 @@
 import {AgentTeam, TokenRingPackage} from "@tokenring-ai/agent";
 import {IterableService} from "@tokenring-ai/iterables";
+import {ScriptingService} from "@tokenring-ai/scripting";
+import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService.ts";
 import {z} from "zod";
 
 import * as chatCommands from "./chatCommands.ts";
@@ -28,6 +30,47 @@ export const packageInfo: TokenRingPackage = {
         iterableService.registerProvider("glob", new GlobIterableProvider());
         iterableService.registerProvider("files", new FilesIterableProvider());
         iterableService.registerProvider("lines", new LinesIterableProvider());
+      });
+      agentTeam.services.waitForItemByType(ScriptingService).then((scriptingService: ScriptingService) => {
+        scriptingService.registerFunction("createFile", {
+            type: 'native',
+            params: ['path', 'content'],
+            async execute(this: ScriptingThis, path: string, content: string): Promise<string> {
+              await this.agent.requireServiceByType(FileSystemService).writeFile(path, content);
+              return `Created file: ${path}`;
+            }
+          }
+        );
+
+        scriptingService.registerFunction("deleteFile", {
+            type: 'native',
+            params: ['path'],
+            async execute(this: ScriptingThis, path: string): Promise<string> {
+              await this.agent.requireServiceByType(FileSystemService).deleteFile(path);
+              return `Deleted file: ${path}`;
+            }
+          }
+        );
+
+        scriptingService.registerFunction("globFiles", {
+            type: 'native',
+            params: ['pattern'],
+            async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
+              const files = await this.agent.requireServiceByType(FileSystemService).glob(pattern);
+              return files;
+            }
+          }
+        );
+
+        scriptingService.registerFunction("searchFiles", {
+            type: 'native',
+            params: ['searchString'],
+            async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
+              const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString]);
+              return results.map(r => `${r.file}:${r.line}: ${r.match}`);
+            }
+          }
+        );
       });
       agentTeam.addTools(packageInfo, tools)
       agentTeam.addChatCommands(chatCommands);
