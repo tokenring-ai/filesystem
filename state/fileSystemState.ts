@@ -1,5 +1,5 @@
-import type { AgentStateSlice } from "@tokenring-ai/agent/Agent";
-import type { ResetWhat } from "@tokenring-ai/agent/AgentEvents";
+import type {AgentStateSlice} from "@tokenring-ai/agent/types";
+import type {ResetWhat} from "@tokenring-ai/agent/AgentEvents";
 
 export class FileSystemState implements AgentStateSlice {
 	name = "FileSystemState";
