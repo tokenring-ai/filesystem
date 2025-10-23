@@ -15,10 +15,10 @@ export const FileSystemConfigSchema = z.object({
   providers: z.record(z.string(), z.any())
 });
 
-export const packageInfo: TokenRingPackage = {
-	name: packageJSON.name,
-	version: packageJSON.version,
-	description: packageJSON.description,
+export default {
+  name: packageJSON.name,
+  version: packageJSON.version,
+  description: packageJSON.description,
   install(agentTeam: AgentTeam) {
     const filesystemConfig = agentTeam.getConfigSlice("filesystem", FileSystemConfigSchema);
     if (filesystemConfig) {
@@ -63,7 +63,7 @@ export const packageInfo: TokenRingPackage = {
           }
         );
       });
-      agentTeam.addTools(packageInfo, tools)
+      agentTeam.addTools(packageJSON.name, tools)
       agentTeam.addChatCommands(chatCommands);
       agentTeam.addServices(new FileSystemService(filesystemConfig));
     }
@@ -74,7 +74,7 @@ export const packageInfo: TokenRingPackage = {
       agentTeam.services.requireItemByType(FileSystemService).setActiveFileSystemProviderName(filesystemConfig.defaultProvider)
     }
   }
-};
+} as TokenRingPackage;
 
-export { default as FileMatchResource } from "./FileMatchResource.ts";
-export { default as FileSystemService } from "./FileSystemService.ts";
+export {default as FileMatchResource} from "./FileMatchResource.ts";
+export {default as FileSystemService} from "./FileSystemService.ts";
