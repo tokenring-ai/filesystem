@@ -10,8 +10,8 @@
 		"allowJs": true,
 		"checkJs": true,
 		"allowImportingTsExtensions": true,
-		"types": ["node", "vitest"],
-		"outDir": "dist-ts",
+		"types": ["bun", "vitest"],
+		"outDir": "dist",
 		"rootDir": "."
 	},
 	"include": ["**/*.ts"],
