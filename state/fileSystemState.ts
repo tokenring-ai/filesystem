@@ -1,5 +1,5 @@
-import type {AgentStateSlice} from "@tokenring-ai/agent/types";
 import type {ResetWhat} from "@tokenring-ai/agent/AgentEvents";
+import type {AgentStateSlice} from "@tokenring-ai/agent/types";
 
 export class FileSystemState implements AgentStateSlice {
 	name = "FileSystemState";
@@ -26,4 +26,11 @@ export class FileSystemState implements AgentStateSlice {
 	deserialize(data: any): void {
 		this.selectedFiles = new Set(data.selectedFiles);
 	}
+
+  show(): string[] {
+    return [
+      `Selected Files: ${this.selectedFiles.size}`,
+      ...Array.from(this.selectedFiles).map(f => `  - ${f}`)
+    ];
+  }
 }

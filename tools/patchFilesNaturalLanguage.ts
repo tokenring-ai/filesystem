@@ -1,8 +1,8 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import AIService from "@tokenring-ai/ai-client/AIService";
-import type { GenerateRequest } from "@tokenring-ai/ai-client/client/AIChatClient";
+import {AIService} from "@tokenring-ai/ai-client";
+import type {GenerateRequest} from "@tokenring-ai/ai-client/client/AIChatClient";
 import ModelRegistry from "@tokenring-ai/ai-client/ModelRegistry";
-import { z } from "zod";
+import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
 const systemPrompt = `
