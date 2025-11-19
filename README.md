@@ -2,9 +2,14 @@
 
 ## Overview
 
-The `@tokenring-ai/filesystem` package provides an abstract filesystem interface designed for integration with AI agents in the Token Ring framework. It enables virtual filesystem operations such as reading/writing files, directory traversal, globbing, searching, and executing shell commands. The package supports multiple filesystem providers (e.g., local FS) and integrates seamlessly with the `@tokenring-ai/agent` for agent-state management, including file selection for chat sessions and memory injection.
+The `@tokenring-ai/filesystem` package provides an abstract filesystem interface designed for integration with AI agents
+in the Token Ring framework. It enables virtual filesystem operations such as reading/writing files, directory
+traversal, globbing, searching, and executing shell commands. The package supports multiple filesystem providers (e.g.,
+local FS) and integrates seamlessly with the `@tokenring-ai/agent` for agent-state management, including file selection
+for chat sessions and memory injection.
 
 Key features:
+
 - Unified API for file operations (create, read, update, delete, rename, permissions).
 - Ignore filters based on `.gitignore` and `.aiignore`.
 - Tools for AI-driven interactions: file modification, patching, searching, and shell execution.
@@ -12,7 +17,8 @@ Key features:
 - Async generators for directory trees and memories from selected files.
 - Dirty flag for tracking changes.
 
-This package abstracts filesystem access, making it suitable for sandboxed or virtual environments in AI workflows, while warning about non-sandboxed shell commands.
+This package abstracts filesystem access, making it suitable for sandboxed or virtual environments in AI workflows,
+while warning about non-sandboxed shell commands.
 
 ## Installation/Setup
 
@@ -21,7 +27,8 @@ This package abstracts filesystem access, making it suitable for sandboxed or vi
    npm install @tokenring-ai/filesystem
    ```
 
-2. Ensure dependencies are met (see [Dependencies](#dependencies) below). The package uses ES modules (`type: "module"`).
+2. Ensure dependencies are met (see [Dependencies](#dependencies) below). The package uses ES modules (
+   `type: "module"`).
 
 3. In your Token Ring agent setup, register the `FileSystemService`:
    ```typescript
@@ -33,7 +40,8 @@ This package abstracts filesystem access, making it suitable for sandboxed or vi
    await fsService.attach(agent);
    ```
 
-4. Configure default files or providers as needed. For local FS, implement a `FileSystemProvider` subclass (see [Core Components](#core-components)).
+4. Configure default files or providers as needed. For local FS, implement a `FileSystemProvider` subclass (
+   see [Core Components](#core-components)).
 
 5. Run tests:
    ```
@@ -43,23 +51,24 @@ This package abstracts filesystem access, making it suitable for sandboxed or vi
 ## Package Structure
 
 The package is organized as follows:
+
 - **Root files**:
-  - `index.ts`: Main entry point, exports `FileSystemService` and `FileMatchResource`.
-  - `FileSystemService.ts`: Core service class implementing `TokenRingService`.
-  - `FileSystemProvider.ts`: Abstract base for filesystem implementations.
-  - `package.json`: Package metadata, scripts (e.g., `npm test` for Vitest).
-  - `tsconfig.json`: TypeScript configuration.
-  - `vitest.config.js`: Test configuration.
-  - `README.md`: This documentation.
-  - `LICENSE`: MIT license.
+ - `index.ts`: Main entry point, exports `FileSystemService` and `FileMatchResource`.
+ - `FileSystemService.ts`: Core service class implementing `TokenRingService`.
+ - `FileSystemProvider.ts`: Abstract base for filesystem implementations.
+ - `package.json`: Package metadata, scripts (e.g., `npm test` for Vitest).
+ - `tsconfig.json`: TypeScript configuration.
+ - `vitest.config.js`: Test configuration.
+ - `README.md`: This documentation.
+ - `LICENSE`: MIT license.
 - **tools/**: AI tool implementations (exported via `tools.ts`):
-  - `modify.ts`: File write/append/delete/rename/adjust (permissions).
-  - `search.ts`: File retrieval and full-text search (globs, substrings/regex).
-  - `patch.ts`: Line-based patching.
-  - `runShellCommand.ts`: Execute shell commands (with timeout).
+ - `modify.ts`: File write/append/delete/rename/adjust (permissions).
+ - `search.ts`: File retrieval and full-text search (globs, substrings/regex).
+ - `patch.ts`: Line-based patching.
+ - `runShellCommand.ts`: Execute shell commands (with timeout).
 - **commands/**: Chat commands (exported via `chatCommands.ts`):
-  - `file.ts`: Manage chat files (`/file add/remove/list/clear`).
-  - `foreach.ts`: Run prompts on glob-matched files.
+ - `file.ts`: Manage chat files (`/file add/remove/list/clear`).
+ - `foreach.ts`: Run prompts on glob-matched files.
 - **test/**: Unit/integration tests (e.g., `runShellCommand.test.js`).
 - Other: `FileMatchResource.ts` for pattern-based file matching.
 
@@ -67,38 +76,48 @@ The package is organized as follows:
 
 ### FileSystemService
 
-The main service class, implementing `TokenRingService`. It manages filesystem providers, state (e.g., selected files for chat), and delegates operations.
+The main service class, implementing `TokenRingService`. It manages filesystem providers, state (e.g., selected files
+for chat), and delegates operations.
 
 - **Key Properties/Methods**:
-  - `registerFileSystemProvider(provider: FileSystemProvider)`: Registers a provider (uses `KeyedRegistryWithSingleSelection`).
-  - `getActiveFileSystemProviderName()`: Gets the current provider name.
-  - `attach(agent: Agent)`: Initializes state with `FileSystemState` (tracks `selectedFiles: Set<string>`).
-  - `getDirectoryTree(path: string, options?: DirectoryTreeOptions)`: Async generator for directory contents (ignores via filter).
-    - Options: `{ ignoreFilter: (p: string) => boolean, recursive?: boolean }`.
-  - `writeFile(path: string, content: string | Buffer)`: Writes/overwrites file (returns `boolean` success).
-  - `appendFile(path: string, content: string | Buffer)`: Appends to file.
-  - `deleteFile(path: string)`, `rename(oldPath: string, newPath: string)`, `copy(source: string, dest: string, {overwrite?: boolean})`: Standard ops (return `boolean`).
-  - `getFile(path: string)`: Reads as UTF-8 string (or `null` if missing).
-  - `readFile(path: string, encoding?: 'utf8' | 'buffer')`: Raw read.
-  - `exists(path: string)`, `stat(path: string)`: Returns `boolean` or `StatLike` (e.g., `{ isFile: boolean, size?: number }`).
-  - `createDirectory(path: string, {recursive?: boolean})`: Creates dir.
-  - `chmod(path: string, mode: number)`: Sets permissions.
-  - `glob(pattern: string, {ignoreFilter, absolute?: boolean})`: Returns `string[]` matches.
-  - `grep(searchString: string | string[], {ignoreFilter, includeContent?: {linesBefore/After}})`: Returns `GrepResult[]` (e.g., `{file, line, match}`).
-  - `executeCommand(command: string | string[], {timeoutSeconds, env, workingDirectory})`: Returns `ExecuteCommandResult` (e.g., `{ok: boolean, stdout, stderr, exitCode}`).
-  - `watch(dir: string, {ignoreFilter, pollInterval})`: Watches for changes (returns watcher).
-  - Chat-specific: `addFileToChat(file: string, agent)`, `getFilesInChat(agent)`, `setFilesInChat(files: Iterable<string>, agent)`, `getMemories(agent)`: Yields file contents as agent memories.
-  - `askForFileSelection({initialSelection?}, agent)`: Interactive tree-based selection via agent UI.
-  - `setDirty(dirty: boolean)` / `getDirty()`: Tracks modifications.
+ - `registerFileSystemProvider(provider: FileSystemProvider)`: Registers a provider (uses
+   `KeyedRegistryWithSingleSelection`).
+ - `getActiveFileSystemProviderName()`: Gets the current provider name.
+ - `attach(agent: Agent)`: Initializes state with `FileSystemState` (tracks `selectedFiles: Set<string>`).
+ - `getDirectoryTree(path: string, options?: DirectoryTreeOptions)`: Async generator for directory contents (ignores via
+   filter).
+  - Options: `{ ignoreFilter: (p: string) => boolean, recursive?: boolean }`.
+ - `writeFile(path: string, content: string | Buffer)`: Writes/overwrites file (returns `boolean` success).
+ - `appendFile(path: string, content: string | Buffer)`: Appends to file.
+ - `deleteFile(path: string)`, `rename(oldPath: string, newPath: string)`,
+   `copy(source: string, dest: string, {overwrite?: boolean})`: Standard ops (return `boolean`).
+ - `getFile(path: string)`: Reads as UTF-8 string (or `null` if missing).
+ - `readFile(path: string, encoding?: 'utf8' | 'buffer')`: Raw read.
+ - `exists(path: string)`, `stat(path: string)`: Returns `boolean` or `StatLike` (e.g.,
+   `{ isFile: boolean, size?: number }`).
+ - `createDirectory(path: string, {recursive?: boolean})`: Creates dir.
+ - `chmod(path: string, mode: number)`: Sets permissions.
+ - `glob(pattern: string, {ignoreFilter, absolute?: boolean})`: Returns `string[]` matches.
+ - `grep(searchString: string | string[], {ignoreFilter, includeContent?: {linesBefore/After}})`: Returns
+   `GrepResult[]` (e.g., `{file, line, match}`).
+ - `executeCommand(command: string | string[], {timeoutSeconds, env, workingDirectory})`: Returns
+   `ExecuteCommandResult` (e.g., `{ok: boolean, stdout, stderr, exitCode}`).
+ - `watch(dir: string, {ignoreFilter, pollInterval})`: Watches for changes (returns watcher).
+ - Chat-specific: `addFileToChat(file: string, agent)`, `getFilesInChat(agent)`,
+   `setFilesInChat(files: Iterable<string>, agent)`, `getMemories(agent)`: Yields file contents as agent memories.
+ - `askForFileSelection({initialSelection?}, agent)`: Interactive tree-based selection via agent UI.
+ - `setDirty(dirty: boolean)` / `getDirty()`: Tracks modifications.
 
-Interactions: Delegates to active `FileSystemProvider`. Auto-creates ignore filters from `.gitignore`/`.aiignore`. State persists across agent resets.
+Interactions: Delegates to active `FileSystemProvider`. Auto-creates ignore filters from `.gitignore`/`.aiignore`. State
+persists across agent resets.
 
 ### FileSystemProvider
 
 Abstract base class for concrete implementations (e.g., local FS, virtual FS).
 
 - **Key Abstract Methods**: All ops mirror `FileSystemService` (e.g., `abstract writeFile(...)`).
-- Subclasses must implement `getBaseDirectory()`, path conversions (`relativeOrAbsolutePathToAbsolutePath`), and all file ops.
+- Subclasses must implement `getBaseDirectory()`, path conversions (`relativeOrAbsolutePathToAbsolutePath`), and all
+  file ops.
 - `getFile(path)`: Convenience wrapper for `readFile(path, 'utf8')`.
 
 ### Tools
@@ -106,42 +125,44 @@ Abstract base class for concrete implementations (e.g., local FS, virtual FS).
 Exported via `tools.ts` for AI agent use (e.g., in `@tokenring-ai/agent`).
 
 - **file/modify**:
-  - Actions: `write` (full content, optional base64), `append`, `delete`, `rename` (to `toPath`), `adjust` (permissions as octal string, e.g., '644').
-  - Params: `{path, action, content?, is_base64?, fail_if_exists?, permissions?, toPath?, check_exists?}`.
-  - Example: Write a file – returns success message.
-  - Auto-creates dirs, sets default 0o644 perms for new files.
+ - Actions: `write` (full content, optional base64), `append`, `delete`, `rename` (to `toPath`), `adjust` (permissions
+   as octal string, e.g., '644').
+ - Params: `{path, action, content?, is_base64?, fail_if_exists?, permissions?, toPath?, check_exists?}`.
+ - Example: Write a file – returns success message.
+ - Auto-creates dirs, sets default 0o644 perms for new files.
 
 - **file/search**:
-  - Retrieves files by paths/globs or searches text (substring/whole-word/regex).
-  - Modes: `names` (paths), `content` (full text, limit 50), `matches` (lines with context).
-  - Params: `{files?, searches?, returnType='content', linesBefore/After?, caseSensitive=true, matchType='substring'}`.
-  - Returns: `{files: [{file, exists, content}], matches: [...], summary: {...}}`.
-  - Skips binaries/.gitignore; OR-based searches.
+ - Retrieves files by paths/globs or searches text (substring/whole-word/regex).
+ - Modes: `names` (paths), `content` (full text, limit 50), `matches` (lines with context).
+ - Params: `{files?, searches?, returnType='content', linesBefore/After?, caseSensitive=true, matchType='substring'}`.
+ - Returns: `{files: [{file, exists, content}], matches: [...], summary: {...}}`.
+ - Skips binaries/.gitignore; OR-based searches.
 
 - **file/patch**:
-  - Replaces content between exact line matches (ignores whitespace).
-  - Params: `{file, fromLine, toLine, contents}`.
-  - Ensures single match; overwrites file.
+ - Replaces content between exact line matches (ignores whitespace).
+ - Params: `{file, fromLine, toLine, contents}`.
+ - Ensures single match; overwrites file.
 
 - **terminal/runShellCommand**:
-  - Executes shell cmd (string or array).
-  - Params: `{command, timeoutSeconds=60, workingDirectory?}`.
-  - Returns `ExecuteCommandResult`; not sandboxed – use cautiously.
-  - Marks dirty on success.
+ - Executes shell cmd (string or array).
+ - Params: `{command, timeoutSeconds=60, workingDirectory?}`.
+ - Returns `ExecuteCommandResult`; not sandboxed – use cautiously.
+ - Marks dirty on success.
 
 ### Chat Commands
 
 Exported via `chatCommands.ts` for agent chat (e.g., `/file ...`).
 
 - **/file**: Manage chat files.
-  - `select`: Interactive tree selection.
-  - `add/remove [files...]`: Add/remove specific files (or interactive).
-  - `list`: Show current files.
-  - `clear`: Remove all.
-  - `default`: Reset to config defaults.
-  - Validates existence; updates agent state.
+ - `select`: Interactive tree selection.
+ - `add/remove [files...]`: Add/remove specific files (or interactive).
+ - `list`: Show current files.
+ - `clear`: Remove all.
+ - `default`: Reset to config defaults.
+ - Validates existence; updates agent state.
 
-- **/foreach <glob> <prompt ...>**: Runs AI prompt on each matching file (uses `runChat` with file retrieval/modify instructions). Restores checkpoint per file.
+- **/foreach <glob> <prompt ...>**: Runs AI prompt on each matching file (uses `runChat` with file retrieval/modify
+  instructions). Restores checkpoint per file.
 
 ### Global Scripting Functions
 
@@ -221,7 +242,7 @@ Utility for pattern-based file selection.
    ```
 
 4. **Using Tools in Agent (e.g., via AI prompt)**:
-   - AI can call `file/modify` to write: `{path: 'new.js', action: 'write', content: 'console.log("Hi");'}`.
+ - AI can call `file/modify` to write: `{path: 'new.js', action: 'write', content: 'console.log("Hi");'}`.
 
 5. **Shell Command**:
    ```typescript
@@ -232,8 +253,10 @@ Utility for pattern-based file selection.
 ## Configuration Options
 
 - **Constructor**: `FileSystemService({defaultSelectedFiles?: string[]})` – Initial chat files.
-- **Ignore Filters**: Auto-loads `.gitignore` (ignores `.git`, `node_modules`, etc.) and `.aiignore`. Custom via `ignoreFilter` in options.
-- **Providers**: Register multiple via `registerFileSystemProvider`; active one via `setActiveFileSystemProviderName(name)`.
+- **Ignore Filters**: Auto-loads `.gitignore` (ignores `.git`, `node_modules`, etc.) and `.aiignore`. Custom via
+  `ignoreFilter` in options.
+- **Providers**: Register multiple via `registerFileSystemProvider`; active one via
+  `setActiveFileSystemProviderName(name)`.
 - **Permissions**: Octal strings (e.g., '644'); defaults to 0o644 for new files.
 - **Search**: Case-sensitive by default; limits (50) for content/matches to prevent overload.
 - **Shell**: `timeoutSeconds` (default 60, max 600); `env` and `workingDirectory` (relative to root).
@@ -244,14 +267,15 @@ Utility for pattern-based file selection.
 
 - **FileSystemService Methods**: See [Core Components](#core-components) for signatures.
 - **Tool Schemas** (Zod-validated inputs):
-  - `file/modify`: `z.object({path: z.string(), action: z.enum(['write', ...]), ...})`.
-  - `file/search`: `z.object({files?: z.array(z.string()), searches?: z.array(z.string()), ...})`.
-  - `file/patch`: `z.object({file: z.string(), fromLine: z.string(), toLine: z.string(), contents: z.string()})`.
-  - `terminal/runShellCommand`: `z.object({command: z.string(), timeoutSeconds?: z.number(), workingDirectory?: z.string()})`.
+ - `file/modify`: `z.object({path: z.string(), action: z.enum(['write', ...]), ...})`.
+ - `file/search`: `z.object({files?: z.array(z.string()), searches?: z.array(z.string()), ...})`.
+ - `file/patch`: `z.object({file: z.string(), fromLine: z.string(), toLine: z.string(), contents: z.string()})`.
+ - `terminal/runShellCommand`:
+   `z.object({command: z.string(), timeoutSeconds?: z.number(), workingDirectory?: z.string()})`.
 - **Interfaces**:
-  - `StatLike`: `{path: string, isFile: boolean, ...}`.
-  - `GrepResult`: `{file: string, line: number, match: string, ...}`.
-  - `ExecuteCommandResult`: `{ok: boolean, stdout: string, ...}`.
+ - `StatLike`: `{path: string, isFile: boolean, ...}`.
+ - `GrepResult`: `{file: string, line: number, match: string, ...}`.
+ - `ExecuteCommandResult`: `{ok: boolean, stdout: string, ...}`.
 
 Public exports: `FileSystemService`, `FileMatchResource`, tools/commands via index.
 
@@ -267,13 +291,14 @@ Public exports: `FileSystemService`, `FileMatchResource`, tools/commands via ind
 
 ## Contributing/Notes
 
-- **Testing**: Run `npm test` (unit), `npm run test:integration` (shell cmds), `npm run test:all` (full suite). Uses Vitest; covers core ops and tools.
+- **Testing**: Run `npm test` (unit), `npm run test:integration` (shell cmds), `npm run test:all` (full suite). Uses
+  Vitest; covers core ops and tools.
 - **Building**: TypeScript compiles to ESM; no build step needed beyond `tsc`.
 - **Limitations**:
-  - Shell commands (`terminal/runShellCommand`) are not sandboxed – potential security risk.
-  - Searches skip binaries and ignored files; limits degrade to 'names' mode if >50 results.
-  - Path handling assumes Unix-style `/`; relative to virtual root.
-  - No multi-provider switching in tools yet (uses active provider).
+ - Shell commands (`terminal/runShellCommand`) are not sandboxed – potential security risk.
+ - Searches skip binaries and ignored files; limits degrade to 'names' mode if >50 results.
+ - Path handling assumes Unix-style `/`; relative to virtual root.
+ - No multi-provider switching in tools yet (uses active provider).
 - **Contributing**: Fork, add tests, PR to main. Focus on new providers, tools, or agent integrations.
 - **License**: MIT (see LICENSE).
 
