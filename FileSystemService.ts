@@ -3,15 +3,15 @@ import type {AskForMultipleTreeSelectionRequest, TreeLeaf} from "@tokenring-ai/a
 import type {ContextItem, TokenRingService} from "@tokenring-ai/agent/types";
 import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/KeyedRegistryWithSingleSelection";
 import ignore from "ignore";
-import type FileSystemProvider, {
-  DirectoryTreeOptions,
-  ExecuteCommandOptions,
-  ExecuteCommandResult,
-  GlobOptions,
-  GrepOptions,
-  GrepResult,
-  StatLike,
-  WatchOptions
+import FileSystemProvider, {
+  type DirectoryTreeOptions,
+  type ExecuteCommandOptions,
+  type ExecuteCommandResult,
+  type GlobOptions,
+  type GrepOptions,
+  type GrepResult,
+  type StatLike,
+  type WatchOptions
 } from "./FileSystemProvider.js";
 import {FileSystemState} from "./state/fileSystemState.js";
 
