@@ -1,7 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import type {AskForMultipleTreeSelectionRequest, TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceRequest";
 import type {ContextItem, TokenRingService} from "@tokenring-ai/agent/types";
-import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/KeyedRegistryWithSingleSelection";
+import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/registry/KeyedRegistryWithSingleSelection";
 import ignore from "ignore";
 import FileSystemProvider, {
   type DirectoryTreeOptions,
