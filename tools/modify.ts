@@ -1,12 +1,13 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
 // Tool name export as required
-export const name = "file/modify";
+const name = "file/modify";
 
-export async function execute(
+async function execute(
   {
     path: filePath,
     action,
@@ -16,16 +17,7 @@ export async function execute(
     permissions,
     toPath,
     check_exists,
-  }: {
-    path?: string;
-    action?: "write" | "append" | "delete" | "rename" | "adjust";
-    content?: string;
-    is_base64?: boolean;
-    fail_if_exists?: boolean;
-    permissions?: string;
-    toPath?: string;
-    check_exists?: boolean;
-  },
+  }: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -223,10 +215,10 @@ export async function execute(
   }
 }
 
-export const description =
+const description =
   "Manage files in a virtual filesystem: write (create/overwrite), append, delete, rename, or adjust properties (currently permissions only). Paths are relative to the virtual root (e.g., './file.txt' or '/docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8) or base64-encoded binary. Always provide entire content for 'write'; partial for 'append'.";
 
-export const inputSchema = z.object({
+const inputSchema = z.object({
   path: z
     .string()
     .describe(
@@ -274,3 +266,7 @@ export const inputSchema = z.object({
     )
     .optional(),
 });
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;

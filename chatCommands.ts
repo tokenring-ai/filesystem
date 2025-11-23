@@ -1,1 +1,1 @@
-export * as file from "./commands/file.ts";
+export {default as file} from "./commands/file.ts";

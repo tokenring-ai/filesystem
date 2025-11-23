@@ -1,4 +1,6 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import FileSystemService from "../FileSystemService.ts";
 
 /**
@@ -12,7 +14,7 @@ import FileSystemService from "../FileSystemService.ts";
  * - default: Reset to default files from config
  */
 
-export const description: string =
+const description: string =
   "/file [action] [files...] - Manage files in the chat session (select, add, remove, list, clear, defaults).";
 
 // Updated function signatures to use concrete types instead of `any`
@@ -127,7 +129,7 @@ export function help(): Array<string> {
   ];
 }
 
-export async function execute(remainder: string, agent: Agent) {
+async function execute(remainder: string, agent: Agent) {
   const filesystem = agent.requireServiceByType(FileSystemService);
 
   const args = remainder ? remainder.trim().split(/\s+/) : [];
@@ -168,3 +170,9 @@ export async function execute(remainder: string, agent: Agent) {
       break;
   }
 }
+
+export default {
+  description,
+  execute,
+  help,
+} as TokenRingAgentCommand

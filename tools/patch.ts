@@ -1,17 +1,18 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
 // Exported name for the tool
-export const name = "file/patch";
+const name = "file/patch";
 
-export async function execute(
+async function execute(
   {
     file,
     fromLine,
     toLine,
     contents,
-  }: { file?: string; fromLine?: string; toLine?: string; contents?: string },
+  }: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -94,10 +95,10 @@ export async function execute(
   return `Successfully patched file ${file} replacing content from line "${fromLine}" to line "${toLine}"`;
 }
 
-export const description =
+const description =
   "Patches a file by replacing content between two specific lines that match exactly (ignoring whitespace).";
 
-export const inputSchema = z.object({
+const inputSchema = z.object({
   file: z
     .string()
     .describe("Path to the file to patch, relative to the source directory."),
@@ -117,3 +118,7 @@ export const inputSchema = z.object({
       "The content that will replace everything from fromLine to toLine (inclusive).",
     ),
 });
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;

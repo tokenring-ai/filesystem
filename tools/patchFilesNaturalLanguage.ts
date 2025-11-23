@@ -2,6 +2,7 @@ import Agent from "@tokenring-ai/agent/Agent";
 import type {GenerateRequest} from "@tokenring-ai/ai-client/client/AIChatClient";
 import ModelRegistry from "@tokenring-ai/ai-client/ModelRegistry";
 import {ChatService} from "@tokenring-ai/chat";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -11,18 +12,18 @@ const systemPrompt = `
 :`.trim();
 
 // Export tool name with package prefix
-export const name = "file/patchFilesNaturalLanguage";
+const name = "file/patchFilesNaturalLanguage";
 
 /**
  * Executes the natural language patch tool.
  *
  * Returns a success message string. Errors are thrown.
  */
-export async function execute(
+async function execute(
   {
     files,
     naturalLanguagePatch,
-  }: { files?: string[]; naturalLanguagePatch?: string },
+  }: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const chatService = agent.requireServiceByType(ChatService);
@@ -72,7 +73,7 @@ export async function execute(
 
       // Get an online chat client
       const patchClient = await modelRegistry.chat.getFirstOnlineClient(
-        chatService.getModel(),
+        chatService.getModel(agent),
       );
 
       // Get patched content from LLM
@@ -108,10 +109,10 @@ export async function execute(
   return `Patched ${patchedFiles.length} files successfully`;
 }
 
-export const description =
+const description =
   "Patches multiple files using a natural language description, processed by an LLM. Includes code extraction from markdown, line ending preservation, file type validation, and optional diff preview for critical files.";
 
-export const inputSchema = z.object({
+const inputSchema = z.object({
   files: z
     .array(z.string())
     .describe("List of file paths to patch, relative to the source directory."),
@@ -121,3 +122,7 @@ export const inputSchema = z.object({
       "Detailed natural language description of the patch to apply to the code.",
     ),
 });
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;

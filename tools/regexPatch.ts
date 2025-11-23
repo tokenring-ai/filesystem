@@ -1,4 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -7,21 +8,16 @@ import FileSystemService from "../FileSystemService.ts";
  * All informational messages are prefixed with the tool name `[regexPatch]`.
  * Errors are thrown as exceptions with the tool name prefix.
  */
-export const name = "file/regexPatch";
+const name = "file/regexPatch";
 const toolName = name.split("/")[1]; // "regexPatch"
 
-export async function execute(
+async function execute(
   {
     file,
     startRegex,
     endRegex,
     replacement,
-  }: {
-    file: string;
-    startRegex: string;
-    endRegex: string;
-    replacement: string;
-  },
+  }: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -64,10 +60,10 @@ export async function execute(
   return `Successfully patched file ${file} using regex pattern`;
 }
 
-export const description =
+const description =
   "Patches a file using regular expressions to match the beginning and end of a code block to replace.";
 
-export const inputSchema = z.object({
+const inputSchema = z.object({
   file: z
     .string()
     .describe("Path to the file to patch, relative to the source directory."),
@@ -87,3 +83,7 @@ export const inputSchema = z.object({
       "The code that will replace the matched block between startRegex and endRegex.",
     ),
 });
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;

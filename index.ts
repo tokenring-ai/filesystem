@@ -1,5 +1,7 @@
-import {AgentCommandService, AgentTeam, TokenRingPackage} from "@tokenring-ai/agent";
+import TokenRingApp from "@tokenring-ai/app"; 
+import {AgentCommandService} from "@tokenring-ai/agent";
 import {ChatService} from "@tokenring-ai/chat";
+import {TokenRingPlugin} from "@tokenring-ai/app";
 import {ScriptingService} from "@tokenring-ai/scripting";
 import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService.ts";
 import {z} from "zod";
@@ -20,10 +22,10 @@ export default {
   name: packageJSON.name,
   version: packageJSON.version,
   description: packageJSON.description,
-  install(agentTeam: AgentTeam) {
-    const filesystemConfig = agentTeam.getConfigSlice("filesystem", FileSystemConfigSchema);
+  install(app: TokenRingApp) {
+    const filesystemConfig = app.getConfigSlice("filesystem", FileSystemConfigSchema);
     if (filesystemConfig) {
-      agentTeam.waitForService(ScriptingService, (scriptingService: ScriptingService) => {
+      app.waitForService(ScriptingService, (scriptingService: ScriptingService) => {
         scriptingService.registerFunction("createFile", {
             type: 'native',
             params: ['path', 'content'],
@@ -64,22 +66,22 @@ export default {
           }
         );
       });
-      agentTeam.waitForService(ChatService, chatService =>
+      app.waitForService(ChatService, chatService =>
         chatService.addTools(packageJSON.name, tools)
       );
-      agentTeam.waitForService(AgentCommandService, agentCommandService =>
+      app.waitForService(AgentCommandService, agentCommandService =>
         agentCommandService.addAgentCommands(chatCommands)
       );
-      agentTeam.addServices(new FileSystemService(filesystemConfig));
+      app.addServices(new FileSystemService(filesystemConfig));
     }
   },
-  start(agentTeam: AgentTeam) {
-    const filesystemConfig = agentTeam.getConfigSlice("filesystem", FileSystemConfigSchema);
+  start(app: TokenRingApp) {
+    const filesystemConfig = app.getConfigSlice("filesystem", FileSystemConfigSchema);
     if (filesystemConfig?.defaultProvider) {
-      agentTeam.requireService(FileSystemService).setActiveFileSystemProviderName(filesystemConfig.defaultProvider)
+      app.requireService(FileSystemService).setActiveFileSystemProviderName(filesystemConfig.defaultProvider)
     }
   }
-} as TokenRingPackage;
+} as TokenRingPlugin;
 
 export {default as FileMatchResource} from "./FileMatchResource.ts";
 export {default as FileSystemService} from "./FileSystemService.ts";

@@ -1,21 +1,18 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
 import type {ExecuteCommandResult} from "../FileSystemProvider.js";
 import FileSystemService from "../FileSystemService.ts";
 
 // Export tool name with package prefix
-export const name = "terminal/runShellCommand";
+const name = "terminal/runShellCommand";
 
 export async function execute(
   {
     command,
     timeoutSeconds = 60,
     workingDirectory,
-  }: {
-    command?: string | string[];
-    timeoutSeconds?: number;
-    workingDirectory?: string;
-  },
+  }: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<ExecuteCommandResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -66,10 +63,10 @@ export async function execute(
   }
 }
 
-export const description =
+const description =
   "Run a shell command using the specified file system. Output is truncated to reasonable size. WARNING: Use with caution. Not sandboxed!";
 
-export const inputSchema = z.object({
+const inputSchema = z.object({
   command: z.string().describe("The shell command to execute."),
   timeoutSeconds: z
     .number()
@@ -81,3 +78,7 @@ export const inputSchema = z.object({
     .optional()
     .describe("Working directory, relative to the file system root"),
 });
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;

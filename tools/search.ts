@@ -1,8 +1,9 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
-export const name = "file/search";
+const name = "file/search";
 
 export interface FileSearchResult {
   files: Array<{
@@ -27,7 +28,7 @@ export interface FileSearchResult {
   };
 }
 
-export async function execute(
+async function execute(
   {
     files,
     searches,
@@ -36,15 +37,7 @@ export async function execute(
     returnType = "content",
     caseSensitive = true,
     matchType = "substring",
-  }: {
-    files?: string[];
-    searches?: string[];
-    linesBefore?: number;
-    linesAfter?: number;
-    returnType?: "names" | "content" | "matches";
-    caseSensitive?: boolean;
-    matchType?: "substring" | "whole-word" | "regex";
-  },
+  }: z.infer<typeof inputSchema>,
   agent: Agent,
 ): Promise<FileSearchResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -431,7 +424,7 @@ function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export const description = `
+const description = `
 Retrieve a list of file names, file contents, or search matches based on file paths/globs or full-text search across text files in the filesystem.
 - The filesystem scope is the entire sandboxed root directory accessible by the FileSystemService (e.g., the project's root folder).
 - Binary files and files in .gitignore are skipped; only text files (UTF-8 encoded) are processed.
@@ -441,7 +434,7 @@ Retrieve a list of file names, file contents, or search matches based on file pa
 - Limits: Up to 50 results for 'content' or 'matches'; degrades to 'names' if exceeded.
   `.trim();
 
-export const inputSchema = z
+const inputSchema = z
   .object({
     files: z
       .array(z.string())
@@ -490,3 +483,8 @@ export const inputSchema = z
     // fileSystemType omitted from schema as it's unused; can be added later if needed
   })
   .strict();
+
+
+export default {
+  name, description, inputSchema, execute,
+} as TokenRingToolDefinition<typeof inputSchema>;
