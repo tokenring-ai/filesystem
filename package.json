@@ -10,8 +10,8 @@
   "path-browserify": "^1.0.1"
  },
  "devDependencies": {
-  "vitest": "^4.0.12",
-  "@vitest/coverage-v8": "^4.0.12"
+  "vitest": "^4.0.13",
+  "@vitest/coverage-v8": "^4.0.13"
  },
  "exports": {
   ".": "./index.ts",
