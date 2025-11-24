@@ -1,6 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import FileSystemService from "../FileSystemService.ts";
 
 /**
@@ -110,7 +109,7 @@ async function defaultFiles(filesystem: FileSystemService, agent: Agent) {
  * Returns help information for the file command
  */
 // noinspection JSUnusedGlobalSymbols
-export function help(): Array<string> {
+function help(): Array<string> {
   return [
     "/file [action] [files...] - Manage files in the chat session",
     "  Actions:",

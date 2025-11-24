@@ -7,7 +7,7 @@ import FileSystemService from "../FileSystemService.ts";
 // Export tool name with package prefix
 const name = "terminal/runShellCommand";
 
-export async function execute(
+async function execute(
   {
     command,
     timeoutSeconds = 60,
