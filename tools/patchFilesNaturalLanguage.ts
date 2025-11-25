@@ -1,6 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import type {GenerateRequest} from "@tokenring-ai/ai-client/client/AIChatClient";
-import ModelRegistry from "@tokenring-ai/ai-client/ModelRegistry";
+import {ChatModelRegistry} from "@tokenring-ai/ai-client/ModelRegistry";
 import {ChatService} from "@tokenring-ai/chat";
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
@@ -27,7 +26,7 @@ async function execute(
   agent: Agent,
 ): Promise<string> {
   const chatService = agent.requireServiceByType(ChatService);
-  const modelRegistry = agent.requireServiceByType(ModelRegistry);
+  const chatModelRegistry = agent.requireServiceByType(ChatModelRegistry);
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   const patchedFiles: string[] = [];
@@ -54,31 +53,26 @@ async function execute(
         throw new Error(`Failed to read file content: ${file}`);
       }
 
-      // Generate patch using LLM via the new chat API
-      const patchRequest: GenerateRequest = {
-        messages: [
-          {role: "system", content: systemPrompt},
-          {
-            role: "user",
-            content: `Original File Content (${file}):\n\`\`\`\n${originalContent}\n\`\`\`\n\nNatural Language Patch Description:\n\`\`\`${naturalLanguagePatch}\`\`\``,
-          },
-        ],
-        schema: z.object({
-          patchedContent: z
-            .string()
-            .describe("The complete file contents for the patched file"),
-        }),
-        tools: {},
-      };
-
       // Get an online chat client
-      const patchClient = await modelRegistry.chat.getFirstOnlineClient(
+      const patchClient = await chatModelRegistry.getFirstOnlineClient(
         chatService.getModel(agent),
       );
 
       // Get patched content from LLM
       const [{patchedContent}] = await patchClient.generateObject(
-        patchRequest,
+        {
+          messages: [
+            {role: "system", content: systemPrompt},
+            {
+              role: "user",
+              content: `Original File Content (${file}):\n\`\`\`\n${originalContent}\n\`\`\`\n\nNatural Language Patch Description:\n\`\`\`${naturalLanguagePatch}\`\`\``,
+            },
+          ],
+          schema: z.object({
+            patchedContent: z.string().describe("The complete file contents for the patched file"),
+          }),
+          tools: {},
+        },
         agent,
       );
 
