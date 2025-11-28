@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import type {AskForMultipleTreeSelectionRequest, TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceRequest";
+import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceRequest";
 import type {ContextItem} from "@tokenring-ai/agent/types";
 import {TokenRingService} from "@tokenring-ai/app/types";
 import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/registry/KeyedRegistryWithSingleSelection";
@@ -355,6 +355,6 @@ export default class FileSystemService implements TokenRingService {
       },
       loop: false,
       ...(initialSelection && {initialSelection}),
-    } as AskForMultipleTreeSelectionRequest);
+    });
   }
 }

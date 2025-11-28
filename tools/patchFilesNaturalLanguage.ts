@@ -10,7 +10,6 @@ const systemPrompt = `
 :Apply the adjustment to the file, and return the raw updated file content.
 :`.trim();
 
-// Export tool name with package prefix
 const name = "file/patchFilesNaturalLanguage";
 
 /**
@@ -42,7 +41,7 @@ async function execute(
 
   for (const file of files) {
     try {
-      // Check if file exists
+      // Check if the file exists
       if (!(await fileSystem.exists(file))) {
         throw new Error(`File does not exist: ${file}`);
       }

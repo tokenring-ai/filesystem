@@ -5,27 +5,36 @@ import FileSystemService from "../FileSystemService.ts";
 
 const name = "file/search";
 
+export type ReturnType = "names" | "content" | "matches";
+export type MatchType = "substring" | "whole-word" | "regex";
+
+export interface FileInfo {
+  file: string;
+  exists: boolean;
+  content?: string;
+  error?: string;
+}
+
+export interface MatchInfo {
+  file: string;
+  line: number;
+  match: string;
+  matchedPattern: string;
+  content?: string;
+}
+
+export interface SearchSummary {
+  totalFiles: number;
+  totalMatches: number;
+  searchPatterns?: string[];
+  returnType: ReturnType;
+  limitExceeded: boolean;
+}
+
 export interface FileSearchResult {
-  files: Array<{
-    file: string;
-    exists: boolean;
-    content: string | null;
-    error?: string;
-  }>;
-  matches: Array<{
-    file: string;
-    line: number;
-    match: string;
-    matchedPattern: string;
-    content: string | null;
-  }>;
-  summary: {
-    totalFiles: number;
-    totalMatches: number;
-    searchPatterns?: string[];
-    returnType: "names" | "content" | "matches";
-    limitExceeded: boolean;
-  };
+  files: FileInfo[];
+  matches: MatchInfo[];
+  summary: SearchSummary;
 }
 
 async function execute(
@@ -155,12 +164,7 @@ async function execute(
   }
 
   // Fetch file contents (only text files; binaries are skipped)
-  const fileResults: Array<{
-    file: string;
-    exists: boolean;
-    content: string | null;
-    error?: string;
-  }> = [];
+  const fileResults: FileInfo[] = [];
   for (const file of resolvedFiles) {
     try {
       const exists = await fileSystem.exists(file);
@@ -168,22 +172,22 @@ async function execute(
         agent.infoLine(
           `[${name}] Cannot retrieve file ${file}: file not found.`,
         );
-        fileResults.push({file, exists: false, content: null});
+        fileResults.push({file, exists: false});
         continue;
       }
 
-      const content =
-        returnType === "names" ? null : await fileSystem.getFile(file);
-      if (returnType !== "names") {
+      if (returnType === "names") {
+        fileResults.push({file, exists: true});
+      } else {
+        const content = await fileSystem.getFile(file);
         agent.infoLine(`[${name}] Retrieved file ${file}`);
+        fileResults.push({file, exists: true, content: content ?? undefined});
       }
-      fileResults.push({file, exists: true, content});
     } catch (err: any) {
       agent.infoLine(`[${name}] Error retrieving ${file}: ${err.message}`);
       fileResults.push({
         file,
         exists: false,
-        content: null,
         error: err.message,
       });
     }
@@ -218,9 +222,9 @@ async function fileSearch(
   searchPatterns: string[],
   linesBefore: number,
   linesAfter: number,
-  returnType: "names" | "content" | "matches",
+  returnType: ReturnType,
   caseSensitive: boolean,
-  matchType: "substring" | "whole-word" | "regex",
+  matchType: MatchType,
   fileSystem: FileSystemService,
   agent: Agent,
 ): Promise<FileSearchResult> {
@@ -264,8 +268,7 @@ async function fileSearch(
       const uniqueFiles = [...new Set(results.map((result) => result.file))];
       result.files = uniqueFiles.map((file) => ({
         file,
-        exists: true,
-        content: null,
+        exists: true
       }));
       result.summary.totalFiles = uniqueFiles.length;
       result.summary.totalMatches = results.length;
@@ -280,7 +283,7 @@ async function fileSearch(
       line: grepResult.line,
       match: grepResult.match,
       matchedPattern: grepResult.matchedString || searchPatterns[0],
-      content: grepResult.content,
+      content: grepResult.content ?? undefined,
     }));
 
     result.matches = matches;
@@ -290,8 +293,7 @@ async function fileSearch(
     const uniqueFiles = [...new Set(results.map((result) => result.file))];
     result.files = uniqueFiles.map((file) => ({
       file,
-      exists: true,
-      content: null,
+      exists: true
     }));
     result.summary.totalFiles = uniqueFiles.length;
 
@@ -301,38 +303,28 @@ async function fileSearch(
   }
 }
 
+export interface SearchInFilesResult {
+  matches: MatchInfo[];
+  limitExceeded: boolean;
+}
+
 /**
  * Search within specific files
  */
 async function searchInFiles(
-  fileResults: Array<{ file: string; exists: boolean; content: string | null }>,
+  fileResults: FileInfo[],
   searchPatterns: string[],
   linesBefore: number,
   linesAfter: number,
   caseSensitive: boolean,
-  matchType: "substring" | "whole-word" | "regex",
+  matchType: MatchType,
   agent: Agent,
-): Promise<{
-  matches: Array<{
-    file: string;
-    line: number;
-    match: string;
-    matchedPattern: string;
-    content: string | null;
-  }>;
-  limitExceeded: boolean;
-}> {
+): Promise<SearchInFilesResult> {
   agent.infoLine(
     `[${name}] Searching for patterns: ${JSON.stringify(searchPatterns)} in ${fileResults.length} files with matchType: ${matchType}, caseSensitive: ${caseSensitive}`,
   );
 
-  const allMatches: Array<{
-    file: string;
-    line: number;
-    match: string;
-    matchedPattern: string;
-    content: string | null;
-  }> = [];
+  const allMatches: MatchInfo[] = [];
 
   for (const fileResult of fileResults) {
     if (!fileResult.exists || !fileResult.content) {

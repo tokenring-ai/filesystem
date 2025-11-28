@@ -1,15 +1,14 @@
-import TokenRingApp from "@tokenring-ai/app"; 
 import {AgentCommandService} from "@tokenring-ai/agent";
+import TokenRingApp, {TokenRingPlugin} from "@tokenring-ai/app";
 import {ChatService} from "@tokenring-ai/chat";
-import {TokenRingPlugin} from "@tokenring-ai/app";
 import {ScriptingService} from "@tokenring-ai/scripting";
 import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService.ts";
 import {z} from "zod";
 
-import * as chatCommands from "./chatCommands.ts";
+import chatCommands from "./chatCommands.ts";
 import FileSystemService from "./FileSystemService.js";
 import packageJSON from "./package.json" with {type: "json"};
-import * as tools from "./tools.ts";
+import tools from "./tools.ts";
 
 export const FileSystemConfigSchema = z.object({
   defaultProvider: z.string(),
@@ -50,8 +49,7 @@ export default {
             type: 'native',
             params: ['pattern'],
             async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
-              const files = await this.agent.requireServiceByType(FileSystemService).glob(pattern);
-              return files;
+              return await this.agent.requireServiceByType(FileSystemService).glob(pattern);
             }
           }
         );

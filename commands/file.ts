@@ -14,7 +14,7 @@ import FileSystemService from "../FileSystemService.ts";
  */
 
 const description: string =
-  "/file [action] [files...] - Manage files in the chat session (select, add, remove, list, clear, defaults).";
+  "/file - Manage files in the chat session (select, add, remove, list, clear, defaults).";
 
 // Updated function signatures to use concrete types instead of `any`
 async function selectFiles(filesystem: FileSystemService, agent: Agent) {
@@ -25,7 +25,7 @@ async function selectFiles(filesystem: FileSystemService, agent: Agent) {
     agent,
   );
   if (selectedFiles) {
-    filesystem.setFilesInChat(selectedFiles, agent);
+    await filesystem.setFilesInChat(selectedFiles, agent);
     agent.infoLine(`Selected ${selectedFiles.length} files for chat session`);
   }
 }
@@ -108,25 +108,48 @@ async function defaultFiles(filesystem: FileSystemService, agent: Agent) {
 /**
  * Returns help information for the file command
  */
-// noinspection JSUnusedGlobalSymbols
-function help(): Array<string> {
-  return [
-    "/file [action] [files...] - Manage files in the chat session",
-    "  Actions:",
-    "    select             - Interactive file selection",
-    "    add [files...]     - Add files to chat session",
-    "    remove [files...]  - Remove files from chat session",
-    "    list               - List files in chat session",
-    "    clear              - Remove all files from chat session",
-    "    default            - Reset selected files to your config default",
-    "",
-    "  Examples:",
-    "    /file select            - Interactive file selection",
-    "    /file add src/index.js  - Add specific file",
-    "    /file remove index.js   - Remove specific files",
-    "    /file list              - Show current files",
-  ];
-}
+const help: string = `# 📁 FILE MANAGEMENT COMMAND
+
+## Usage
+
+/file [action] [files...]
+
+Manage files in your chat session with various actions to add, remove, list, or clear files. The file system tracks which files are included in your current chat context.
+
+## Available Actions
+
+- **select** - Open interactive file selector to choose files
+- **add [files...]** - Add specific files to chat session
+- **remove [files...]** - Remove specific files from chat session
+- **list (or ls)** - Show all files currently in chat session
+- **clear** - Remove all files from chat session
+- **default** - Reset to default files from your configuration
+
+## Action Aliases
+
+- **ls** - Alias for 'list' action
+- **rm** - Alias for 'remove' action
+
+## Usage Examples
+
+/file select                    # Interactive file selection
+/file add src/main.ts           # Add a specific file
+/file add src/*.ts              # Add all TypeScript files
+/file add file1.txt file2.txt   # Add multiple files
+/file remove src/main.ts        # Remove a specific file
+/file rm old-file.js            # Remove using alias
+/file list                      # Show current files
+/file ls                        # Show current files (alias)
+/file clear                     # Remove all files
+/file default                   # Reset to config defaults
+
+## Notes
+
+- Use 'select' for a visual file picker when you're unsure which files to add
+- File paths are relative to your current working directory
+- Wildcard patterns (like *.ts) are supported for adding multiple files
+- The 'default' action restores your configured default file set
+- Use 'list' to verify which files are currently in your chat context`;
 
 async function execute(remainder: string, agent: Agent) {
   const filesystem = agent.requireServiceByType(FileSystemService);
@@ -164,8 +187,7 @@ async function execute(remainder: string, agent: Agent) {
       break;
 
     default:
-      const helpLines = help();
-      helpLines.forEach((line) => agent.infoLine(line));
+      agent.chatOutput(help);
       break;
   }
 }
