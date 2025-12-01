@@ -50,9 +50,6 @@ async function execute(
   agent: Agent,
 ): Promise<FileSearchResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
-
-  agent.infoLine(`[${name}] Using ${fileSystem.name} file system`);
-
   //console.log({files, searches, linesBefore, linesAfter, returnType, caseSensitive, matchType});
 
   // Validate parameters
@@ -128,7 +125,7 @@ async function execute(
         // Use Unix-style '/' separators regardless of platform.
         // If it's a glob pattern, resolve it
         if (filePattern.includes("*") || filePattern.includes("?")) {
-          agent.infoLine(`[${name}] Resolving glob pattern: ${filePattern}`);
+          //agent.infoLine(`[${name}] Resolving glob pattern: ${filePattern}`);
           const matchedFiles = await fileSystem.glob(filePattern);
           resolvedFiles.push(...matchedFiles);
         } else {

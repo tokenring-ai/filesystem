@@ -6,6 +6,7 @@ import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService.ts";
 import {z} from "zod";
 
 import chatCommands from "./chatCommands.ts";
+import contextHandlers from "./contextHandlers.ts";
 import FileSystemService from "./FileSystemService.js";
 import packageJSON from "./package.json" with {type: "json"};
 import tools from "./tools.ts";
@@ -64,9 +65,10 @@ export default {
           }
         );
       });
-      app.waitForService(ChatService, chatService =>
-        chatService.addTools(packageJSON.name, tools)
-      );
+      app.waitForService(ChatService, chatService => {
+        chatService.addTools(packageJSON.name, tools);
+        chatService.registerContextHandlers(contextHandlers);
+      });
       app.waitForService(AgentCommandService, agentCommandService =>
         agentCommandService.addAgentCommands(chatCommands)
       );

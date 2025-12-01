@@ -293,20 +293,6 @@ export default class FileSystemService implements TokenRingService {
   }
 
   /**
-   * Asynchronously yields memories from manually selected files.
-   */
-  async* getContextItems(agent: Agent): AsyncGenerator<ContextItem> {
-    for (const file of agent.getState(FileSystemState).selectedFiles) {
-      const content = await this.getFile(file);
-      yield {
-        position: "afterPriorMessages",
-        role: "user",
-        content: `// ${file}\n${content}`,
-      };
-    }
-  }
-
-  /**
    * Asks the user to select an item from a tree structure using
    */
   async askForFileSelection(
