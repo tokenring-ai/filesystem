@@ -1,9 +1,9 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceRequest";
-import type {ContextItem} from "@tokenring-ai/agent/types";
 import {TokenRingService} from "@tokenring-ai/app/types";
 import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/registry/KeyedRegistryWithSingleSelection";
 import ignore from "ignore";
+import {z} from "zod";
 import FileSystemProvider, {
   type DirectoryTreeOptions,
   type ExecuteCommandOptions,
@@ -14,6 +14,7 @@ import FileSystemProvider, {
   type StatLike,
   type WatchOptions
 } from "./FileSystemProvider.js";
+import {FileSystemConfigSchema} from "./index.ts";
 import {FileSystemState} from "./state/fileSystemState.js";
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
@@ -27,8 +28,10 @@ export default class FileSystemService implements TokenRingService {
   description = "Abstract interface for virtual file system operations";
   dirty = false;
 
+
   protected defaultSelectedFiles: string[];
-  protected dangerousCommandPatterns: (string | RegExp)[];
+  protected dangerousCommands: string[];
+  protected safeCommands: string[];
 
   private fileSystemProviderRegistry =
     new KeyedRegistryWithSingleSelection<FileSystemProvider>();
@@ -45,32 +48,13 @@ export default class FileSystemService implements TokenRingService {
    * Creates an instance of FileSystem
    */
   constructor({
-                defaultSelectedFiles = [],
-                dangerousCommandPatterns = [/\brm\b/, /\bmv\b/],
-              }: {
-    defaultSelectedFiles?: string[];
-    dangerousCommandPatterns?: (string | RegExp)[];
-  } = {}) {
-    this.defaultSelectedFiles = defaultSelectedFiles;
-    this.dangerousCommandPatterns = dangerousCommandPatterns;
-  }
-
-  // Base directory getter for implementations that are rooted (e.g., local FS)
-  getBaseDirectory(): string {
-    return this.fileSystemProviderRegistry.getActiveItem().getBaseDirectory();
-  }
-
-  // Path helpers for implementations that map relative/absolute paths
-  relativeOrAbsolutePathToAbsolutePath(p: string): string {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
-      .relativeOrAbsolutePathToAbsolutePath(p);
-  }
-
-  relativeOrAbsolutePathToRelativePath(p: string): string {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
-      .relativeOrAbsolutePathToRelativePath(p);
+                defaultSelectedFiles,
+                dangerousCommands,
+                safeCommands
+              }: z.infer<typeof FileSystemConfigSchema>) {
+    this.defaultSelectedFiles = defaultSelectedFiles ?? [];
+    this.dangerousCommands = dangerousCommands;
+    this.safeCommands = safeCommands;
   }
 
   /**
@@ -189,10 +173,6 @@ export default class FileSystemService implements TokenRingService {
       .copy(source, destination, options);
   }
 
-  async chmod(path: string, mode: number): Promise<boolean> {
-    return this.fileSystemProviderRegistry.getActiveItem().chmod(path, mode);
-  }
-
   async glob(
     pattern: string,
     options: Optional<GlobOptions, "ignoreFilter"> = {},
@@ -223,13 +203,19 @@ export default class FileSystemService implements TokenRingService {
       .executeCommand(command, options);
   }
 
-  isDangerousCommand(command: string): boolean {
-    return this.dangerousCommandPatterns.some((pattern) => {
-      if (typeof pattern === "string") {
-        return command.includes(pattern);
+  getCommandSafetyLevel(shellString: string): "safe" | "unknown" | "dangerous" {
+    let safe = true;
+    const commands = shellString.split(/(;|\|\||&&)/);
+    for (let command of commands) {
+      command = command.trim();
+      if (this.dangerousCommands.some((pattern) => command.includes(pattern))) {
+        return "dangerous";
       }
-      return pattern.test(command);
-    });
+      if (!this.safeCommands.some((pattern) => command.startsWith(pattern))) {
+        safe = false;
+      }
+    }
+    return safe ? "safe" : "unknown";
   }
 
   async grep(

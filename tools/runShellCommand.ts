@@ -34,12 +34,21 @@ export async function execute(
     `[${name}] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory})`,
   );
 
-  // Check if command is dangerous and ask for confirmation
-  if (fileSystem.isDangerousCommand(cmdString)) {
+  const commandSafetyLevel = fileSystem.getCommandSafetyLevel(cmdString);
+  // Check if command is safe, unknown, or dangerous and ask for confirmation
+  if (commandSafetyLevel === "unknown") {
+    const confirmed = await agent.askHuman({
+      type: "askForConfirmation",
+      message: `Execute potentially unsafe command: ${cmdString}?`,
+      default: true,
+      timeout: 10,
+    });
+    if (!confirmed) throw new Error("User did not approve command execution");
+  } else if (commandSafetyLevel === "dangerous") {
     const confirmed = await agent.askHuman({
       type: "askForConfirmation",
       message: `Execute potentially dangerous command: ${cmdString}?`,
-    });
+    })
     if (!confirmed) throw new Error("User did not approve command execution");
   }
 

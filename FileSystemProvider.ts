@@ -59,14 +59,6 @@ export interface GrepOptions {
  * for file operations, allowing for different implementations of file systems.
  */
 export default interface FileSystemProvider {
-  // Base directory getter for implementations that are rooted (e.g., local FS)
-  getBaseDirectory(): string;
-
-  // Path helpers for implementations that map relative/absolute paths
-  relativeOrAbsolutePathToAbsolutePath(p: string): string;
-
-  relativeOrAbsolutePathToRelativePath(p: string): string;
-
   // Directory walking
   getDirectoryTree(
     path: string,
@@ -98,8 +90,6 @@ export default interface FileSystemProvider {
     destination: string,
     options?: { overwrite?: boolean },
   ): Promise<boolean>;
-
-  chmod(path: string, mode: number): Promise<boolean>;
 
   glob(pattern: string, options?: GlobOptions): Promise<string[]>;
 
