@@ -1,9 +1,12 @@
-import {AgentCommandService} from "@tokenring-ai/agent";
-import TokenRingApp, {TokenRingPlugin} from "@tokenring-ai/app";
-import {ChatService} from "@tokenring-ai/chat";
-import {ScriptingService} from "@tokenring-ai/scripting";
-import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService.ts";
-import {z} from "zod";
+import { AgentCommandService } from "@tokenring-ai/agent";
+import filesystemRPC from "./rpc/filesystem.ts";
+import TokenRingApp, { TokenRingPlugin } from "@tokenring-ai/app";
+import { ChatService } from "@tokenring-ai/chat";
+import { ScriptingService } from "@tokenring-ai/scripting";
+import { ScriptingThis } from "@tokenring-ai/scripting/ScriptingService.ts";
+import {WebHostService} from "@tokenring-ai/web-host";
+import JsonRpcResource from "@tokenring-ai/web-host/JsonRpcResource";
+import { z } from "zod";
 
 import chatCommands from "./chatCommands.ts";
 import contextHandlers from "./contextHandlers.ts";
@@ -37,42 +40,42 @@ export default {
     if (filesystemConfig) {
       app.waitForService(ScriptingService, (scriptingService: ScriptingService) => {
         scriptingService.registerFunction("createFile", {
-            type: 'native',
-            params: ['path', 'content'],
-            async execute(this: ScriptingThis, path: string, content: string): Promise<string> {
-              await this.agent.requireServiceByType(FileSystemService).writeFile(path, content);
-              return `Created file: ${path}`;
-            }
+          type: 'native',
+          params: ['path', 'content'],
+          async execute(this: ScriptingThis, path: string, content: string): Promise<string> {
+            await this.agent.requireServiceByType(FileSystemService).writeFile(path, content);
+            return `Created file: ${path}`;
           }
+        }
         );
 
         scriptingService.registerFunction("deleteFile", {
-            type: 'native',
-            params: ['path'],
-            async execute(this: ScriptingThis, path: string): Promise<string> {
-              await this.agent.requireServiceByType(FileSystemService).deleteFile(path);
-              return `Deleted file: ${path}`;
-            }
+          type: 'native',
+          params: ['path'],
+          async execute(this: ScriptingThis, path: string): Promise<string> {
+            await this.agent.requireServiceByType(FileSystemService).deleteFile(path);
+            return `Deleted file: ${path}`;
           }
+        }
         );
 
         scriptingService.registerFunction("globFiles", {
-            type: 'native',
-            params: ['pattern'],
-            async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
-              return await this.agent.requireServiceByType(FileSystemService).glob(pattern);
-            }
+          type: 'native',
+          params: ['pattern'],
+          async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
+            return await this.agent.requireServiceByType(FileSystemService).glob(pattern);
           }
+        }
         );
 
         scriptingService.registerFunction("searchFiles", {
-            type: 'native',
-            params: ['searchString'],
-            async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
-              const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString]);
-              return results.map(r => `${r.file}:${r.line}: ${r.match}`);
-            }
+          type: 'native',
+          params: ['searchString'],
+          async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
+            const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString]);
+            return results.map(r => `${r.file}:${r.line}: ${r.match}`);
           }
+        }
         );
       });
       app.waitForService(ChatService, chatService => {
@@ -83,6 +86,10 @@ export default {
         agentCommandService.addAgentCommands(chatCommands)
       );
       app.addServices(new FileSystemService(filesystemConfig));
+
+      app.waitForService(WebHostService, webHostService => {
+        webHostService.registerResource("FileSystem RPC endpoint", new JsonRpcResource(app, filesystemRPC));
+      });
     }
   },
   start(app: TokenRingApp) {
@@ -93,5 +100,5 @@ export default {
   }
 } as TokenRingPlugin;
 
-export {default as FileMatchResource} from "./FileMatchResource.ts";
-export {default as FileSystemService} from "./FileSystemService.ts";
+export { default as FileMatchResource } from "./FileMatchResource.ts";
+export { default as FileSystemService } from "./FileSystemService.ts";

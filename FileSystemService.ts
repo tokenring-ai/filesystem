@@ -134,7 +134,7 @@ export default class FileSystemService implements TokenRingService {
   async readFile(
     path: string,
     encoding?: BufferEncoding | "buffer",
-  ): Promise<any> {
+  ): Promise<string> {
     return this.fileSystemProviderRegistry
       .getActiveItem()
       .readFile(path, encoding);
@@ -282,7 +282,7 @@ export default class FileSystemService implements TokenRingService {
    * Asks the user to select an item from a tree structure using
    */
   async askForFileSelection(
-    options: { initialSelection?: Iterable<string> | undefined } = {},
+    options: { initialSelection?: string[] | undefined } = {},
     agent: Agent,
   ): Promise<Array<string> | null> {
     const buildTree = async (path = ""): Promise<Array<TreeLeaf>> => {

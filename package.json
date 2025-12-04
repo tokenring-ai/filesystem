@@ -1,34 +1,35 @@
 {
- "name": "@tokenring-ai/filesystem",
- "version": "0.2.0",
- "description": "A filesystem abstraction for Token Ring",
- "dependencies": {
-  "@tokenring-ai/ai-client": "0.2.0",
-  "@tokenring-ai/app": "0.2.0",
-  "zod": "^4.1.13",
-  "@tokenring-ai/chat": "0.2.0",
-  "@tokenring-ai/agent": "0.2.0",
-  "@tokenring-ai/utility": "0.2.0",
-  "@tokenring-ai/scripting": "0.2.0",
-  "ignore": "^7.0.5",
-  "path-browserify": "^1.0.1"
- },
- "devDependencies": {
-  "vitest": "^4.0.14",
-  "@vitest/coverage-v8": "^4.0.14"
- },
- "exports": {
-  ".": "./index.ts",
-  "./*": "./*.ts"
- },
- "license": "MIT",
- "scripts": {
-  "test": "vitest run",
-  "test:watch": "vitest",
-  "test:coverage": "vitest run --coverage",
-  "test:integration": "vitest run runShellCommand.integration.test.ts",
-  "test:e2e": "vitest run runShellCommand.e2e.test.ts",
-  "test:all": "vitest run && node test/integration-runner.ts"
- },
- "type": "module"
+    "name": "@tokenring-ai/filesystem",
+    "version": "0.2.0",
+    "description": "A filesystem abstraction for Token Ring",
+    "dependencies": {
+        "@tokenring-ai/ai-client": "0.2.0",
+        "@tokenring-ai/app": "0.2.0",
+        "zod": "^4.1.13",
+        "@tokenring-ai/chat": "0.2.0",
+        "@tokenring-ai/agent": "0.2.0",
+        "@tokenring-ai/utility": "0.2.0",
+        "@tokenring-ai/scripting": "0.2.0",
+        "@tokenring-ai/web-host": "0.2.0",
+        "ignore": "^7.0.5",
+        "path-browserify": "^1.0.1"
+    },
+    "devDependencies": {
+        "@vitest/coverage-v8": "^4.0.14",
+        "vitest": "^4.0.14"
+    },
+    "exports": {
+        ".": "./index.ts",
+        "./*": "./*.ts"
+    },
+    "license": "MIT",
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:integration": "vitest run runShellCommand.integration.test.ts",
+        "test:e2e": "vitest run runShellCommand.e2e.test.ts",
+        "test:all": "vitest run && node test/integration-runner.ts"
+    },
+    "type": "module"
 }
