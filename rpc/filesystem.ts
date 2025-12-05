@@ -1,9 +1,10 @@
+import {AgentManager} from "@tokenring-ai/agent";
 import TokenRingApp from "@tokenring-ai/app";
 import { createJsonRPCEndpoint } from "@tokenring-ai/web-host/jsonrpc/createJsonRPCEndpoint";
 import FileSystemService from "../FileSystemService.js";
-import { FileSystemRpcSchemas } from "./types.ts";
+import FileSystemRpcSchema from "./schema.ts";
 
-export default createJsonRPCEndpoint(FileSystemRpcSchemas, {
+export default createJsonRPCEndpoint(FileSystemRpcSchema, {
   async readFile(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
     const content = await fs.readFile(args.path, args.encoding as BufferEncoding);
@@ -75,7 +76,6 @@ export default createJsonRPCEndpoint(FileSystemRpcSchemas, {
 
   async addFileToChat(args, app) {
     const fs = app.requireService(FileSystemService);
-    const AgentManager = (await import("@tokenring-ai/agent/services/AgentManager.js")).default;
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
     if (!agent) throw new Error("Agent not found");
     await fs.addFileToChat(args.file, agent);
@@ -84,7 +84,6 @@ export default createJsonRPCEndpoint(FileSystemRpcSchemas, {
 
   async getSelectedFiles(args, app) {
     const fs = app.requireService(FileSystemService);
-    const AgentManager = (await import("@tokenring-ai/agent/services/AgentManager.js")).default;
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
     if (!agent) throw new Error("Agent not found");
     const files = fs.getFilesInChat(agent);

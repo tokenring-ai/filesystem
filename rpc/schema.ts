@@ -1,7 +1,7 @@
 import { JsonRPCSchema } from "@tokenring-ai/web-host/jsonrpc/types";
 import { z } from "zod";
 
-export const FileSystemRpcSchemas = {
+export default {
   path: "/rpc/filesystem",
   methods: {
     readFile: {
