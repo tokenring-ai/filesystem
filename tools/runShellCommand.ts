@@ -22,6 +22,10 @@ export async function execute(
     throw new Error(`[${name}] command is required`);
   }
 
+  if (timeoutSeconds > 90) {
+    timeoutSeconds = 90;
+  }
+
   const cmdString = (
     Array.isArray(command) ? command.join(" ") : command
   ).trim();
@@ -31,7 +35,7 @@ export async function execute(
 
   // Informational message using the tool name variable
   agent.infoLine(
-    `[${name}] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory})`,
+    `[${name}] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory} timeout=${timeoutSeconds}s)`,
   );
 
   const commandSafetyLevel = fileSystem.getCommandSafetyLevel(cmdString);

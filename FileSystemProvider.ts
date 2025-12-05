@@ -36,7 +36,7 @@ export interface WatchOptions {
 }
 
 export interface ExecuteCommandOptions {
-  timeoutSeconds?: number;
+  timeoutSeconds: number;
   env?: Record<string, string | undefined>;
   workingDirectory?: string;
 }

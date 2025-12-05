@@ -196,16 +196,16 @@ export default class FileSystemService implements TokenRingService {
 
   async executeCommand(
     command: string | string[],
-    options: ExecuteCommandOptions = {},
+    options?: Partial<ExecuteCommandOptions>,
   ): Promise<ExecuteCommandResult> {
     return this.fileSystemProviderRegistry
       .getActiveItem()
-      .executeCommand(command, options);
+      .executeCommand(command, { timeoutSeconds: 120, ...options});
   }
 
   getCommandSafetyLevel(shellString: string): "safe" | "unknown" | "dangerous" {
     let safe = true;
-    const commands = shellString.split(/(;|\|\||&&)/);
+    const commands = this.parseCompoundCommand(shellString);
     for (let command of commands) {
       command = command.trim();
       if (this.dangerousCommands.some((pattern) => command.includes(pattern))) {
@@ -216,6 +216,32 @@ export default class FileSystemService implements TokenRingService {
       }
     }
     return safe ? "safe" : "unknown";
+  }
+
+  /**
+   * Parse compound commands to extract individual commands
+   * Handles cases like: "cd frontend/chat && bun add lucide-react"
+   * Returns: ["cd", "bun"]
+   */
+  parseCompoundCommand(command: string): string[] {
+    // Split by common command separators
+    const separators = ["&&", "||", ";", "|", ">", ">>"];
+    let commands = [command];
+
+    // Split by each separator
+    for (const sep of separators) {
+      const newCommands: string[] = [];
+      for (const cmd of commands) {
+        newCommands.push(...cmd.split(sep));
+      }
+      commands = newCommands;
+    }
+
+    // Extract command names (first word of each command)
+    return commands
+      .map(cmd => cmd.trim())
+      .filter(cmd => cmd.length > 0)
+      .map(cmd => cmd.split(" ")[0]);
   }
 
   async grep(
