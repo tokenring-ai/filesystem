@@ -110,6 +110,25 @@ export const FileSystemRpcSchemas = {
       result: z.object({
         success: z.boolean()
       })
+    },
+    addFileToChat: {
+      type: "mutation",
+      input: z.object({
+        agentId: z.string(),
+        file: z.string()
+      }),
+      result: z.object({
+        success: z.boolean()
+      })
+    },
+    getSelectedFiles: {
+      type: "query",
+      input: z.object({
+        agentId: z.string()
+      }),
+      result: z.object({
+        files: z.array(z.string())
+      })
     }
   }
 } satisfies JsonRPCSchema;

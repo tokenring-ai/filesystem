@@ -72,4 +72,22 @@ export default createJsonRPCEndpoint(FileSystemRpcSchemas, {
     await fs.copy(args.source, args.destination, { overwrite: args.overwrite });
     return { success: true };
   },
+
+  async addFileToChat(args, app) {
+    const fs = app.requireService(FileSystemService);
+    const AgentManager = (await import("@tokenring-ai/agent/services/AgentManager.js")).default;
+    const agent = app.requireService(AgentManager).getAgent(args.agentId);
+    if (!agent) throw new Error("Agent not found");
+    await fs.addFileToChat(args.file, agent);
+    return { success: true };
+  },
+
+  async getSelectedFiles(args, app) {
+    const fs = app.requireService(FileSystemService);
+    const AgentManager = (await import("@tokenring-ai/agent/services/AgentManager.js")).default;
+    const agent = app.requireService(AgentManager).getAgent(args.agentId);
+    if (!agent) throw new Error("Agent not found");
+    const files = fs.getFilesInChat(agent);
+    return { files: Array.from(files) };
+  },
 });
