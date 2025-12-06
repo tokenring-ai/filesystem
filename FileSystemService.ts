@@ -308,7 +308,7 @@ export default class FileSystemService implements TokenRingService {
    * Asks the user to select an item from a tree structure using
    */
   async askForFileSelection(
-    options: { initialSelection?: string[] | undefined } = {},
+    options: { initialSelection?: string[] | undefined, allowDirectories?: boolean } = {},
     agent: Agent,
   ): Promise<Array<string> | null> {
     const buildTree = async (path = ""): Promise<Array<TreeLeaf>> => {
@@ -325,7 +325,7 @@ export default class FileSystemService implements TokenRingService {
             .pop()!;
           children.push({
             name: dirName,
-            value: itemPath,
+            ...(options.allowDirectories && { value: itemPath}),
             hasChildren: true,
             children: () => buildTree(itemPath),
           });

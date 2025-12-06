@@ -7,7 +7,7 @@ import FileSystemRpcSchema from "./schema.ts";
 export default createJsonRPCEndpoint(FileSystemRpcSchema, {
   async readFile(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    const content = await fs.readFile(args.path, args.encoding as BufferEncoding);
+    const content = await fs.readFile(args.path, "utf-8");
     return { content };
   },
 
@@ -32,7 +32,7 @@ export default createJsonRPCEndpoint(FileSystemRpcSchema, {
   async listDirectory(args, app) {
     const fs = app.requireService(FileSystemService);
     const files: string[] = [];
-    for await (const file of fs.getDirectoryTree(args.path, { recursive: args.recursive })) {
+    for await (const file of fs.getDirectoryTree(args.path, { recursive: args.recursive, ignoreFilter: args.showHidden ? (path) => false : undefined })) {
       files.push(file);
     }
     return { files };
@@ -79,6 +79,14 @@ export default createJsonRPCEndpoint(FileSystemRpcSchema, {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
     if (!agent) throw new Error("Agent not found");
     await fs.addFileToChat(args.file, agent);
+    return { success: true };
+  },
+
+  removeFileFromChat(args, app) {
+    const fs = app.requireService(FileSystemService);
+    const agent = app.requireService(AgentManager).getAgent(args.agentId);
+    if (!agent) throw new Error("Agent not found");
+    fs.removeFileFromChat(args.file, agent);
     return { success: true };
   },
 

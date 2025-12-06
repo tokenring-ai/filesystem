@@ -7,8 +7,7 @@ export default {
     readFile: {
       type: "query",
       input: z.object({
-        path: z.string(),
-        encoding: z.string().default("utf8")
+        path: z.string()
       }),
       result: z.object({
         content: z.string()
@@ -45,6 +44,7 @@ export default {
       type: "query",
       input: z.object({
         path: z.string(),
+        showHidden: z.boolean().default(false),
         recursive: z.boolean().default(false)
       }),
       result: z.object({
@@ -112,6 +112,16 @@ export default {
       })
     },
     addFileToChat: {
+      type: "mutation",
+      input: z.object({
+        agentId: z.string(),
+        file: z.string()
+      }),
+      result: z.object({
+        success: z.boolean()
+      })
+    },
+    removeFileFromChat: {
       type: "mutation",
       input: z.object({
         agentId: z.string(),

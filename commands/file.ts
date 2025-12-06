@@ -21,6 +21,7 @@ async function selectFiles(filesystem: FileSystemService, agent: Agent) {
   const selectedFiles = await filesystem.askForFileSelection(
     {
       initialSelection: Array.from(filesystem.getFilesInChat(agent)),
+      allowDirectories: true
     },
     agent,
   );
