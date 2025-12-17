@@ -1,7 +1,4 @@
-import { describe, beforeEach, vi } from 'vitest';
 import FileSystemService from '../FileSystemService.js';
-import { z } from 'zod';
-import { FileSystemConfigSchema } from '../index.ts';
 
 // Test configuration for FileSystemService
 const testConfig = {
