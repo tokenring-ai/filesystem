@@ -82,4 +82,4 @@ export default {
       app.requireService(FileSystemService).setActiveFileSystemProviderName(filesystemConfig.defaultProvider)
     }
   }
-} as TokenRingPlugin;
+} satisfies TokenRingPlugin;
