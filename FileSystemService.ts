@@ -346,6 +346,7 @@ export default class FileSystemService implements TokenRingService {
 
     return await agent.askHuman({
       type: "askForMultipleTreeSelection",
+      title: "File Selection",
       message: "Select a file or directory:",
       tree: {
         name: "File Selection",
