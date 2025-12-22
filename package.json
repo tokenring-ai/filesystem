@@ -16,7 +16,8 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.15",
-    "vitest": "^4.0.15"
+    "vitest": "catalog:",
+    "typescript": "catalog:"
   },
   "exports": {
     ".": "./index.ts",
@@ -29,7 +30,8 @@
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run runShellCommand.integration.test.ts",
     "test:e2e": "vitest run runShellCommand.e2e.test.ts",
-    "test:all": "vitest run && node test/integration-runner.ts"
+    "test:all": "vitest run && node test/integration-runner.ts",
+    "build": "tsc --noEmit"
   },
   "type": "module"
 }

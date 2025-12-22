@@ -3,7 +3,7 @@ import filesystemRPC from "./rpc/filesystem.ts";
 import TokenRingApp, { TokenRingPlugin } from "@tokenring-ai/app";
 import { ChatService } from "@tokenring-ai/chat";
 import { ScriptingService } from "@tokenring-ai/scripting";
-import { ScriptingThis } from "@tokenring-ai/scripting/ScriptingService.ts";
+import { ScriptingThis } from "@tokenring-ai/scripting/ScriptingService";
 import {WebHostService} from "@tokenring-ai/web-host";
 import JsonRpcResource from "@tokenring-ai/web-host/JsonRpcResource";
 
