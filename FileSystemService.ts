@@ -30,7 +30,7 @@ export default class FileSystemService implements TokenRingService {
 
 
   protected defaultSelectedFiles: string[];
-  protected dangerousCommands: string[];
+  protected dangerousCommands: RegExp[];
   protected safeCommands: string[];
 
   private fileSystemProviderRegistry =
@@ -51,9 +51,9 @@ export default class FileSystemService implements TokenRingService {
                 defaultSelectedFiles,
                 dangerousCommands,
                 safeCommands
-              }: z.infer<typeof FileSystemConfigSchema>) {
+              }: z.output<typeof FileSystemConfigSchema>) {
     this.defaultSelectedFiles = defaultSelectedFiles ?? [];
-    this.dangerousCommands = dangerousCommands;
+    this.dangerousCommands = dangerousCommands.map(command => new RegExp(command, "is"));
     this.safeCommands = safeCommands;
   }
 
@@ -204,18 +204,20 @@ export default class FileSystemService implements TokenRingService {
   }
 
   getCommandSafetyLevel(shellString: string): "safe" | "unknown" | "dangerous" {
-    let safe = true;
-    const commands = this.parseCompoundCommand(shellString);
-    for (let command of commands) {
-      command = command.trim();
-      if (this.dangerousCommands.some((pattern) => command.includes(pattern))) {
+    for (const dangerousCommand of this.dangerousCommands) {
+      if (dangerousCommand.test(shellString)) {
         return "dangerous";
       }
+    }
+
+    const commands = this.parseCompoundCommand(shellString.toLowerCase());
+    for (let command of commands) {
+      command = command.trim();
       if (!this.safeCommands.some((pattern) => command.startsWith(pattern))) {
-        safe = false;
+        return "unknown";
       }
     }
-    return safe ? "safe" : "unknown";
+    return "safe";
   }
 
   /**
@@ -225,7 +227,7 @@ export default class FileSystemService implements TokenRingService {
    */
   parseCompoundCommand(command: string): string[] {
     // Split by common command separators
-    const separators = ["&&", "||", ";", "|", ">", ">>"];
+    const separators = ["&&", "||", ";", "|"];
     let commands = [command];
 
     // Split by each separator

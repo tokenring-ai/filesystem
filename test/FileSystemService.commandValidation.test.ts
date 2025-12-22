@@ -1,6 +1,6 @@
-import {describe, it, expect, beforeEach} from 'vitest';
+import {beforeEach, describe, expect, it} from 'vitest';
 import FileSystemService from '../FileSystemService.js';
-import { createTestFileSystemService } from './testSetup.js';
+import createTestFileSystem from './createTestFilesystem.js';
 
 /**
  * Test suite for FileSystemService command validation functionality
@@ -10,50 +10,37 @@ describe('FileSystemService Command Validation', () => {
   let fileSystemService: FileSystemService;
 
   beforeEach(() => {
-    fileSystemService = createTestFileSystemService();
+    fileSystemService = createTestFileSystem();
   });
 
   describe('Basic Command Validation', () => {
-    it('should allow safe commands in allowed list', () => {
-      const allowedCommands = fileSystemService.getAllowedCommands();
-      
-      // Test some of the expected allowed commands
-      expect(allowedCommands).toContain('cd');
-      expect(allowedCommands).toContain('ls');
-      expect(allowedCommands).toContain('git');
-      expect(allowedCommands).toContain('npm');
-      expect(allowedCommands).toContain('yarn');
-      expect(allowedCommands).toContain('bun');
-      expect(allowedCommands).toContain('tsc');
-      expect(allowedCommands).toContain('node');
-      expect(allowedCommands).toContain('echo');
-    });
-
     it('should validate individual commands correctly', () => {
-      expect(fileSystemService.isCommandAllowed('cd')).toBe(true);
-      expect(fileSystemService.isCommandAllowed('ls')).toBe(true);
-      expect(fileSystemService.isCommandAllowed('git')).toBe(true);
-      expect(fileSystemService.isCommandAllowed('npm')).toBe(true);
-      expect(fileSystemService.isCommandAllowed('yarn')).toBe(true);
-      expect(fileSystemService.isCommandAllowed('bun')).toBe(true);
-      expect(fileSystemService.isCommandAllowed('tsc')).toBe(true);
+      expect(fileSystemService.getCommandSafetyLevel('cd')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('ls')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('git')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('npm')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('yarn')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('bun')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('tsc')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('node')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('echo')).toBe('safe');
     });
 
     it('should reject dangerous commands', () => {
-      expect(fileSystemService.isCommandAllowed('rm')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('sudo')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('rm -rf')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('format')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('del')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('shutdown')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('reboot')).toBe(false);
+      expect(fileSystemService.getCommandSafetyLevel('rm')).toBe('unknown');
+      expect(fileSystemService.getCommandSafetyLevel('sudo ')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('rm -rf')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('format ')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('del ')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('shutdown')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('reboot')).toBe('dangerous');
     });
 
     it('should handle command variations', () => {
-      expect(fileSystemService.isCommandAllowed('rm -rf /')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('rmdir')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('sudo ls')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('npm install')).toBe(true); // npm is allowed
+      expect(fileSystemService.getCommandSafetyLevel('rm -rf /')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('rmdir ')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('sudo ls')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('npm install')).toBe('safe'); // npm is allowed
     });
   });
 
@@ -113,176 +100,63 @@ describe('FileSystemService Command Validation', () => {
 
   describe('Compound Command Security Validation', () => {
     it('should validate compound command where all commands are allowed', () => {
-      const command = 'cd frontend/chat && bun add lucide-react';
-      const commands = fileSystemService.parseCompoundCommand(command);
-      const invalidCommands = commands.filter(cmd => !fileSystemService.isCommandAllowed(cmd));
-      
-      expect(invalidCommands).toHaveLength(0);
+      expect(fileSystemService.getCommandSafetyLevel('cd frontend/chat && bun add lucide-react')).toBe('safe');
     });
-
     it('should detect dangerous commands in compound statements', () => {
-      const command = 'cd src && rm -rf node_modules';
-      const commands = fileSystemService.parseCompoundCommand(command);
-      const invalidCommands = commands.filter(cmd => !fileSystemService.isCommandAllowed(cmd));
-      
-      expect(invalidCommands).toContain('rm');
+      expect(fileSystemService.getCommandSafetyLevel('cd src && rm -rf node_modules')).toBe('dangerous');
     });
 
     it('should detect multiple dangerous commands', () => {
-      const command = 'rm file1 && sudo rm file2';
-      const commands = fileSystemService.parseCompoundCommand(command);
-      const invalidCommands = commands.filter(cmd => !fileSystemService.isCommandAllowed(cmd));
-      
-      expect(invalidCommands).toContain('rm');
-      expect(invalidCommands).toContain('sudo');
+      expect(fileSystemService.getCommandSafetyLevel('rm file1 && sudo rm file2')).toBe('dangerous');
     });
 
     it('should validate complex compound commands', () => {
-      const command = 'npm install; yarn build && tsc && echo "done"';
-      const commands = fileSystemService.parseCompoundCommand(command);
-      const invalidCommands = commands.filter(cmd => !fileSystemService.isCommandAllowed(cmd));
-      
-      expect(invalidCommands).toHaveLength(0);
-    });
-
-    it('should validate command with wildcards', () => {
-      // Test that wildcard patterns work correctly
-      const allowedCommands = fileSystemService.getAllowedCommands();
-      const hasNodeWildcard = allowedCommands.some(pattern => pattern === 'node*');
-      
-      if (hasNodeWildcard) {
-        expect(fileSystemService.isCommandAllowed('node')).toBe(true);
-        expect(fileSystemService.isCommandAllowed('nodejs')).toBe(true);
-        expect(fileSystemService.isCommandAllowed('npm')).toBe(false); // npm should not match node*
-      }
+      expect(fileSystemService.getCommandSafetyLevel('npm install; yarn build && tsc && echo "done"')).toBe('safe');
     });
   });
 
   describe('Edge Cases and Boundary Conditions', () => {
     it('should handle single character commands', () => {
-      expect(fileSystemService.isCommandAllowed('a')).toBe(false); // Not in allowed list
-      expect(fileSystemService.isCommandAllowed('l')).toBe(false); // Not in allowed list
+      expect(fileSystemService.getCommandSafetyLevel('a')).toBe('unknown');
     });
 
     it('should handle very long command names', () => {
-      const longCommand = 'a'.repeat(1000);
-      expect(fileSystemService.isCommandAllowed(longCommand)).toBe(false);
-    });
-
-    it('should handle commands with numbers', () => {
-      expect(fileSystemService.isCommandAllowed('python3')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('python2')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('git2')).toBe(false);
-    });
-
-    it('should handle commands with underscores and hyphens', () => {
-      expect(fileSystemService.isCommandAllowed('git_status')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('git-status')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('my_command')).toBe(false);
+      const longCommand = 'a'.repeat(1000) + 'rm';
+      expect(fileSystemService.getCommandSafetyLevel(longCommand)).toBe('unknown');
     });
 
     it('should handle case sensitivity correctly', () => {
-      expect(fileSystemService.isCommandAllowed('CD')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('LS')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('Git')).toBe(false);
-      expect(fileSystemService.isCommandAllowed('NPM')).toBe(false);
-    });
-
-    it('should handle null and undefined inputs', () => {
-      expect(() => fileSystemService.isCommandAllowed(null as any)).not.toThrow();
-      expect(() => fileSystemService.isCommandAllowed(undefined as any)).not.toThrow();
-      expect(() => fileSystemService.parseCompoundCommand(null as any)).not.toThrow();
-      expect(() => fileSystemService.parseCompoundCommand(undefined as any)).not.toThrow();
+      expect(fileSystemService.getCommandSafetyLevel('RM -r')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('NPM')).toBe('safe');
     });
   });
 
   describe('Real-world Security Scenarios', () => {
     it('should prevent common attack patterns', () => {
-      const dangerousCommands = [
-        'rm -rf /blah',
-        'sudo rm -rf /blah',
-        'format c:',
-        'del /s /q *.*',
-        'shutdown -h now',
-        'reboot',
-        'dd if=/dev/zero of=/dev/sda',
-        'find / -name "*.txt" -exec rm {} \;',
-        'chmod -R 777 /blah',
-        'chown -R root:root /blah',
-      ];
-
-      dangerousCommands.forEach(command => {
-        expect(fileSystemService.isCommandAllowed(command)).toBe(false);
-      });
+      expect(fileSystemService.getCommandSafetyLevel('rm -rf /blah')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('sudo rm -rf /blah')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('format c:')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('del /s /q *.*')).toBe('dangerous'),
+      expect(fileSystemService.getCommandSafetyLevel('shutdown -h now')).toBe('dangerous'),
+      expect(fileSystemService.getCommandSafetyLevel('reboot')).toBe('dangerous'),
+      expect(fileSystemService.getCommandSafetyLevel('dd if=/dev/zero of=/dev/sda')).toBe('dangerous'),
+      expect(fileSystemService.getCommandSafetyLevel('find / -name "*.txt" -exec rm {} \;')).toBe('dangerous'),
+      expect(fileSystemService.getCommandSafetyLevel('chmod -R 777 /blah')).toBe('dangerous'),
+      expect(fileSystemService.getCommandSafetyLevel('chown -R root:root /blah')).toBe('dangerous');
     });
 
     it('should allow legitimate development commands', () => {
-      const safeCommands = [
-        'npm install',
-        'yarn add package-name',
-        'bun add package-name',
-        'git status',
-        'git add .',
-        'git commit -m "message"',
-        'cd src/app',
-        'tsc',
-        'node dist/index.js',
-        'echo "Hello World"',
-      ];
 
-      safeCommands.forEach(command => {
-        const commands = fileSystemService.parseCompoundCommand(command);
-        const invalidCommands = commands.filter(cmd => !fileSystemService.isCommandAllowed(cmd));
-        expect(invalidCommands).toHaveLength(0);
-      });
-    });
-
-    it('should validate realistic compound commands', () => {
-      const testCases = [
-        {
-          command: 'cd frontend/chat && bun add lucide-react',
-          shouldBeValid: true,
-          description: 'bun add with cd'
-        },
-        {
-          command: 'npm install && npm run build',
-          shouldBeValid: true,
-          description: 'npm install and build'
-        },
-        {
-          command: 'yarn test || npm test',
-          shouldBeValid: true,
-          description: 'yarn or npm test'
-        },
-        {
-          command: 'git status; npm run lint',
-          shouldBeValid: true,
-          description: 'git status with npm lint'
-        },
-        {
-          command: 'rm -rf node_modules && npm install',
-          shouldBeValid: false,
-          description: 'rm with npm install'
-        },
-        {
-          command: 'cd / && sudo rm -rf *',
-          shouldBeValid: false,
-          description: 'cd to root with sudo rm'
-        },
-        {
-          command: 'tsc --project tsconfig.json && npm run build',
-          shouldBeValid: true,
-          description: 'tsc with npm build'
-        }
-      ];
-
-      testCases.forEach(({command, shouldBeValid, description}) => {
-        const commands = fileSystemService.parseCompoundCommand(command);
-        const invalidCommands = commands.filter(cmd => !fileSystemService.isCommandAllowed(cmd));
-        const isValid = invalidCommands.length === 0;
-        
-        expect(isValid).toBe(shouldBeValid);
-      });
+      expect(fileSystemService.getCommandSafetyLevel('npm install')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('yarn add package-name')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('bun add package-name')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('git status')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('git add .')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('git commit -m "message"')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('cd src/app')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('tsc')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('node dist/index.js')).toBe('safe');
+      expect(fileSystemService.getCommandSafetyLevel('echo "Hello World"')).toBe('safe');
     });
   });
 

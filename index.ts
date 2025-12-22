@@ -5,15 +5,24 @@ export const FileSystemConfigSchema = z.object({
   defaultSelectedFiles: z.array(z.string()).optional(),
   providers: z.record(z.string(), z.any()),
   safeCommands: z.array(z.string()).default([
-    "awk", "cat", "cd", "chdir", "diff", "echo", "find", "git", "grep", "head", "help", "hostname", "id", "ipconfig",
-    "ls", "netstat", "ps", "pwd", "sort", "tail", "tree", "type", "uname", "uniq", "wc", "which"
+    "awk", "cat", "cd", "chdir", "diff", "echo", "find", "git", "grep", "head", "help", "hostname", "id", "ipconfig", "tee",
+    "ls", "netstat", "ps", "pwd", "sort", "tail", "tree", "type", "uname", "uniq", "wc", "which", "npm", "yarn", "bun", "tsc", "node"
   ]),
   dangerousCommands: z.array(z.string()).default([
-    "rm ",
-    ">",
-    "tee",
-    "reboot",
-    "reset", // i.e. git reset
+    "(^|\\s)dd\\s",
+    "(^|\\s)dd\\s",
+    "(^|\\s)rm.*-.*r",
+    "(^|\\s)chmod.*-.*r",
+    "(^|\\s)chown.*-.*r",
+    "(^|\\s)rmdir\\s",
+    "(^|\\s)rmdir\\s",
+    "find.*-(delete|exec)", // for find --delete, find --exec rm
+    "(^|\\s)sudo\\s",
+    "(^|\\s)del\\s",
+    "(^|\\s)format\\s",
+    "(^|\\s)reboot",
+    "(^|\\s)shutdown",
+    "git.*reset", // i.e. git reset
   ])
 });
 
