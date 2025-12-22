@@ -6,7 +6,8 @@ export const FileSystemConfigSchema = z.object({
   providers: z.record(z.string(), z.any()),
   safeCommands: z.array(z.string()).default([
     "awk", "cat", "cd", "chdir", "diff", "echo", "find", "git", "grep", "head", "help", "hostname", "id", "ipconfig", "tee",
-    "ls", "netstat", "ps", "pwd", "sort", "tail", "tree", "type", "uname", "uniq", "wc", "which", "npm", "yarn", "bun", "tsc", "node"
+    "ls", "netstat", "ps", "pwd", "sort", "tail", "tree", "type", "uname", "uniq", "wc", "which",
+    "npm", "yarn", "bun", "tsc", "node", "npx", "bunx", "vitest"
   ]),
   dangerousCommands: z.array(z.string()).default([
     "(^|\\s)dd\\s",
