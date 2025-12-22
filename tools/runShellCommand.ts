@@ -4,7 +4,7 @@ import {z} from "zod";
 import type {ExecuteCommandResult} from "../FileSystemProvider.js";
 import FileSystemService from "../FileSystemService.ts";
 
-const name = "terminal/runShellCommand";
+const name = "terminal_runShellCommand";
 
 export async function execute(
   {

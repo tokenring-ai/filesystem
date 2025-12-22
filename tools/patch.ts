@@ -4,7 +4,7 @@ import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
 // Exported name for the tool
-const name = "file/patch";
+const name = "file_patch";
 
 async function execute(
   {

@@ -4,7 +4,7 @@ import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
-const name = "file/append";
+const name = "file_append";
 
 async function execute(
   {

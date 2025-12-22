@@ -5,7 +5,7 @@ import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
 // Tool name export as required
-const name = "file/write";
+const name = "file_write";
 
 async function execute(
   {

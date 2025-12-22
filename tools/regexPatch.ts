@@ -8,7 +8,7 @@ import FileSystemService from "../FileSystemService.ts";
  * All informational messages are prefixed with the tool name `[regexPatch]`.
  * Errors are thrown as exceptions with the tool name prefix.
  */
-const name = "file/regexPatch";
+const name = "file_regexPatch";
 const toolName = name.split("/")[1]; // "regexPatch"
 
 async function execute(

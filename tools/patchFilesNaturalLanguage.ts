@@ -10,7 +10,7 @@ const systemPrompt = `
 :Apply the adjustment to the file, and return the raw updated file content.
 :`.trim();
 
-const name = "file/patchFilesNaturalLanguage";
+const name = "file_patchFilesNaturalLanguage";
 
 /**
  * Executes the natural language patch tool.

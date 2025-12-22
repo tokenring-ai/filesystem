@@ -3,7 +3,7 @@ import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
-const name = "file/search";
+const name = "file_search";
 
 export type ReturnType = "names" | "content" | "matches";
 export type MatchType = "substring" | "whole-word" | "regex";
