@@ -136,12 +136,12 @@ describe('FileSystemService Command Validation', () => {
       expect(fileSystemService.getCommandSafetyLevel('rm -rf /blah')).toBe('dangerous');
       expect(fileSystemService.getCommandSafetyLevel('sudo rm -rf /blah')).toBe('dangerous');
       expect(fileSystemService.getCommandSafetyLevel('format c:')).toBe('dangerous');
-      expect(fileSystemService.getCommandSafetyLevel('del /s /q *.*')).toBe('dangerous'),
-      expect(fileSystemService.getCommandSafetyLevel('shutdown -h now')).toBe('dangerous'),
-      expect(fileSystemService.getCommandSafetyLevel('reboot')).toBe('dangerous'),
-      expect(fileSystemService.getCommandSafetyLevel('dd if=/dev/zero of=/dev/sda')).toBe('dangerous'),
-      expect(fileSystemService.getCommandSafetyLevel('find / -name "*.txt" -exec rm {} \;')).toBe('dangerous'),
-      expect(fileSystemService.getCommandSafetyLevel('chmod -R 777 /blah')).toBe('dangerous'),
+      expect(fileSystemService.getCommandSafetyLevel('del /s /q *.*')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('shutdown -h now')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('reboot')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('dd if=/dev/zero of=/dev/sda')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('find / -name "*.txt" -exec rm {} \;')).toBe('dangerous');
+      expect(fileSystemService.getCommandSafetyLevel('chmod -R 777 /blah')).toBe('dangerous');
       expect(fileSystemService.getCommandSafetyLevel('chown -R root:root /blah')).toBe('dangerous');
     });
 

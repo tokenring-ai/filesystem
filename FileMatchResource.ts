@@ -8,10 +8,6 @@ export interface MatchItem {
   exclude?: RegExp;
 }
 
-export interface FileMatchResourceConfig {
-  items: MatchItem[];
-}
-
 /**
  * Class representing a file tree context extending DirectoryService.
  */

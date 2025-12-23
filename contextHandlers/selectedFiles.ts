@@ -8,7 +8,6 @@ export default async function * getContextItems(input: string, chatConfig: ChatC
 
   const fileContents: string[] = [];
   const directoryContents: string[] = [];
-  const selection = "// The user has provided the contents of the following files:";
   for (const file of agent.getState(FileSystemState).selectedFiles) {
     const content = await fileSystemService.getFile(file);
     if (content) {
