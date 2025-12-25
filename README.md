@@ -127,7 +127,7 @@ Exported via `tools.ts` for AI agent use (e.g., in `@tokenring-ai/agent`).
   - Example: Write a file – returns success message
   - Auto-creates dirs, sets default 0o644 perms for new files
 
-- **file/search**:
+- **file_search**:
   - Retrieves files by paths/globs or searches text (substring/whole-word/regex)
   - Modes: `names` (paths), `content` (full text, limit 50), `matches` (lines with context)
   - Params: `{files?, searches?, returnType='content', linesBefore/After?, caseSensitive=true, matchType='substring'}`
@@ -267,7 +267,7 @@ await agent.handleCommand('/file clear');
 - **FileSystemService Methods**: See [Core Components](#core-components) for signatures
 - **Tool Schemas** (Zod-validated inputs):
   - `file/write`: `z.object({path: z.string(), action: z.enum(['write', 'append', 'delete', 'rename', 'adjust']), content: z.string().optional(), is_base64?: z.boolean().optional(), fail_if_exists?: z.boolean().optional(), permissions?: z.string().optional(), toPath?: z.string().optional(), check_exists?: z.boolean().optional()})`
-  - `file/search`: `z.object({files?: z.array(z.string()), searches?: z.array(z.string()), returnType: z.enum(['names', 'content', 'matches']).default('content'), linesBefore: z.number().int().min(0).optional(), linesAfter: z.number().int().min(0).optional(), caseSensitive: z.boolean().default(true), matchType: z.enum(['substring', 'whole-word', 'regex']).default('substring')})`
+  - `file_search`: `z.object({files?: z.array(z.string()), searches?: z.array(z.string()), returnType: z.enum(['names', 'content', 'matches']).default('content'), linesBefore: z.number().int().min(0).optional(), linesAfter: z.number().int().min(0).optional(), caseSensitive: z.boolean().default(true), matchType: z.enum(['substring', 'whole-word', 'regex']).default('substring')})`
   - `terminal_bash`: `z.object({command: z.string(), timeoutSeconds?: z.number().int().optional(), workingDirectory?: z.string().optional()})`
 - **Interfaces**:
   - `StatLike`: `{path: string, absolutePath?: string, isFile: boolean, isDirectory: boolean, isSymbolicLink?: boolean, size?: number, created?: Date, modified?: Date, accessed?: Date}`
