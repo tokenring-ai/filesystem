@@ -28,8 +28,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:integration": "vitest run runShellCommand.integration.test.ts",
-    "test:e2e": "vitest run runShellCommand.e2e.test.ts",
+    "test:integration": "vitest run bash.integration.test.ts",
+    "test:e2e": "vitest run bash.e2e.test.ts",
     "test:all": "vitest run && node test/integration-runner.ts",
     "build": "tsc --noEmit"
   },

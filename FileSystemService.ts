@@ -1,8 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceRequest";
 import {TokenRingService} from "@tokenring-ai/app/types";
-import KeyedRegistryWithSingleSelection from "@tokenring-ai/utility/registry/KeyedRegistryWithSingleSelection";
-import ignore from "ignore";
+import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import {z} from "zod";
 import FileSystemProvider, {
   type DirectoryTreeOptions,
@@ -14,8 +13,9 @@ import FileSystemProvider, {
   type StatLike,
   type WatchOptions
 } from "./FileSystemProvider.js";
-import {FileSystemConfigSchema} from "./index.ts";
+import {FileSystemAgentConfigSchema, FileSystemConfigSchema} from "./index.ts";
 import {FileSystemState} from "./state/fileSystemState.js";
+import createIgnoreFilter from "./tools/util/createIgnoreFilter.ts";
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
@@ -26,181 +26,160 @@ type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 export default class FileSystemService implements TokenRingService {
   name = "FileSystemService";
   description = "Abstract interface for virtual file system operations";
-  dirty = false;
 
-
-  protected defaultSelectedFiles: string[];
   protected dangerousCommands: RegExp[];
-  protected safeCommands: string[];
+  protected defaultProvider!: FileSystemProvider;
 
   private fileSystemProviderRegistry =
-    new KeyedRegistryWithSingleSelection<FileSystemProvider>();
+    new KeyedRegistry<FileSystemProvider>();
 
   registerFileSystemProvider = this.fileSystemProviderRegistry.register;
-  getActiveFileSystemProviderName =
-    this.fileSystemProviderRegistry.getActiveItemName;
-  setActiveFileSystemProviderName =
-    this.fileSystemProviderRegistry.setEnabledItem;
-  getAvailableFileSystemProviders =
-    this.fileSystemProviderRegistry.getAllItemNames;
+  requireFileSystemProviderByName = this.fileSystemProviderRegistry.requireItemByName;
 
   /**
    * Creates an instance of FileSystem
    */
-  constructor({
-                defaultSelectedFiles,
-                dangerousCommands,
-                safeCommands
-              }: z.output<typeof FileSystemConfigSchema>) {
-    this.defaultSelectedFiles = defaultSelectedFiles ?? [];
-    this.dangerousCommands = dangerousCommands.map(command => new RegExp(command, "is"));
-    this.safeCommands = safeCommands;
+  constructor(private config: z.output<typeof FileSystemConfigSchema>) {
+    this.dangerousCommands = config.dangerousCommands.map(command => new RegExp(command, "is"));
   }
 
-  /**
-   * Create an ignore filter for files
-   * @private
-   */
-  async createIgnoreFilter(): Promise<(p: string) => boolean> {
-    // Create the base ignore filter
-    const ig = ignore();
-    ig.add(".git"); // always ignore .git dir at root
-    ig.add("*.lock");
-    ig.add("node_modules");
-    ig.add(".*");
-
-    const gitIgnorePath = ".gitignore";
-    if (await this.exists(gitIgnorePath)) {
-      const data = await this.getFile(gitIgnorePath);
-      if (data) {
-        const lines = data.split(/\r?\n/).filter(Boolean);
-        ig.add(lines);
-      }
-    }
-
-    const aiIgnorePath = ".aiignore";
-    if (await this.exists(aiIgnorePath)) {
-      const data = await this.getFile(aiIgnorePath);
-      if (data) {
-        const lines = data.split(/\r?\n/).filter(Boolean);
-        ig.add(lines);
-      }
-    }
-
-    return ig.ignores.bind(ig);
+  run(): void {
+    // Throws an error if the default provider is not registered, since this is most likely a mistake
+    this.defaultProvider = this.fileSystemProviderRegistry.requireItemByName(this.config.defaultProvider);
   }
+
 
   async attach(agent: Agent): Promise<void> {
+    const config = agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema)
     agent.initializeState(FileSystemState, {
-      selectedFiles: new Set(this.defaultSelectedFiles),
+      providerName: config.provider ?? this.config.defaultProvider,
+      selectedFiles: config.selectedFiles
+    });
+  }
+
+  getActiveFileSystem(agent: Agent): FileSystemProvider {
+    const { providerName } = agent.getState(FileSystemState);
+    return this.fileSystemProviderRegistry.requireItemByName(providerName);
+  }
+
+  setActiveFileSystem(providerName: string, agent: Agent): void {
+    this.fileSystemProviderRegistry.requireItemByName(providerName);
+    agent.mutateState(FileSystemState, (state: FileSystemState) => {
+      state.providerName = providerName;
     });
   }
 
   // Directory walking
   async* getDirectoryTree(
     path: string,
-    params: Optional<DirectoryTreeOptions, "ignoreFilter"> = {},
+    options: Optional<DirectoryTreeOptions, "ignoreFilter"> = {},
+    agent: Agent
   ): AsyncGenerator<string> {
-    params.ignoreFilter ??= await this.createIgnoreFilter();
-    yield* this.fileSystemProviderRegistry
-      .getActiveItem()
-      .getDirectoryTree(path, params as DirectoryTreeOptions);
+    const activeFileSystem = this.getActiveFileSystem(agent);
+    options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
+    yield* activeFileSystem.getDirectoryTree(path, options as DirectoryTreeOptions);
   }
 
   // file ops
-  async writeFile(path: string, content: string | Buffer): Promise<boolean> {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
+  async writeFile(path: string, content: string | Buffer, agent: Agent): Promise<boolean> {
+    this.setDirty(true, agent);
+    return this.getActiveFileSystem(agent)
       .writeFile(path, content);
   }
 
   async appendFile(
     filePath: string,
     finalContent: string | Buffer,
+    agent: Agent
   ): Promise<boolean> {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
+    this.setDirty(true, agent);
+    return this.getActiveFileSystem(agent)
       .appendFile(filePath, finalContent);
   }
 
-  async deleteFile(path: string): Promise<boolean> {
-    return this.fileSystemProviderRegistry.getActiveItem().deleteFile(path);
+  async deleteFile(path: string, agent: Agent): Promise<boolean> {
+    this.setDirty(true, agent);
+    return this.getActiveFileSystem(agent).deleteFile(path);
   }
 
-  async getFile(path: string): Promise<string | null> {
-    return await this.readFile(path, "utf8" as BufferEncoding);
+  async getFile(path: string, agent: Agent): Promise<string | null> {
+    return await this.readFile(path, "utf8" as BufferEncoding, agent);
   }
 
   async readFile(
     path: string,
-    encoding?: BufferEncoding | "buffer",
+    encoding: BufferEncoding | "buffer" | null,
+    agent: Agent
   ): Promise<string> {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
-      .readFile(path, encoding);
+    return this.getActiveFileSystem(agent)
+      .readFile(path, encoding || "utf-8");
   }
 
-  async rename(oldPath: string, newPath: string): Promise<boolean> {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
+  async rename(oldPath: string, newPath: string, agent: Agent): Promise<boolean> {
+    return this.getActiveFileSystem(agent)
       .rename(oldPath, newPath);
   }
 
-  async exists(path: string): Promise<boolean> {
-    return this.fileSystemProviderRegistry.getActiveItem().exists(path);
+  async exists(path: string, agent: Agent): Promise<boolean> {
+    return this.getActiveFileSystem(agent).exists(path);
   }
 
-  async stat(path: string): Promise<StatLike> {
-    return this.fileSystemProviderRegistry.getActiveItem().stat(path);
+  async stat(path: string, agent: Agent): Promise<StatLike> {
+    return this.getActiveFileSystem(agent)
+      .stat(path);
   }
 
   async createDirectory(
     path: string,
-    options: { recursive?: boolean } = {},
+    options: { recursive?: boolean },
+    agent: Agent
   ): Promise<boolean> {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
+    this.setDirty(true, agent);
+
+    return this.getActiveFileSystem(agent)
       .createDirectory(path, options);
   }
 
   async copy(
     source: string,
     destination: string,
-    options: { overwrite?: boolean } = {},
+    options: { overwrite?: boolean },
+    agent: Agent
   ): Promise<boolean> {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
+    this.setDirty(true, agent);
+
+    return this.getActiveFileSystem(agent)
       .copy(source, destination, options);
   }
 
   async glob(
     pattern: string,
-    options: Optional<GlobOptions, "ignoreFilter"> = {},
+    options: Optional<GlobOptions, "ignoreFilter">,
+    agent: Agent
   ): Promise<string[]> {
-    options.ignoreFilter =
-      options.ignoreFilter ?? (await this.createIgnoreFilter());
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
-      .glob(pattern, options as GlobOptions);
+    const activeFileSystem = this.getActiveFileSystem(agent);
+    options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
+    return activeFileSystem.glob(pattern, options as GlobOptions);
   }
 
   async watch(
     dir: string,
-    options: Optional<WatchOptions, "ignoreFilter"> = {},
+    options: Optional<WatchOptions, "ignoreFilter">,
+    agent: Agent
   ): Promise<any> {
-    options.ignoreFilter ??= await this.createIgnoreFilter();
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
-      .watch(dir, options as WatchOptions);
+    const activeFileSystem = this.getActiveFileSystem(agent);
+    options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
+    return activeFileSystem.watch(dir, options as WatchOptions);
   }
 
   async executeCommand(
     command: string | string[],
-    options?: Partial<ExecuteCommandOptions>,
+    options: Partial<ExecuteCommandOptions>,
+    agent: Agent
   ): Promise<ExecuteCommandResult> {
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
-      .executeCommand(command, { timeoutSeconds: 120, ...options});
+    this.setDirty(true, agent);
+    const activeFileSystem = this.getActiveFileSystem(agent);
+    return activeFileSystem.executeCommand(command, { timeoutSeconds: 120, ...options});
   }
 
   getCommandSafetyLevel(shellString: string): "safe" | "unknown" | "dangerous" {
@@ -213,7 +192,7 @@ export default class FileSystemService implements TokenRingService {
     const commands = this.parseCompoundCommand(shellString.toLowerCase());
     for (let command of commands) {
       command = command.trim();
-      if (!this.safeCommands.some((pattern) => command.startsWith(pattern))) {
+      if (!this.config.safeCommands.some((pattern) => command.startsWith(pattern))) {
         return "unknown";
       }
     }
@@ -248,26 +227,27 @@ export default class FileSystemService implements TokenRingService {
 
   async grep(
     searchString: string | string[],
-    options: Optional<GrepOptions, "ignoreFilter"> = {},
+    options: Optional<GrepOptions, "ignoreFilter">,
+    agent: Agent
   ): Promise<GrepResult[]> {
-    options.ignoreFilter ??= await this.createIgnoreFilter();
-    return this.fileSystemProviderRegistry
-      .getActiveItem()
-      .grep(searchString, options as GrepOptions);
+    const activeFileSystem = this.getActiveFileSystem(agent);
+    options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
+    return activeFileSystem.grep(searchString, options as GrepOptions);
   }
 
-  // dirty flag
-  setDirty(dirty: boolean): void {
-    this.dirty = dirty;
+  setDirty(dirty: boolean, agent: Agent): void {
+    agent.mutateState(FileSystemState, (state: FileSystemState) => {
+      state.dirty = dirty;
+    })
   }
 
-  getDirty(): boolean {
-    return this.dirty;
+  isDirty(agent: Agent): boolean {
+    return agent.getState(FileSystemState).dirty;
   }
 
   // chat file selection
   async addFileToChat(file: string, agent: Agent): Promise<void> {
-    if (!(await this.exists(file))) {
+    if (!(await this.exists(file, agent))) {
       throw new Error(`Could not find file to add to chat: ${file}`);
     }
     agent.mutateState(FileSystemState, (state: FileSystemState) => {
@@ -293,17 +273,13 @@ export default class FileSystemService implements TokenRingService {
 
   async setFilesInChat(files: Iterable<string>, agent: Agent): Promise<void> {
     for (const file of files) {
-      if (!(await this.exists(file))) {
+      if (!(await this.exists(file, agent))) {
         throw new Error(`Could not find file to add to chat: ${file}`);
       }
     }
     agent.mutateState(FileSystemState, (state: FileSystemState) => {
       state.selectedFiles = new Set(files);
     });
-  }
-
-  getDefaultFiles(): string[] {
-    return this.defaultSelectedFiles;
   }
 
   /**
@@ -318,7 +294,7 @@ export default class FileSystemService implements TokenRingService {
 
       for await (const itemPath of this.getDirectoryTree(path, {
         recursive: false,
-      })) {
+      }, agent)) {
         if (itemPath.endsWith("/")) {
           // Directory
           const dirName = itemPath

@@ -42,12 +42,12 @@ async function execute(
   for (const file of files) {
     try {
       // Check if the file exists
-      if (!(await fileSystem.exists(file))) {
+      if (!(await fileSystem.exists(file, agent))) {
         throw new Error(`File does not exist: ${file}`);
       }
 
       // Read the original file content
-      const originalContent = await fileSystem.getFile(file);
+      const originalContent = await fileSystem.getFile(file, agent);
       if (!originalContent) {
         throw new Error(`Failed to read file content: ${file}`);
       }
@@ -88,7 +88,7 @@ async function execute(
         continue;
       }
 
-      await fileSystem.writeFile(file, patchedContent);
+      await fileSystem.writeFile(file, patchedContent, agent);
 
       patchedFiles.push(file);
       agent.infoLine(`[${name}] Successfully patched file: ${file}`);
@@ -98,7 +98,7 @@ async function execute(
     }
   }
 
-  fileSystem.setDirty(true);
+  fileSystem.setDirty(true, agent);
   return `Patched ${patchedFiles.length} files successfully`;
 }
 

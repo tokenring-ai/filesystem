@@ -282,12 +282,13 @@ async function searchFiles(
   fileSystemService: FileSystemService,
   keywords: string[],
   extensions: string[],
-  maxResults: number
+  maxResults: number,
+  agent: Agent
 ): Promise<FileMatch[]> {
   const results: Map<string, FileMatch> = new Map();
 
   // Strategy 1: Filename/path matching via glob
-  const allFiles = await fileSystemService.glob('**/*');
+  const allFiles = await fileSystemService.glob('**/*', {}, agent);
 
   for (const filePath of allFiles) {
     const score = scoreFilePath(filePath, keywords, extensions);
@@ -311,7 +312,7 @@ async function searchFiles(
 
   if (grepKeywords.length > 0) {
     try {
-      const grepResults = await fileSystemService.grep(grepKeywords);
+      const grepResults = await fileSystemService.grep(grepKeywords, {}, agent);
 
       const fileMatches = aggregateGrepResults(grepResults);
 
@@ -406,7 +407,8 @@ export default async function* getContextItems(
     fileSystemService,
     keywords,
     extensions,
-    maxResults
+    maxResults,
+    agent
   );
 
   const formattedContent = formatResults(searchResults, keywords);

@@ -25,7 +25,7 @@ export default class FileMatchResource {
     const fileSystem = agent.requireServiceByType(FileSystemService);
 
     for (const {path, include, exclude} of this.items) {
-      for await (const relPath of fileSystem.getDirectoryTree(path)) {
+      for await (const relPath of fileSystem.getDirectoryTree(path, {}, agent)) {
         if (exclude?.test(relPath) || include?.test(relPath) === false)
           continue;
         yield relPath;

@@ -34,14 +34,9 @@ async function execute(
   // Ensure parent directory exists
   const dirPath = path.dirname(filePath);
   if (dirPath !== "." && dirPath !== "/") {
-    await fileSystem.createDirectory(dirPath, {recursive: true});
+    await fileSystem.createDirectory(dirPath, {recursive: true}, agent);
   }
-  let success = await fileSystem.writeFile(filePath, content);
-
-  if (success) {
-    fileSystem.setDirty(true);
-  }
-
+  let success = await fileSystem.writeFile(filePath, content, agent);
 
   return `File successfully written`;
 

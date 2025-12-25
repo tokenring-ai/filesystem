@@ -126,7 +126,7 @@ async function execute(
         // If it's a glob pattern, resolve it
         if (filePattern.includes("*") || filePattern.includes("?")) {
           //agent.infoLine(`[${name}] Resolving glob pattern: ${filePattern}`);
-          const matchedFiles = await fileSystem.glob(filePattern);
+          const matchedFiles = await fileSystem.glob(filePattern, {}, agent);
           resolvedFiles.push(...matchedFiles);
         } else {
           // It's a direct file path
@@ -164,7 +164,7 @@ async function execute(
   const fileResults: FileInfo[] = [];
   for (const file of resolvedFiles) {
     try {
-      const exists = await fileSystem.exists(file);
+      const exists = await fileSystem.exists(file, agent);
       if (!exists) {
         agent.infoLine(
           `[${name}] Cannot retrieve file ${file}: file not found.`,
@@ -176,7 +176,7 @@ async function execute(
       if (returnType === "names") {
         fileResults.push({file, exists: true});
       } else {
-        const content = await fileSystem.getFile(file);
+        const content = await fileSystem.getFile(file, agent);
         agent.infoLine(`[${name}] Retrieved file ${file}`);
         fileResults.push({file, exists: true, content: content ?? undefined});
       }
@@ -251,7 +251,7 @@ async function fileSearch(
       matchType, // Assume FileSystemService.grep now supports these options
     } as const;
 
-    const results = await fileSystem.grep(searchPatterns, options);
+    const results = await fileSystem.grep(searchPatterns, options, agent);
 
     if (results.length === 0) {
       return result;

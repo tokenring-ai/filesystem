@@ -1,6 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import FileSystemService from "../FileSystemService.ts";
+import {FileSystemState} from "../state/fileSystemState.ts";
 
 /**
  * /file [action] [files...] - Manage files in the chat session
@@ -28,6 +29,8 @@ async function selectFiles(filesystem: FileSystemService, agent: Agent) {
   if (selectedFiles) {
     await filesystem.setFilesInChat(selectedFiles, agent);
     agent.infoLine(`Selected ${selectedFiles.length} files for chat session`);
+  } else {
+    agent.infoLine("No files selected.");
   }
 }
 
@@ -97,13 +100,13 @@ async function clearFiles(filesystem: FileSystemService, agent: Agent) {
 }
 
 async function defaultFiles(filesystem: FileSystemService, agent: Agent) {
-  const defaultFiles: string[] = filesystem.getDefaultFiles();
+  const { initialConfig } = agent.getState(FileSystemState);
 
-  await filesystem.setFilesInChat(defaultFiles, agent);
+  await filesystem.setFilesInChat(initialConfig.selectedFiles, agent);
   agent.infoLine(`Added default files to the chat session:`);
-  defaultFiles.forEach((file: string, index: number) => {
-    agent.infoLine(`  ${index + 1}. ${file}`);
-  });
+  for (const file of initialConfig.selectedFiles) {
+    agent.infoLine(`  ${file}`);
+  }
 }
 
 /**

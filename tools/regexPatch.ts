@@ -23,7 +23,7 @@ async function execute(
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Read the original file content
-  const originalContent = await fileSystem.getFile(file);
+  const originalContent = await fileSystem.getFile(file, agent);
 
   if (!originalContent) {
     const msg = `Failed to read file content: ${file}`;
@@ -51,10 +51,10 @@ async function execute(
   );
 
   // Write the patched content back to the file
-  await fileSystem.writeFile(file, patchedContent);
+  await fileSystem.writeFile(file, patchedContent, agent);
 
   agent.infoLine(`[${toolName}] Patched file: ${file}`);
-  fileSystem.setDirty(true);
+  fileSystem.setDirty(true, agent);
 
   // Return a plain success string without tool name prefix
   return `Successfully patched file ${file} using regex pattern`;

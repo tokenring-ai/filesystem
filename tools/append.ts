@@ -31,15 +31,11 @@ async function execute(
   // Ensure parent directory exists
   const dirPath = path.dirname(filePath);
   if (dirPath !== "." && dirPath !== "/") {
-    await fileSystem.createDirectory(dirPath, {recursive: true});
+    await fileSystem.createDirectory(dirPath, {recursive: true}, agent);
   }
 
   // Use appendFile instead of writeFile
-  let success = await fileSystem.appendFile(filePath, content);
-
-  if (success) {
-    fileSystem.setDirty(true);
-  }
+  let success = await fileSystem.appendFile(filePath, content, agent);
 
   return `Successfully appended to file`;
 }

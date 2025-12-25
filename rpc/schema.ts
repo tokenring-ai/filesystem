@@ -1,5 +1,5 @@
-import { JsonRPCSchema } from "@tokenring-ai/web-host/jsonrpc/types";
-import { z } from "zod";
+import {JsonRPCSchema} from "@tokenring-ai/web-host/jsonrpc/types";
+import {z} from "zod";
 
 export default {
   path: "/rpc/filesystem",
@@ -7,6 +7,7 @@ export default {
     readFile: {
       type: "query",
       input: z.object({
+        agentId: z.string(),
         path: z.string()
       }),
       result: z.object({
@@ -16,6 +17,7 @@ export default {
     exists: {
       type: "query",
       input: z.object({
+        agentId: z.string(),
         path: z.string()
       }),
       result: z.object({
@@ -25,6 +27,7 @@ export default {
     stat: {
       type: "query",
       input: z.object({
+        agentId: z.string(),
         path: z.string()
       }),
       result: z.object({
@@ -34,6 +37,7 @@ export default {
     glob: {
       type: "query",
       input: z.object({
+        agentId: z.string(),
         pattern: z.string()
       }),
       result: z.object({
@@ -43,6 +47,7 @@ export default {
     listDirectory: {
       type: "query",
       input: z.object({
+        agentId: z.string(),
         path: z.string(),
         showHidden: z.boolean().default(false),
         recursive: z.boolean().default(false)
@@ -54,6 +59,7 @@ export default {
     writeFile: {
       type: "mutation",
       input: z.object({
+        agentId: z.string(),
         path: z.string(),
         content: z.string()
       }),
@@ -64,6 +70,7 @@ export default {
     appendFile: {
       type: "mutation",
       input: z.object({
+        agentId: z.string(),
         path: z.string(),
         content: z.string()
       }),
@@ -74,6 +81,7 @@ export default {
     deleteFile: {
       type: "mutation",
       input: z.object({
+        agentId: z.string(),
         path: z.string()
       }),
       result: z.object({
@@ -83,6 +91,7 @@ export default {
     rename: {
       type: "mutation",
       input: z.object({
+        agentId: z.string(),
         oldPath: z.string(),
         newPath: z.string()
       }),
@@ -93,6 +102,7 @@ export default {
     createDirectory: {
       type: "mutation",
       input: z.object({
+        agentId: z.string(),
         path: z.string(),
         recursive: z.boolean().default(false)
       }),
@@ -103,6 +113,7 @@ export default {
     copy: {
       type: "mutation",
       input: z.object({
+        agentId: z.string(),
         source: z.string(),
         destination: z.string(),
         overwrite: z.boolean().default(false)

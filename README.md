@@ -62,7 +62,7 @@ The package is organized as follows:
 - **tools/**: AI tool implementations (exported via `tools.ts`):
   - `write.ts`: File write operations
   - `search.ts`: File retrieval and full-text search (globs, substrings/regex)
-  - `runShellCommand.ts`: Execute shell commands (with timeout and safety validation)
+  - `bash.ts`: Execute shell commands (with timeout and safety validation)
 - **commands/**: Chat commands (exported via `chatCommands.ts`):
   - `file.ts`: Manage chat files (`/file add/remove/list/clear`)
 - **contextHandlers/**: Context provider handlers:
@@ -135,7 +135,7 @@ Exported via `tools.ts` for AI agent use (e.g., in `@tokenring-ai/agent`).
   - Skips binaries/.gitignore; OR-based searches
   - Supports glob patterns and regex matching
 
-- **terminal/runShellCommand**:
+- **terminal_bash**:
   - Executes shell cmd (string or array)
   - Params: `{command, timeoutSeconds=60, workingDirectory?}`
   - Returns `ExecuteCommandResult`; validates command safety
@@ -218,9 +218,9 @@ const writeResult = await agent.useTool({
   }
 });
 
-// AI can call terminal/runShellCommand with safety validation
+// AI can call terminal_bash with safety validation
 const shellResult = await agent.useTool({
-  name: 'terminal/runShellCommand',
+  name: 'terminal_bash',
   params: {
     command: 'ls -la',
     workingDirectory: './src'
@@ -268,7 +268,7 @@ await agent.handleCommand('/file clear');
 - **Tool Schemas** (Zod-validated inputs):
   - `file/write`: `z.object({path: z.string(), action: z.enum(['write', 'append', 'delete', 'rename', 'adjust']), content: z.string().optional(), is_base64?: z.boolean().optional(), fail_if_exists?: z.boolean().optional(), permissions?: z.string().optional(), toPath?: z.string().optional(), check_exists?: z.boolean().optional()})`
   - `file/search`: `z.object({files?: z.array(z.string()), searches?: z.array(z.string()), returnType: z.enum(['names', 'content', 'matches']).default('content'), linesBefore: z.number().int().min(0).optional(), linesAfter: z.number().int().min(0).optional(), caseSensitive: z.boolean().default(true), matchType: z.enum(['substring', 'whole-word', 'regex']).default('substring')})`
-  - `terminal/runShellCommand`: `z.object({command: z.string(), timeoutSeconds?: z.number().int().optional(), workingDirectory?: z.string().optional()})`
+  - `terminal_bash`: `z.object({command: z.string(), timeoutSeconds?: z.number().int().optional(), workingDirectory?: z.string().optional()})`
 - **Interfaces**:
   - `StatLike`: `{path: string, absolutePath?: string, isFile: boolean, isDirectory: boolean, isSymbolicLink?: boolean, size?: number, created?: Date, modified?: Date, accessed?: Date}`
   - `GrepResult`: `{file: string, line: number, match: string, matchedString?: string, content: string | null}`
@@ -297,7 +297,7 @@ Public exports: `FileSystemService`, `FileMatchResource`, tools/commands via ind
 - **Testing**: Run `bun test` (unit), `bun run test:integration` (shell cmds), `bun run test:all` (full suite). Uses Vitest; covers core ops and tools.
 - **Building**: TypeScript compiles to ESM; no build step needed beyond `tsc`.
 - **Limitations**:
-  - Shell commands (`terminal/runShellCommand`) are not sandboxed – potential security risk.
+  - Shell commands (`terminal_bash`) are not sandboxed – potential security risk.
   - Searches skip binaries and ignored files; limits degrade to 'names' mode if >50 results.
   - Path handling assumes Unix-style `/`; relative to virtual root.
   - No multi-provider switching in tools yet (uses active provider).

@@ -4,7 +4,7 @@ import {z} from "zod";
 import type {ExecuteCommandResult} from "../FileSystemProvider.js";
 import FileSystemService from "../FileSystemService.ts";
 
-const name = "terminal_runShellCommand";
+const name = "terminal_bash";
 
 export async function execute(
   {
@@ -60,12 +60,7 @@ export async function execute(
     const result = await fileSystem.executeCommand(command, {
       timeoutSeconds,
       workingDirectory: workingDirectory ?? "./",
-    });
-
-    // Mark as dirty if successful (similar to the original implementation)
-    if (result.ok) {
-      fileSystem.setDirty(true);
-    }
+    }, agent);
 
     return result;
   } catch (err: unknown) {

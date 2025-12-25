@@ -24,7 +24,7 @@ async function execute(
   }
 
   // Read the original file content
-  const originalContent = await fileSystem.getFile(file);
+  const originalContent = await fileSystem.getFile(file, agent);
   if (!originalContent) {
     throw new Error(`[${name}] Failed to read file content: ${file}`);
   }
@@ -87,10 +87,10 @@ async function execute(
   const patchedContent = patchedLines.join("\n");
 
   // Write the patched content back to the file
-  await fileSystem.writeFile(file, patchedContent);
+  await fileSystem.writeFile(file, patchedContent, agent);
 
   agent.infoLine(`[${name}] Patched file: ${file}`);
-  fileSystem.setDirty(true);
+  fileSystem.setDirty(true, agent);
 
   return `Successfully patched file ${file} replacing content from line "${fromLine}" to line "${toLine}"`;
 }

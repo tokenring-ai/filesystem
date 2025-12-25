@@ -27,7 +27,7 @@ export default {
           type: 'native',
           params: ['path', 'content'],
           async execute(this: ScriptingThis, path: string, content: string): Promise<string> {
-            await this.agent.requireServiceByType(FileSystemService).writeFile(path, content);
+            await this.agent.requireServiceByType(FileSystemService).writeFile(path, content, this.agent);
             return `Created file: ${path}`;
           }
         }
@@ -37,7 +37,7 @@ export default {
           type: 'native',
           params: ['path'],
           async execute(this: ScriptingThis, path: string): Promise<string> {
-            await this.agent.requireServiceByType(FileSystemService).deleteFile(path);
+            await this.agent.requireServiceByType(FileSystemService).deleteFile(path, this.agent);
             return `Deleted file: ${path}`;
           }
         }
@@ -47,7 +47,7 @@ export default {
           type: 'native',
           params: ['pattern'],
           async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
-            return await this.agent.requireServiceByType(FileSystemService).glob(pattern);
+            return await this.agent.requireServiceByType(FileSystemService).glob(pattern, {}, this.agent);
           }
         }
         );
@@ -56,7 +56,7 @@ export default {
           type: 'native',
           params: ['searchString'],
           async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
-            const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString]);
+            const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString], {}, this.agent);
             return results.map(r => `${r.file}:${r.line}: ${r.match}`);
           }
         }
@@ -74,12 +74,6 @@ export default {
       app.waitForService(WebHostService, webHostService => {
         webHostService.registerResource("FileSystem RPC endpoint", new JsonRpcResource(app, filesystemRPC));
       });
-    }
-  },
-  start(app: TokenRingApp) {
-    const filesystemConfig = app.getConfigSlice("filesystem", FileSystemConfigSchema);
-    if (filesystemConfig?.defaultProvider) {
-      app.requireService(FileSystemService).setActiveFileSystemProviderName(filesystemConfig.defaultProvider)
     }
   }
 } satisfies TokenRingPlugin;
