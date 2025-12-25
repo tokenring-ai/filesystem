@@ -2,6 +2,7 @@ import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
+import {FileSystemState} from "../state/fileSystemState.ts";
 
 const name = "file_search";
 
@@ -189,6 +190,14 @@ async function execute(
       });
     }
   }
+
+  agent.mutateState(FileSystemState, (state: FileSystemState) => {
+    for (const fileResult of fileResults) {
+      if (fileResult.exists && fileResult.content) {
+        state.readFiles.add(fileResult.file);
+      }
+    }
+  });
 
   result.files = fileResults;
   result.summary.totalFiles = fileResults.length;

@@ -3,6 +3,7 @@ import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
 import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
+import {FileSystemState} from "../state/fileSystemState.ts";
 
 // Tool name export as required
 const name = "file_write";
@@ -25,7 +26,19 @@ async function execute(
     );
   }
 
-  // Informational messages use the tool name
+  const state = agent.getState(FileSystemState);
+  if (state.requireReadBeforeWrite && !state.readFiles.has(filePath) && await fileSystem.exists(filePath, agent)) {
+    const fileContent = await fileSystem.getFile(filePath, agent);
+    return `
+Cannot write to ${filePath}: The tool policy requires that all files must be read before they can be written.
+
+To expedite this process, we have read the file, and included the file contents below, and marked it as read, so that it can now be written.
+It is not required that you re-read the file. Verify the file contents below and the changes you would like to make, and re-submit the file_write tool call to write the file.
+
+${filePath}:\n\n
+${fileContent}`.trim();
+  }
+
   agent.infoLine(
     `[${name}] Modifying file ${filePath}`,
   );

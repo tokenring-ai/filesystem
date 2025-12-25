@@ -12,6 +12,9 @@ export default async function * getContextItems(input: string, chatConfig: ChatC
     const content = await fileSystemService.getFile(file, agent);
     if (content) {
       fileContents.push(`${file}:\n\n${content}`);
+      agent.mutateState(FileSystemState, (state: FileSystemState) => {
+        state.readFiles.add(file);
+      });
     } else {
       try {
         const directoryListing = await fileSystemService.getDirectoryTree(file, {}, agent);

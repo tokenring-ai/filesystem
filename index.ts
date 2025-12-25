@@ -29,8 +29,9 @@ export const FileSystemConfigSchema = z.object({
 
 export const FileSystemAgentConfigSchema = z.object({
   provider: z.string().optional(),
-  selectedFiles: z.array(z.string()).default([])
-}).default({ provider: undefined, selectedFiles: []});
+  selectedFiles: z.array(z.string()).default([]),
+  requireReadBeforeWrite: z.boolean().default(true)
+}).default({ provider: undefined, selectedFiles: [], requireReadBeforeWrite: true });
 
 
 export { default as FileMatchResource } from "./FileMatchResource.ts";

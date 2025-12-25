@@ -5,7 +5,8 @@ import {FileSystemAgentConfigSchema} from "../index.ts";
 
 type FileSystemStateConfig = {
   providerName: string,
-  selectedFiles: string[]
+  selectedFiles: string[],
+  requireReadBeforeWrite: boolean
 };
 
 export class FileSystemState implements AgentStateSlice {
@@ -13,16 +14,20 @@ export class FileSystemState implements AgentStateSlice {
   selectedFiles: Set<string>;
   providerName: string;
   dirty: boolean = false;
+  requireReadBeforeWrite: boolean;
+  readFiles: Set<string> = new Set();
 
   constructor(readonly initialConfig: FileSystemStateConfig) {
     this.selectedFiles = new Set(initialConfig.selectedFiles);
     this.providerName = initialConfig.providerName;
+    this.requireReadBeforeWrite = initialConfig.requireReadBeforeWrite;
   }
 
   reset(what: ResetWhat[]): void {
     if (what.includes("chat")) {
       this.selectedFiles = new Set(this.initialConfig.selectedFiles);
       this.dirty = false;
+      this.readFiles.clear();
     }
   }
 
@@ -30,7 +35,9 @@ export class FileSystemState implements AgentStateSlice {
     return {
       selectedFiles: Array.from(this.selectedFiles),
       activeFileSystemProviderName: this.providerName,
-      dirty: this.dirty
+      dirty: this.dirty,
+      requireReadBeforeWrite: this.requireReadBeforeWrite,
+      readFiles: Array.from(this.readFiles)
     };
   }
 
@@ -38,6 +45,8 @@ export class FileSystemState implements AgentStateSlice {
     this.selectedFiles = new Set(data.selectedFiles);
     this.providerName = data.activeFileSystemProviderName;
     this.dirty = data.dirty;
+    this.requireReadBeforeWrite = data.requireReadBeforeWrite ?? this.initialConfig.requireReadBeforeWrite;
+    this.readFiles = new Set(data.readFiles ?? []);
   }
 
   show(): string[] {

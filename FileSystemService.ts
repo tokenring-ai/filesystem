@@ -53,7 +53,8 @@ export default class FileSystemService implements TokenRingService {
     const config = agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema)
     agent.initializeState(FileSystemState, {
       providerName: config.provider ?? this.config.defaultProvider,
-      selectedFiles: config.selectedFiles
+      selectedFiles: config.selectedFiles,
+      requireReadBeforeWrite: config.requireReadBeforeWrite
     });
   }
 
@@ -111,8 +112,9 @@ export default class FileSystemService implements TokenRingService {
     encoding: BufferEncoding | "buffer" | null,
     agent: Agent
   ): Promise<string> {
-    return this.getActiveFileSystem(agent)
+    const result = this.getActiveFileSystem(agent)
       .readFile(path, encoding || "utf-8");
+    return result;
   }
 
   async rename(oldPath: string, newPath: string, agent: Agent): Promise<boolean> {
