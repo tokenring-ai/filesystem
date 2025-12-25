@@ -28,6 +28,9 @@ async function execute(
 
   const state = agent.getState(FileSystemState);
   if (state.requireReadBeforeWrite && !state.readFiles.has(filePath) && await fileSystem.exists(filePath, agent)) {
+    agent.mutateState(FileSystemState, (state) => {
+      state.readFiles.add(filePath);
+    });
     const fileContent = await fileSystem.getFile(filePath, agent);
     return `
 Cannot write to ${filePath}: The tool policy requires that all files must be read before they can be written.
