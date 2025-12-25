@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `@tokenring-ai/filesystem` package provides an abstract filesystem interface designed for integration with AI agents in the Token Ring framework. It enables virtual filesystem operations such as reading/writing files, directory traversal, globbing, searching, and executing shell commands. The package supports multiple filesystem providers (e.g., local FS) and integrates seamlessly with the `@tokenring-ai/agent` for agent-state management, including file selection for chat sessions and memory injection.
+The `@tokenring-ai/filesystem` package provides an abstract filesystem interface designed for integration with AI agents in the Token Ring framework. It enables virtual filesystem operations such as reading/writing files, directory traversal, globbing, searching, and executing shell commands. The package supports multiple filesystem providers and integrates seamlessly with the `@tokenring-ai/agent` for agent-state management, including file selection for chat sessions and memory injection.
 
 Key features:
 - Unified API for file operations (create, read, update, delete, rename, permissions)
@@ -13,6 +13,7 @@ Key features:
 - Dirty flag for tracking changes
 - Command safety validation for shell commands
 - Support for multiple filesystem providers with provider registry
+- State management with file tracking and read-before-write enforcement
 
 This package abstracts filesystem access, making it suitable for sandboxed or virtual environments in AI workflows, while providing safety mechanisms for shell commands.
 
@@ -31,6 +32,7 @@ This package abstracts filesystem access, making it suitable for sandboxed or vi
    import Agent from '@tokenring-ai/agent';
 
    const fsService = new FileSystemService({
+     defaultProvider: 'local',
      defaultSelectedFiles: ['src/index.ts'],
      safeCommands: ['ls', 'cat', 'grep', 'git', 'npm', 'bun', 'node'],
      dangerousCommands: ['rm', 'chmod', 'chown', 'sudo']
@@ -51,12 +53,12 @@ This package abstracts filesystem access, making it suitable for sandboxed or vi
 The package is organized as follows:
 
 - **Root files**:
-  - `index.ts`: Main entry point, exports `FileSystemService` and `FileMatchResource`
+  - `index.ts`: Main entry point, exports `FileSystemService` and `FileMatchResource` with configuration schemas
   - `FileSystemService.ts`: Core service class implementing `TokenRingService`
   - `FileSystemProvider.ts`: Abstract base for filesystem implementations
   - `package.json`: Package metadata, scripts (e.g., `bun test` for Vitest)
   - `tsconfig.json`: TypeScript configuration
-  - `vitest.config.js`: Test configuration
+  - `vitest.config.ts`: Test configuration
   - `README.md`: This documentation
   - `LICENSE`: MIT license
 - **tools/**: AI tool implementations (exported via `tools.ts`):
@@ -76,7 +78,7 @@ The package is organized as follows:
 - **test/**: Unit/integration tests:
   - `createTestFilesystem.ts`: Test filesystem factory
   - `FileSystemService.commandValidation.test.ts`: Command safety validation tests
-- Other: `FileMatchResource.ts` for pattern-based file selection
+- **Other**: `FileMatchResource.ts` for pattern-based file selection
 
 ## Core Components
 
@@ -103,7 +105,7 @@ The main service class, implementing `TokenRingService`. It manages filesystem p
   - `watch(dir: string, {ignoreFilter, pollInterval})`: Watches for changes (returns watcher)
   - Chat-specific: `addFileToChat(file: string, agent)`, `getFilesInChat(agent)`, `setFilesInChat(files: Iterable<string>, agent)`, `getMemories(agent)`: Yields file contents as agent memories
   - `askForFileSelection({initialSelection?, allowDirectories?}, agent)`: Interactive tree-based selection via agent UI
-  - `setDirty(dirty: boolean)` / `getDirty()`: Tracks modifications
+  - `setDirty(dirty: boolean) / getDirty()`: Tracks modifications
   - `getCommandSafetyLevel(command: string)`: Validates command safety level (`safe`, `unknown`, `dangerous`)
   - `parseCompoundCommand(command: string)`: Parses compound commands (handles `&&`, `||`, `;`, `|` separators)
 
@@ -121,11 +123,12 @@ Abstract base class for concrete implementations (e.g., local FS, virtual FS).
 
 Exported via `tools.ts` for AI agent use (e.g., in `@tokenring-ai/agent`).
 
-- **file/write**:
-  - Actions: `write` (full content, optional base64), `append`, `delete`, `rename` (to `toPath`), `adjust` (permissions as octal string, e.g., '644')
-  - Params: `{path, action, content?, is_base64?, fail_if_exists?, permissions?, toPath?, check_exists?}`
+- **file_write**:
+  - Actions: `write` (full content)
+  - Params: `{path, content}`
   - Example: Write a file – returns success message
-  - Auto-creates dirs, sets default 0o644 perms for new files
+  - Auto-creates dirs, enforces read-before-write policy
+  - Requires file to be read before writing if configured
 
 - **file_search**:
   - Retrieves files by paths/globs or searches text (substring/whole-word/regex)
@@ -181,7 +184,12 @@ JSON-RPC endpoints for remote filesystem access:
 ### Basic File Operations
 
 ```typescript
-const fs = new FileSystemService();
+const fs = new FileSystemService({
+  defaultProvider: 'local',
+  safeCommands: ['ls', 'cat', 'grep', 'git', 'npm', 'bun', 'node'],
+  dangerousCommands: ['rm', 'chmod', 'chown', 'sudo']
+});
+
 await fs.writeFile('example.txt', 'Hello, world!');
 const content = await fs.getFile('example.txt'); // 'Hello, world!'
 console.log(content);
@@ -205,28 +213,6 @@ for await (const memory of fs.getMemories(agent)) {
 }
 ```
 
-### Using Tools in Agent (e.g., via AI prompt)
-
-```typescript
-// AI can call file/write to write
-const writeResult = await agent.useTool({
-  name: 'file/write',
-  params: {
-    path: 'new.js',
-    action: 'write',
-    content: 'console.log("Hi");'
-  }
-});
-
-// AI can call terminal_bash with safety validation
-const shellResult = await agent.useTool({
-  name: 'terminal_bash',
-  params: {
-    command: 'ls -la',
-    workingDirectory: './src'
-  }
-});
-```
 
 ### Chat Commands
 
@@ -253,7 +239,7 @@ await agent.handleCommand('/file clear');
 
 ## Configuration Options
 
-- **Constructor**: `FileSystemService({defaultSelectedFiles?: string[], dangerousCommands?, safeCommands?})` – Initial chat files and command safety rules
+- **Constructor**: `FileSystemService({defaultProvider?: string, defaultSelectedFiles?: string[], safeCommands?, dangerousCommands?, providers?: Record<string, any>})` – Initial chat files and command safety rules
 - **Ignore Filters**: Auto-loads `.gitignore` (ignores `.git`, `node_modules`, etc.) and `.aiignore`. Custom via `ignoreFilter` in options
 - **Providers**: Register multiple via `registerFileSystemProvider`; active one via `setActiveFileSystemProviderName(name)`
 - **Permissions**: Octal strings (e.g., '644'); defaults to 0o644 for new files
@@ -261,12 +247,13 @@ await agent.handleCommand('/file clear');
 - **Shell**: `timeoutSeconds` (default 60, max 90); `env` and `workingDirectory` (relative to root)
 - **Scripting Integration**: Automatically registers global functions when `@tokenring-ai/scripting` is available
 - **Environment**: No specific vars; relies on agent config for root dir
+- **Read Before Write**: Enforces that files must be read before they can be modified (configurable via state)
 
 ## API Reference
 
 - **FileSystemService Methods**: See [Core Components](#core-components) for signatures
 - **Tool Schemas** (Zod-validated inputs):
-  - `file/write`: `z.object({path: z.string(), action: z.enum(['write', 'append', 'delete', 'rename', 'adjust']), content: z.string().optional(), is_base64?: z.boolean().optional(), fail_if_exists?: z.boolean().optional(), permissions?: z.string().optional(), toPath?: z.string().optional(), check_exists?: z.boolean().optional()})`
+  - `file_write`: `z.object({path: z.string(), content: z.string()})`
   - `file_search`: `z.object({files?: z.array(z.string()), searches?: z.array(z.string()), returnType: z.enum(['names', 'content', 'matches']).default('content'), linesBefore: z.number().int().min(0).optional(), linesAfter: z.number().int().min(0).optional(), caseSensitive: z.boolean().default(true), matchType: z.enum(['substring', 'whole-word', 'regex']).default('substring')})`
   - `terminal_bash`: `z.object({command: z.string(), timeoutSeconds?: z.number().int().optional(), workingDirectory?: z.string().optional()})`
 - **Interfaces**:
@@ -275,6 +262,7 @@ await agent.handleCommand('/file clear');
   - `ExecuteCommandResult`: `{ok: boolean, stdout: string, stderr: string, exitCode: number, error?: string}`
   - `FileSearchResult`: `{files: FileInfo[], matches: MatchInfo[], summary: SearchSummary}`
 - **RPC Schema**: See [rpc/schema.ts](#rpc-endpoints) for detailed method definitions
+- **Agent State**: `FileSystemState` tracks `selectedFiles: Set<string>`, `dirty: boolean`, `requireReadBeforeWrite: boolean`, `readFiles: Set<string>`
 
 Public exports: `FileSystemService`, `FileMatchResource`, tools/commands via index.
 
@@ -295,12 +283,10 @@ Public exports: `FileSystemService`, `FileMatchResource`, tools/commands via ind
 ## Contributing/Notes
 
 - **Testing**: Run `bun test` (unit), `bun run test:integration` (shell cmds), `bun run test:all` (full suite). Uses Vitest; covers core ops and tools.
-- **Building**: TypeScript compiles to ESM; no build step needed beyond `tsc`.
 - **Limitations**:
   - Shell commands (`terminal_bash`) are not sandboxed – potential security risk.
   - Searches skip binaries and ignored files; limits degrade to 'names' mode if >50 results.
   - Path handling assumes Unix-style `/`; relative to virtual root.
-  - No multi-provider switching in tools yet (uses active provider).
 - **Contributing**: Fork, add tests, PR to main. Focus on new providers, tools, or agent integrations.
 - **License**: MIT (see LICENSE).
 
