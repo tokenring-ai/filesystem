@@ -53,7 +53,7 @@ async function execute(
       }
 
       // Get an online chat client
-      const patchClient = await chatModelRegistry.getFirstOnlineClient(
+      const patchClient = await chatModelRegistry.getClient(
         chatService.getModel(agent),
       );
 
