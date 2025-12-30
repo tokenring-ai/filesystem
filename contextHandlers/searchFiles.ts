@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {ChatConfig, ContextItem} from "@tokenring-ai/chat/types";
+import {ChatConfig, ContextItem} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.js";
 import {GrepResult} from "../FileSystemProvider.js";

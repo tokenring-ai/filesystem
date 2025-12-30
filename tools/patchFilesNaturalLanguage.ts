@@ -1,7 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {ChatModelRegistry} from "@tokenring-ai/ai-client/ModelRegistry";
 import {ChatService} from "@tokenring-ai/chat";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/types";
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -54,7 +54,7 @@ async function execute(
 
       // Get an online chat client
       const patchClient = await chatModelRegistry.getClient(
-        chatService.getModel(agent),
+        chatService.requireModel(agent),
       );
 
       // Get patched content from LLM
