@@ -1,6 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceRequest";
 import {TokenRingService} from "@tokenring-ai/app/types";
+import deepMerge from "@tokenring-ai/utility/object/deepMerge";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import {z} from "zod";
 import FileSystemProvider, {
@@ -39,27 +40,24 @@ export default class FileSystemService implements TokenRingService {
   /**
    * Creates an instance of FileSystem
    */
-  constructor(private config: z.output<typeof FileSystemConfigSchema>) {
-    this.dangerousCommands = config.dangerousCommands.map(command => new RegExp(command, "is"));
+  constructor(private options: z.output<typeof FileSystemConfigSchema>) {
+    this.dangerousCommands = options.dangerousCommands.map(command => new RegExp(command, "is"));
   }
 
   run(): void {
     // Throws an error if the default provider is not registered, since this is most likely a mistake
-    this.defaultProvider = this.fileSystemProviderRegistry.requireItemByName(this.config.defaultProvider);
+    this.defaultProvider = this.fileSystemProviderRegistry.requireItemByName(this.options.agentDefaults.provider);
   }
 
 
   async attach(agent: Agent): Promise<void> {
-    const config = agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema)
-    agent.initializeState(FileSystemState, {
-      providerName: config.provider ?? this.config.defaultProvider,
-      selectedFiles: config.selectedFiles,
-      requireReadBeforeWrite: config.requireReadBeforeWrite
-    });
+    const config = deepMerge(this.options.agentDefaults, agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema))
+    agent.initializeState(FileSystemState, config);
   }
 
-  getActiveFileSystem(agent: Agent): FileSystemProvider {
+  requireActiveFileSystem(agent: Agent): FileSystemProvider {
     const { providerName } = agent.getState(FileSystemState);
+    if (! providerName) throw new Error("No file system provider configured for agent");
     return this.fileSystemProviderRegistry.requireItemByName(providerName);
   }
 
@@ -76,7 +74,7 @@ export default class FileSystemService implements TokenRingService {
     options: Optional<DirectoryTreeOptions, "ignoreFilter"> = {},
     agent: Agent
   ): AsyncGenerator<string> {
-    const activeFileSystem = this.getActiveFileSystem(agent);
+    const activeFileSystem = this.requireActiveFileSystem(agent);
     options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
     yield* activeFileSystem.getDirectoryTree(path, options as DirectoryTreeOptions);
   }
@@ -84,7 +82,7 @@ export default class FileSystemService implements TokenRingService {
   // file ops
   async writeFile(path: string, content: string | Buffer, agent: Agent): Promise<boolean> {
     this.setDirty(true, agent);
-    return this.getActiveFileSystem(agent)
+    return this.requireActiveFileSystem(agent)
       .writeFile(path, content);
   }
 
@@ -94,13 +92,13 @@ export default class FileSystemService implements TokenRingService {
     agent: Agent
   ): Promise<boolean> {
     this.setDirty(true, agent);
-    return this.getActiveFileSystem(agent)
+    return this.requireActiveFileSystem(agent)
       .appendFile(filePath, finalContent);
   }
 
   async deleteFile(path: string, agent: Agent): Promise<boolean> {
     this.setDirty(true, agent);
-    return this.getActiveFileSystem(agent).deleteFile(path);
+    return this.requireActiveFileSystem(agent).deleteFile(path);
   }
 
   async getFile(path: string, agent: Agent): Promise<string | null> {
@@ -112,22 +110,22 @@ export default class FileSystemService implements TokenRingService {
     encoding: BufferEncoding | "buffer" | null,
     agent: Agent
   ): Promise<string> {
-    const result = this.getActiveFileSystem(agent)
+    const result = this.requireActiveFileSystem(agent)
       .readFile(path, encoding || "utf-8");
     return result;
   }
 
   async rename(oldPath: string, newPath: string, agent: Agent): Promise<boolean> {
-    return this.getActiveFileSystem(agent)
+    return this.requireActiveFileSystem(agent)
       .rename(oldPath, newPath);
   }
 
   async exists(path: string, agent: Agent): Promise<boolean> {
-    return this.getActiveFileSystem(agent).exists(path);
+    return this.requireActiveFileSystem(agent).exists(path);
   }
 
   async stat(path: string, agent: Agent): Promise<StatLike> {
-    return this.getActiveFileSystem(agent)
+    return this.requireActiveFileSystem(agent)
       .stat(path);
   }
 
@@ -138,7 +136,7 @@ export default class FileSystemService implements TokenRingService {
   ): Promise<boolean> {
     this.setDirty(true, agent);
 
-    return this.getActiveFileSystem(agent)
+    return this.requireActiveFileSystem(agent)
       .createDirectory(path, options);
   }
 
@@ -150,7 +148,7 @@ export default class FileSystemService implements TokenRingService {
   ): Promise<boolean> {
     this.setDirty(true, agent);
 
-    return this.getActiveFileSystem(agent)
+    return this.requireActiveFileSystem(agent)
       .copy(source, destination, options);
   }
 
@@ -159,7 +157,7 @@ export default class FileSystemService implements TokenRingService {
     options: Optional<GlobOptions, "ignoreFilter">,
     agent: Agent
   ): Promise<string[]> {
-    const activeFileSystem = this.getActiveFileSystem(agent);
+    const activeFileSystem = this.requireActiveFileSystem(agent);
     options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
     return activeFileSystem.glob(pattern, options as GlobOptions);
   }
@@ -169,7 +167,7 @@ export default class FileSystemService implements TokenRingService {
     options: Optional<WatchOptions, "ignoreFilter">,
     agent: Agent
   ): Promise<any> {
-    const activeFileSystem = this.getActiveFileSystem(agent);
+    const activeFileSystem = this.requireActiveFileSystem(agent);
     options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
     return activeFileSystem.watch(dir, options as WatchOptions);
   }
@@ -180,7 +178,7 @@ export default class FileSystemService implements TokenRingService {
     agent: Agent
   ): Promise<ExecuteCommandResult> {
     this.setDirty(true, agent);
-    const activeFileSystem = this.getActiveFileSystem(agent);
+    const activeFileSystem = this.requireActiveFileSystem(agent);
     return activeFileSystem.executeCommand(command, { timeoutSeconds: 120, ...options});
   }
 
@@ -194,7 +192,7 @@ export default class FileSystemService implements TokenRingService {
     const commands = this.parseCompoundCommand(shellString.toLowerCase());
     for (let command of commands) {
       command = command.trim();
-      if (!this.config.safeCommands.some((pattern) => command.startsWith(pattern))) {
+      if (!this.options.safeCommands.some((pattern) => command.startsWith(pattern))) {
         return "unknown";
       }
     }
@@ -232,7 +230,7 @@ export default class FileSystemService implements TokenRingService {
     options: Optional<GrepOptions, "ignoreFilter">,
     agent: Agent
   ): Promise<GrepResult[]> {
-    const activeFileSystem = this.getActiveFileSystem(agent);
+    const activeFileSystem = this.requireActiveFileSystem(agent);
     options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
     return activeFileSystem.grep(searchString, options as GrepOptions);
   }

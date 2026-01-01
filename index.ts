@@ -1,8 +1,17 @@
 import {z} from "zod";
 
+export const FileSystemAgentConfigSchema = z.object({
+  provider: z.string().optional(),
+  selectedFiles: z.array(z.string()).optional(),
+  requireReadBeforeWrite: z.boolean().optional()
+}).default({});
+
 export const FileSystemConfigSchema = z.object({
-  defaultProvider: z.string(),
-  defaultSelectedFiles: z.array(z.string()).optional(),
+  agentDefaults: z.object({
+    provider: z.string(),
+    selectedFiles: z.array(z.string()).default([]),
+    requireReadBeforeWrite: z.boolean().default(true)
+  }),
   providers: z.record(z.string(), z.any()),
   safeCommands: z.array(z.string()).default([
     "awk", "cat", "cd", "chdir", "diff", "echo", "find", "git", "grep", "head", "help", "hostname", "id", "ipconfig", "tee",
@@ -26,12 +35,6 @@ export const FileSystemConfigSchema = z.object({
     "git.*reset", // i.e. git reset
   ])
 });
-
-export const FileSystemAgentConfigSchema = z.object({
-  provider: z.string().optional(),
-  selectedFiles: z.array(z.string()).default([]),
-  requireReadBeforeWrite: z.boolean().default(true)
-}).default({ provider: undefined, selectedFiles: [], requireReadBeforeWrite: true });
 
 
 export { default as FileMatchResource } from "./FileMatchResource.ts";

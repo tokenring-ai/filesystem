@@ -1,25 +1,19 @@
 import type {ResetWhat} from "@tokenring-ai/agent/AgentEvents";
 import type {AgentStateSlice} from "@tokenring-ai/agent/types";
-import {string, z} from "zod";
-import {FileSystemAgentConfigSchema} from "../index.ts";
-
-type FileSystemStateConfig = {
-  providerName: string,
-  selectedFiles: string[],
-  requireReadBeforeWrite: boolean
-};
+import {z} from "zod";
+import {FileSystemConfigSchema} from "../index.ts";
 
 export class FileSystemState implements AgentStateSlice {
   name = "FileSystemState";
   selectedFiles: Set<string>;
-  providerName: string;
+  providerName: string | null;
   dirty: boolean = false;
   requireReadBeforeWrite: boolean;
   readFiles: Set<string> = new Set();
 
-  constructor(readonly initialConfig: FileSystemStateConfig) {
+  constructor(readonly initialConfig: z.output<typeof FileSystemConfigSchema>["agentDefaults"]) {
     this.selectedFiles = new Set(initialConfig.selectedFiles);
-    this.providerName = initialConfig.providerName;
+    this.providerName = initialConfig.provider ?? null
     this.requireReadBeforeWrite = initialConfig.requireReadBeforeWrite;
   }
 
