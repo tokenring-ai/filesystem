@@ -27,7 +27,7 @@ async function execute(
   }
 
   const state = agent.getState(FileSystemState);
-  if (state.requireReadBeforeWrite && !state.readFiles.has(filePath) && await fileSystem.exists(filePath, agent)) {
+  if (state.fileWrite.requireReadBeforeWrite && !state.readFiles.has(filePath) && await fileSystem.exists(filePath, agent)) {
     agent.mutateState(FileSystemState, (state) => {
       state.readFiles.add(filePath);
     });
@@ -53,6 +53,10 @@ ${fileContent}`.trim();
     await fileSystem.createDirectory(dirPath, {recursive: true}, agent);
   }
   let success = await fileSystem.writeFile(filePath, content, agent);
+
+  agent.mutateState(FileSystemState, (state: FileSystemState) => {
+    state.readFiles.add(filePath);
+  });
 
   return `File successfully written`;
 

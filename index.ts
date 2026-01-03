@@ -3,14 +3,36 @@ import {z} from "zod";
 export const FileSystemAgentConfigSchema = z.object({
   provider: z.string().optional(),
   selectedFiles: z.array(z.string()).optional(),
-  requireReadBeforeWrite: z.boolean().optional()
+  fileWrite: z.object({
+    requireReadBeforeWrite: z.boolean().optional(),
+  }).optional(),
+  fileRead: z.object({
+    maxFileReadCount: z.number().optional(),
+  }).optional(),
+  fileSearch: z.object({
+    maxSnippetCount: z.number().default(10),
+    maxSnippetSizePercent: z.number().default(0.3),
+    snippetLinesBefore: z.number().default(5),
+    snippetLinesAfter: z.number().default(5),
+  }).optional(),
 }).default({});
 
 export const FileSystemConfigSchema = z.object({
   agentDefaults: z.object({
     provider: z.string(),
     selectedFiles: z.array(z.string()).default([]),
-    requireReadBeforeWrite: z.boolean().default(true)
+    fileWrite: z.object({
+      requireReadBeforeWrite: z.boolean().default(true),
+    }).prefault({}),
+    fileRead: z.object({
+      maxFileReadCount: z.number().default(10),
+    }).prefault({}),
+    fileSearch: z.object({
+      maxSnippetCount: z.number().default(10),
+      maxSnippetSizePercent: z.number().default(0.3),
+      snippetLinesBefore: z.number().default(5),
+      snippetLinesAfter: z.number().default(5),
+    }).prefault({}),
   }),
   providers: z.record(z.string(), z.any()),
   safeCommands: z.array(z.string()).default([

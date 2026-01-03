@@ -1,20 +1,13 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {file} from "bun";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 
 const name = "file_search";
 
-export type ReturnType = "names" | "content" | "matches";
 export type MatchType = "substring" | "whole-word" | "regex";
-
-export interface FileInfo {
-  file: string;
-  exists: boolean;
-  content?: string;
-  error?: string;
-}
 
 export interface MatchInfo {
   file: string;
@@ -25,15 +18,15 @@ export interface MatchInfo {
 }
 
 export interface SearchSummary {
-  totalFiles: number;
   totalMatches: number;
-  searchPatterns?: string[];
-  returnType: ReturnType;
+  totalFiles: number;
+  searchPatterns: string[];
+  returnType: "names" | "matches";
   limitExceeded: boolean;
 }
 
 export interface FileSearchResult {
-  files: FileInfo[];
+  files: string[];
   matches: MatchInfo[];
   summary: SearchSummary;
 }
@@ -42,446 +35,173 @@ async function execute(
   {
     files,
     searches,
-    linesBefore = 0,
-    linesAfter = 0,
-    returnType = "content",
-    caseSensitive = true,
-    matchType = "substring",
-  }: z.infer<typeof inputSchema>,
+  }: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<FileSearchResult> {
+): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
-  //console.log({files, searches, linesBefore, linesAfter, returnType, caseSensitive, matchType});
 
-  // Validate parameters
-  if (!files && !searches) {
-    throw new Error(
-      `[${name}] Either 'files' or 'searches' parameter must be provided`,
-    );
-  }
-
-  if (
-    returnType !== "names" &&
-    returnType !== "content" &&
-    returnType !== "matches"
-  ) {
-    throw new Error(
-      `[${name}] returnType must be one of: 'names', 'content', or 'matches'`,
-    );
-  }
-
-  if (
-    matchType !== "substring" &&
-    matchType !== "whole-word" &&
-    matchType !== "regex"
-  ) {
-    throw new Error(
-      `[${name}] matchType must be one of: 'substring', 'whole-word', or 'regex'`,
-    );
-  }
-
-  // Note: fileSystemType is currently unused and reserved for future multi-filesystem support. It has no effect.
-
-  // When returnType is 'matches', set linesBefore and linesAfter to 10 if not provided
-  if (returnType === "matches" && linesBefore === 0 && linesAfter === 0) {
-    linesBefore = 10;
-    linesAfter = 10;
-  }
-
-  // Initialize result structure
-  const result: FileSearchResult = {
-    files: [],
-    matches: [],
-    summary: {
-      totalFiles: 0,
-      totalMatches: 0,
-      searchPatterns: searches,
-      returnType,
-      limitExceeded: false,
-    },
-  };
-
-  // Search mode - searching across all files
-  if (searches && !files) {
-    return await fileSearch(
-      searches,
-      linesBefore,
-      linesAfter,
-      returnType,
-      caseSensitive,
-      matchType,
-      fileSystem,
-      agent,
-    );
-  }
-
-  // Retrieve files first (whether to return them directly or search within them)
-  let resolvedFiles: string[] = [];
-
-  // Handle glob patterns in files array
-  if (files) {
-    for (const filePattern of files) {
-      try {
-        // Paths are relative to the filesystem root unless starting with '/', in which case they are absolute.
-        // Use Unix-style '/' separators regardless of platform.
-        // If it's a glob pattern, resolve it
-        if (filePattern.includes("*") || filePattern.includes("?")) {
-          //agent.infoLine(`[${name}] Resolving glob pattern: ${filePattern}`);
-          const matchedFiles = await fileSystem.glob(filePattern, {}, agent);
-          resolvedFiles.push(...matchedFiles);
-        } else {
-          // It's a direct file path
-          resolvedFiles.push(filePattern);
-        }
-      } catch (err: any) {
-        // Treat pattern resolution errors as informational
-        agent.infoLine(
-          `[${name}] Error resolving pattern ${filePattern}: ${err.message}`,
-        );
-      }
+  const matchedFiles = new Set<string>();
+  for (const filePattern of files) {
+    for (const file of await fileSystem.glob(filePattern, {}, agent)) {
+      matchedFiles.add(file);
     }
-
-    // Remove duplicates
-    resolvedFiles = [...new Set(resolvedFiles)];
-
-    if (resolvedFiles.length === 0) {
-      result.summary.totalFiles = 0;
-      return result;
-    }
-
-    agent.infoLine(`[${name}] Resolved ${resolvedFiles.length} files`);
   }
 
-  if (resolvedFiles.length > 50 && returnType !== "names") {
-    agent.infoLine(
-      `[${name}] Found ${resolvedFiles.length} files which exceeds the limit of 50 for '${returnType}' mode. Degrading to 'names' mode.`,
-    );
-    returnType = "names";
-    result.summary.returnType = "names";
-    result.summary.limitExceeded = true;
+  agent.infoLine(`[${name}] files=${files.join(", ")} searches=${searches.join(", ")} matchedFiles=${matchedFiles.size}`);
+
+  if (matchedFiles.size === 0) {
+    return `No files were found that matched the search criteria`;
   }
 
-  // Fetch file contents (only text files; binaries are skipped)
-  const fileResults: FileInfo[] = [];
-  for (const file of resolvedFiles) {
+  const options = agent.getState(FileSystemState).fileSearch;
+
+  const retrievedFiles = new Map<string, string>();
+  for (const file of matchedFiles) {
     try {
-      const exists = await fileSystem.exists(file, agent);
-      if (!exists) {
-        agent.infoLine(
-          `[${name}] Cannot retrieve file ${file}: file not found.`,
-        );
-        fileResults.push({file, exists: false});
-        continue;
-      }
-
-      if (returnType === "names") {
-        fileResults.push({file, exists: true});
+      const stat = await fileSystem.stat(file, agent);
+      if (stat.isDirectory) {
+        for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
+          if (retrievedFiles.has(dirFile)) break;
+          const contents = await fileSystem.getFile(file, agent);
+          if (contents) retrievedFiles.set(file, contents);
+          else agent.infoLine(`[${name}] Couldn't read file ${file}`)
+        }
       } else {
-        const content = await fileSystem.getFile(file, agent);
-        agent.infoLine(`[${name}] Retrieved file ${file}`);
-        fileResults.push({file, exists: true, content: content ?? undefined});
+        const contents = await fileSystem.getFile(file, agent);
+        if (contents) retrievedFiles.set(file, contents);
+        else agent.infoLine(`[${name}] Couldn't read file ${file}`)
       }
     } catch (err: any) {
-      agent.infoLine(`[${name}] Error retrieving ${file}: ${err.message}`);
-      fileResults.push({
-        file,
-        exists: false,
-        error: err.message,
-      });
+      agent.infoLine(
+        `[${name}] Error reading file ${file}: ${err.message}`,
+      );
     }
   }
 
-  agent.mutateState(FileSystemState, (state: FileSystemState) => {
-    for (const fileResult of fileResults) {
-      if (fileResult.exists && fileResult.content) {
-        state.readFiles.add(fileResult.file);
-      }
+  const searchPatterns = searches.map(s => {
+    if (s.startsWith("/") && s.endsWith("/")) {
+      return new RegExp(s.slice(1, -1), "si");
+    } else {
+      return s.toLowerCase();
     }
   });
 
-  result.files = fileResults;
-  result.summary.totalFiles = fileResults.length;
+  const results = new Map<string, string>
 
-  // If we need to search within specific files
-  if (searches && returnType === "matches") {
-    const matches = await searchInFiles(
-      fileResults,
-      searches,
-      linesBefore,
-      linesAfter,
-      caseSensitive,
-      matchType,
-      agent,
-    );
-    result.matches = matches.matches;
-    result.summary.totalMatches = matches.matches.length;
-    result.summary.limitExceeded = matches.limitExceeded;
-  }
-
-  return result;
-}
-
-/**
- * Search across all files in the filesystem
- */
-async function fileSearch(
-  searchPatterns: string[],
-  linesBefore: number,
-  linesAfter: number,
-  returnType: ReturnType,
-  caseSensitive: boolean,
-  matchType: MatchType,
-  fileSystem: FileSystemService,
-  agent: Agent,
-): Promise<FileSearchResult> {
-  agent.infoLine(
-    `[${name}] Searching for patterns: ${JSON.stringify(searchPatterns)} with matchType: ${matchType}, caseSensitive: ${caseSensitive}`,
-  );
-
-  const result: FileSearchResult = {
-    files: [],
-    matches: [],
-    summary: {
-      totalFiles: 0,
-      totalMatches: 0,
-      searchPatterns,
-      returnType,
-      limitExceeded: false,
-    },
-  };
-
-  try {
-    const options = {
-      includeContent: {
-        linesBefore,
-        linesAfter,
-      },
-      caseSensitive,
-      matchType, // Assume FileSystemService.grep now supports these options
-    } as const;
-
-    const results = await fileSystem.grep(searchPatterns, options, agent);
-
-    if (results.length === 0) {
-      return result;
-    }
-
-    if (results.length > 50 && returnType === "matches") {
-      agent.infoLine(
-        `[${name}] Found ${results.length} matches which exceeds the limit of 50 for 'matches' mode. Degrading to 'names' mode.`,
-      );
-
-      const uniqueFiles = [...new Set(results.map((result) => result.file))];
-      result.files = uniqueFiles.map((file) => ({
-        file,
-        exists: true
-      }));
-      result.summary.totalFiles = uniqueFiles.length;
-      result.summary.totalMatches = results.length;
-      result.summary.returnType = "names";
-      result.summary.limitExceeded = true;
-      return result;
-    }
-
-    // Convert grep results to our standardized format
-    const matches = results.map((grepResult) => ({
-      file: grepResult.file,
-      line: grepResult.line,
-      match: grepResult.match,
-      matchedPattern: grepResult.matchedString || searchPatterns[0],
-      content: grepResult.content ?? undefined,
-    }));
-
-    result.matches = matches;
-    result.summary.totalMatches = matches.length;
-
-    // Also populate files array with unique files
-    const uniqueFiles = [...new Set(results.map((result) => result.file))];
-    result.files = uniqueFiles.map((file) => ({
-      file,
-      exists: true
-    }));
-    result.summary.totalFiles = uniqueFiles.length;
-
-    return result;
-  } catch (err: any) {
-    throw new Error(`[${name}] Search error: ${err.message}`);
-  }
-}
-
-export interface SearchInFilesResult {
-  matches: MatchInfo[];
-  limitExceeded: boolean;
-}
-
-/**
- * Search within specific files
- */
-async function searchInFiles(
-  fileResults: FileInfo[],
-  searchPatterns: string[],
-  linesBefore: number,
-  linesAfter: number,
-  caseSensitive: boolean,
-  matchType: MatchType,
-  agent: Agent,
-): Promise<SearchInFilesResult> {
-  agent.infoLine(
-    `[${name}] Searching for patterns: ${JSON.stringify(searchPatterns)} in ${fileResults.length} files with matchType: ${matchType}, caseSensitive: ${caseSensitive}`,
-  );
-
-  const allMatches: MatchInfo[] = [];
-
-  for (const fileResult of fileResults) {
-    if (!fileResult.exists || !fileResult.content) {
-      continue;
-    }
-
-    const fileContent = fileResult.content;
+  for (const [file, fileContent] of retrievedFiles.entries()) {
     let lines = fileContent.split("\n");
+    let lowerCaseLines = lines.map(l => l.toLowerCase());
 
-    // If not case-sensitive, normalize lines to lowercase
-    const normalizedLines = caseSensitive
-      ? lines
-      : lines.map((line) => line.toLowerCase());
-
-    for (let lineNum = 0; lineNum < normalizedLines.length; lineNum++) {
-      const normalizedLine = normalizedLines[lineNum];
-      const originalLine = lines[lineNum];
-
-      let matchFound = false;
-      let matchedPattern = "";
-
-      for (const pattern of searchPatterns) {
-        const normalizedPattern = caseSensitive
-          ? pattern
-          : pattern.toLowerCase();
-        let regex: RegExp;
-
-        switch (matchType) {
-          case "substring":
-            if (normalizedLine.includes(normalizedPattern)) {
-              matchFound = true;
-              matchedPattern = pattern;
-            }
-            break;
-          case "whole-word":
-            regex = new RegExp(`\\b${escapeRegExp(normalizedPattern)}\\b`);
-            if (regex.test(normalizedLine)) {
-              matchFound = true;
-              matchedPattern = pattern;
-            }
-            break;
-          case "regex":
-            try {
-              regex = new RegExp(normalizedPattern);
-              if (regex.test(normalizedLine)) {
-                matchFound = true;
-                matchedPattern = pattern;
-              }
-            } catch (e) {
-              agent.infoLine(`[${name}] Invalid regex pattern: ${pattern}`);
-              continue;
-            }
-            break;
+    const matchedLines = new Set<number>;
+    for (let pattern of searchPatterns) {
+      if (typeof pattern === 'string') {
+        for (let i = 0; i < lowerCaseLines.length; i++) {
+          if (lowerCaseLines[i].includes(pattern)) {
+            matchedLines.add(i);
+          }
         }
+      } else {
+        pattern.lastIndex = 0;
 
-        if (matchFound) {
-          const startLine = Math.max(0, lineNum - linesBefore);
-          const endLine = Math.min(lines.length - 1, lineNum + linesAfter);
-
-          const contextLines = lines.slice(startLine, endLine + 1);
-          const content = contextLines.join("\n");
-
-          allMatches.push({
-            file: fileResult.file,
-            line: lineNum + 1,
-            match: originalLine,
-            matchedPattern,
-            content,
-          });
-          break; // Stop after first matching pattern (OR behavior)
+        let result;
+        while (result = pattern.exec(fileContent)) {
+          const prefix = fileContent.substring(0, result.length - 1);
+          const lineNumber = prefix.split("\n").length - 1;
+          matchedLines.add(lineNumber);
         }
       }
     }
+
+    // The set is copied into an array since we are going to update it
+    for (const lineNumber of Array.from(matchedLines.values())) {
+      for (let i = lineNumber - options.snippetLinesBefore; i < lineNumber + options.snippetLinesAfter; i++) {
+        if (i >= 0 && i < lines.length) {
+          matchedLines.add(i);
+        }
+      }
+    }
+
+    // If there are no matches, skip to the next file
+    if (matchedLines.size === 0) {
+      continue;
+    }
+
+    if (results.size > options.maxSnippetCount) {
+      // We have already matched too many files, so we will not bother creating the snippet content,
+      // we will just add the filename to the set, since it will not be returned
+      results.set(file, "");
+      continue;
+    }
+
+    let snippets: string[] = [];
+
+    let isPadded = true;
+    for (let i = 0; i < lines.length; i++) {
+      if (matchedLines.has(i)) {
+        isPadded = false;
+        snippets.push(`${i}: ${lines[i]}`);
+      } else {
+        if (!isPadded) {
+          isPadded = true;
+          snippets.push("");
+        }
+      }
+    }
+
+    if (snippets.length > 0) {
+      const snippetString = snippets.join("\n");
+      // If there are too many snippets, send the whole file
+      if (snippetString.length > fileContent.length * options.maxSnippetSizePercent) {
+        results.set(file, `BEGIN FILE ATTACHMENT: ${file}\n${fileContent}\nEND FILE ATTACHMENT`)
+        continue;
+      }
+
+      results.set(file, `BEGIN FILE GREP MATCHES: ${file} (line: match)\n${snippets.join("\n")}\nEND FILE GREP MATCHES`);
+    }
   }
 
-  let limitExceeded = false;
-  if (allMatches.length > 50) {
-    agent.infoLine(
-      `[${name}] Found ${allMatches.length} matches which exceeds the limit of 50 for 'matches' mode.`,
-    );
-    limitExceeded = true;
+  if (results.size > options.maxSnippetCount) {
+    agent.infoLine(`[${name}] Too many files were matched. Returning only the names.`);
+
+    const fileNames = Array.from(results.keys()).sort();
+
+    return `
+The file search operation matched ${results.size} files, which is higher than the user specified limit of ${options.maxSnippetCount}.
+The list of matched files will be returned as a directory listing instead.
+
+BEGIN DIRECTORY LISTING
+${fileNames.map(f => `- ${f}`).join("\n")}
+END DIRECTORY LISTING
+`.trim();
   }
 
-  return {matches: allMatches, limitExceeded};
-}
 
-// Helper to escape regex special chars for whole-word mode
-function escapeRegExp(string: string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return Array.from(results.values()).join("\n\n");
 }
 
 const description = `
-Retrieve a list of file names, file contents, or search matches based on file paths/globs or full-text search across text files in the filesystem.
-- The filesystem scope is the entire sandboxed root directory accessible by the FileSystemService (e.g., the project's root folder).
-- Binary files and files in .gitignore are skipped; only text files (UTF-8 encoded) are processed.
-- Searches are OR-based across multiple patterns (any match counts).
+Search for text patterns in files. Supports searching across all files or within specific files.
+- The search will be run inside the root folder the user has designated for the project
 - File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
-- Returns a structured object with files, matches, and summary information.
-- Limits: Up to 50 results for 'content' or 'matches'; degrades to 'names' if exceeded.
-  `.trim();
+- Searches are OR-based across multiple patterns (any match counts).
+- The search system will automatically decide whether to return complete file contents, directory listings, or grep-style file/line snippets based on the number of matches.
+`.trim();
 
 const inputSchema = z
   .object({
-    files: z
-      .array(z.string())
-      .describe(
-        "List of file paths or glob patterns (e.g., '**/*.ts', '/path/to/file.txt'). Omit to search across all accessible text files when using 'searches'. Required if no 'searches' provided.",
-      )
-      .optional(),
     searches: z
       .array(z.string())
       .describe(
-        "List of search patterns (substrings, words, or regex depending on 'matchType'). Omit to retrieve files without searching. Required if no 'files' provided.",
-      )
-      .optional(),
-    returnType: z
-      .enum(["names", "content", "matches"])
+        "List of search terms to search for. Search terms can either by plain strings, which will be matched by a fuzzy substring search, or regex, if enclosed in '/'. Examples: \"searchTerm\", \"/searchTerm.*/\""
+      ),
+    files: z
+      .array(z.string())
       .describe(
-        "'names': Return file paths only. 'content': Return full contents of matched/retrieved files. 'matches': Return matched lines with context. Default: 'content'.",
+        "List of file paths or glob patterns to search within. Omit to search across all files in the project directory. Examples: \"**/*.ts\", \"path/to/file.txt\")",
       )
-      .optional(),
-    linesBefore: z
-      .number()
-      .int()
-      .min(0)
-      .describe(
-        "Lines before each match to include in 'matches' mode. Default: 0 (or 10 if 'matches' and unset).",
-      )
-      .optional(),
-    linesAfter: z
-      .number()
-      .int()
-      .min(0)
-      .describe(
-        "Lines after each match to include in 'matches' mode. Default: 0 (or 10 if 'matches' and unset).",
-      )
-      .optional(),
-    caseSensitive: z
-      .boolean()
-      .describe("Whether searches are case-sensitive. Default: true.")
-      .optional(),
-    matchType: z
-      .enum(["substring", "whole-word", "regex"])
-      .describe(
-        "'substring': Partial string match. 'whole-word': Exact word (bounded by word chars). 'regex': Treat patterns as regex (may throw if invalid). Default: 'substring'.",
-      )
-      .optional(),
-    // fileSystemType omitted from schema as it's unused; can be added later if needed
+      .default(["**/*"])
   })
   .strict();
-
 
 export default {
   name, description, inputSchema, execute,

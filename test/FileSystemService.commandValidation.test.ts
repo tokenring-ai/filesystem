@@ -146,7 +146,7 @@ describe('FileSystemService Command Validation', () => {
     });
 
     it('should allow legitimate development commands', () => {
-
+      expect(fileSystemService.getCommandSafetyLevel('grep -n "attach\\|clearCurrentPost\\|show()\\|reset(" pkg/wordpress/README.md')).toBe('unknown');
       expect(fileSystemService.getCommandSafetyLevel('npm install')).toBe('safe');
       expect(fileSystemService.getCommandSafetyLevel('yarn add package-name')).toBe('safe');
       expect(fileSystemService.getCommandSafetyLevel('bun add package-name')).toBe('safe');

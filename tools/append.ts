@@ -26,7 +26,7 @@ async function execute(
   }
 
   const state = agent.getState(FileSystemState);
-  if (state.requireReadBeforeWrite && !state.readFiles.has(filePath) && await fileSystem.exists(filePath, agent)) {
+  if (state.fileWrite.requireReadBeforeWrite && !state.readFiles.has(filePath) && await fileSystem.exists(filePath, agent)) {
     agent.mutateState(FileSystemState, (state) => {
       state.readFiles.add(filePath);
     })

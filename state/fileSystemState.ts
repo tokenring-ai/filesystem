@@ -8,13 +8,18 @@ export class FileSystemState implements AgentStateSlice {
   selectedFiles: Set<string>;
   providerName: string | null;
   dirty: boolean = false;
-  requireReadBeforeWrite: boolean;
   readFiles: Set<string> = new Set();
+
+  fileWrite: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileWrite"];
+  fileRead:  z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileRead"];
+  fileSearch: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileSearch"];
 
   constructor(readonly initialConfig: z.output<typeof FileSystemConfigSchema>["agentDefaults"]) {
     this.selectedFiles = new Set(initialConfig.selectedFiles);
     this.providerName = initialConfig.provider ?? null
-    this.requireReadBeforeWrite = initialConfig.requireReadBeforeWrite;
+    this.fileRead = initialConfig.fileRead;
+    this.fileWrite = initialConfig.fileWrite;
+    this.fileSearch = initialConfig.fileSearch;
   }
 
   reset(what: ResetWhat[]): void {
@@ -30,7 +35,9 @@ export class FileSystemState implements AgentStateSlice {
       selectedFiles: Array.from(this.selectedFiles),
       activeFileSystemProviderName: this.providerName,
       dirty: this.dirty,
-      requireReadBeforeWrite: this.requireReadBeforeWrite,
+      fileRead: this.fileRead,
+      fileSearch: this.fileSearch,
+      fileWrite: this.fileWrite,
       readFiles: Array.from(this.readFiles)
     };
   }
@@ -39,7 +46,9 @@ export class FileSystemState implements AgentStateSlice {
     this.selectedFiles = new Set(data.selectedFiles);
     this.providerName = data.activeFileSystemProviderName;
     this.dirty = data.dirty;
-    this.requireReadBeforeWrite = data.requireReadBeforeWrite ?? this.initialConfig.requireReadBeforeWrite;
+    this.fileRead = data.fileRead ?? this.initialConfig.fileRead;
+    this.fileSearch = data.fileSearch ?? this.initialConfig.fileSearch;
+    this.fileWrite = data.fileWrite ?? this.initialConfig.fileWrite;
     this.readFiles = new Set(data.readFiles ?? []);
   }
 
