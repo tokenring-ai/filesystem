@@ -50,7 +50,7 @@ export default class FileSystemService implements TokenRingService {
   }
 
 
-  async attach(agent: Agent): Promise<void> {
+  attach(agent: Agent): void {
     const config = deepMerge(this.options.agentDefaults, agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema))
     agent.initializeState(FileSystemState, config);
   }
