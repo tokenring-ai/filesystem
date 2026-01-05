@@ -5,6 +5,7 @@ export const FileSystemAgentConfigSchema = z.object({
   selectedFiles: z.array(z.string()).optional(),
   fileWrite: z.object({
     requireReadBeforeWrite: z.boolean().optional(),
+    maxReturnedDiffSize: z.number().optional(),
   }).optional(),
   fileRead: z.object({
     maxFileReadCount: z.number().optional(),
@@ -23,6 +24,7 @@ export const FileSystemConfigSchema = z.object({
     selectedFiles: z.array(z.string()).default([]),
     fileWrite: z.object({
       requireReadBeforeWrite: z.boolean().default(true),
+      maxReturnedDiffSize: z.number().default(1024),
     }).prefault({}),
     fileRead: z.object({
       maxFileReadCount: z.number().default(10),

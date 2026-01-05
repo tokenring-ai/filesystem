@@ -5,11 +5,11 @@ import FileSystemService from "../FileSystemService.js";
 import FileSystemRpcSchema from "./schema.ts";
 
 export default createJsonRPCEndpoint(FileSystemRpcSchema, {
-  async readFile(args, app: TokenRingApp) {
+  async readTextFile(args, app: TokenRingApp) {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
     if (!agent) throw new Error("Agent not found");
     const fs = app.requireService(FileSystemService);
-    const content = await fs.readFile(args.path, "utf-8", agent);
+    const content = await fs.readTextFile(args.path, agent);
     return { content };
   },
 

@@ -15,18 +15,18 @@ export default async function createIgnoreFilter(fileSystem: FileSystemProvider)
 
   const gitIgnorePath = ".gitignore";
   if (await fileSystem.exists(gitIgnorePath)) {
-    const data = await fileSystem.readFile(gitIgnorePath, "utf-8");
+    const data = await fileSystem.readFile(gitIgnorePath);
     if (data) {
-      const lines = data.split(/\r?\n/).filter(Boolean);
+      const lines = data.toString('utf-8').split(/\r?\n/).filter(Boolean);
       ig.add(lines);
     }
   }
 
   const aiIgnorePath = ".aiignore";
   if (await fileSystem.exists(aiIgnorePath)) {
-    const data = await fileSystem.readFile(aiIgnorePath, "utf-8");
+    const data = await fileSystem.readFile(aiIgnorePath);
     if (data) {
-      const lines = data.split(/\r?\n/).filter(Boolean);
+      const lines = data.toString('utf-8').split(/\r?\n/).filter(Boolean);
       ig.add(lines);
     }
   }

@@ -47,7 +47,7 @@ async function execute(
       }
 
       // Read the original file content
-      const originalContent = await fileSystem.getFile(file, agent);
+      const originalContent = await fileSystem.readTextFile(file, agent);
       if (!originalContent) {
         throw new Error(`Failed to read file content: ${file}`);
       }

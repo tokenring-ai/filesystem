@@ -4,14 +4,14 @@ import {z} from "zod";
 export default {
   path: "/rpc/filesystem",
   methods: {
-    readFile: {
+    readTextFile: {
       type: "query",
       input: z.object({
         agentId: z.string(),
         path: z.string()
       }),
       result: z.object({
-        content: z.string()
+        content: z.string().nullable()
       })
     },
     exists: {

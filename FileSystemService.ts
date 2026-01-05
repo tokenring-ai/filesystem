@@ -101,18 +101,16 @@ export default class FileSystemService implements TokenRingService {
     return this.requireActiveFileSystem(agent).deleteFile(path);
   }
 
-  async getFile(path: string, agent: Agent): Promise<string | null> {
-    return await this.readFile(path, "utf8" as BufferEncoding, agent);
+  async readTextFile(path: string, agent: Agent): Promise<string | null> {
+    const buf = await this.readFile(path, agent);
+    return buf ? buf.toString("utf-8") : null;
   }
 
   async readFile(
     path: string,
-    encoding: BufferEncoding | "buffer" | null,
     agent: Agent
-  ): Promise<string> {
-    const result = this.requireActiveFileSystem(agent)
-      .readFile(path, encoding || "utf-8");
-    return result;
+  ): Promise<Buffer|null> {
+    return this.requireActiveFileSystem(agent).readFile(path);
   }
 
   async rename(oldPath: string, newPath: string, agent: Agent): Promise<boolean> {

@@ -9,7 +9,7 @@ export default async function * getContextItems(input: string, chatConfig: ChatC
   const fileContents: string[] = [];
   const directoryContents: string[] = [];
   for (const file of agent.getState(FileSystemState).selectedFiles) {
-    const content = await fileSystemService.getFile(file, agent);
+    const content = await fileSystemService.readTextFile(file, agent);
     if (content) {
       fileContents.push(`BEGIN FILE ATTACHMENT: ${file}\n${content}\nEND FILE ATTACHMENT: ${file}`);
       agent.mutateState(FileSystemState, (state: FileSystemState) => {

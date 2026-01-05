@@ -50,12 +50,12 @@ async function execute(
       if (stat.isDirectory) {
         for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
           if (retrievedFiles.has(dirFile)) break;
-          const contents = await fileSystem.getFile(file, agent);
+          const contents = await fileSystem.readTextFile(file, agent);
           if (contents) retrievedFiles.set(file,contents);
           else agent.infoLine(`[${name}] Couldn't read file ${file}`)
         }
       } else {
-        const contents = await fileSystem.getFile(file, agent);
+        const contents = await fileSystem.readTextFile(file, agent);
         if (contents) retrievedFiles.set(file,contents);
         else agent.infoLine(`[${name}] Couldn't read file ${file}`)
       }

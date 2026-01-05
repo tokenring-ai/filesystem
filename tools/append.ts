@@ -1,5 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {createPatch} from "diff";
+import mime from "mime-types";
 import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
@@ -11,7 +13,7 @@ async function execute(
   {
     path: filePath,
     content
-  }: z.infer<typeof inputSchema>,
+  }: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -24,13 +26,14 @@ async function execute(
       `[${name}] 'content' parameter is required`,
     );
   }
+  let curFileContents = await fileSystem.readTextFile(filePath, agent)
 
   const state = agent.getState(FileSystemState);
-  if (state.fileWrite.requireReadBeforeWrite && !state.readFiles.has(filePath) && await fileSystem.exists(filePath, agent)) {
+  if (curFileContents && state.fileWrite.requireReadBeforeWrite && !state.readFiles.has(filePath)) {
     agent.mutateState(FileSystemState, (state) => {
       state.readFiles.add(filePath);
     })
-    const fileContent = await fileSystem.getFile(filePath, agent);
+
     return `
 Cannot append to ${filePath}: The tool policy requires that all files must be read before they can be written.
 
@@ -38,7 +41,7 @@ To expedite this process, we have read the file, and included the file contents 
 It is not required that you re-read the file. Verify the file contents below and the changes you would like to make, and re-submit the file_append tool call to write the file.
 
 ${filePath}:\n\n
-${fileContent}`.trim();
+${curFileContents}`.trim();
   }
 
   agent.infoLine(
@@ -51,10 +54,24 @@ ${fileContent}`.trim();
     await fileSystem.createDirectory(dirPath, {recursive: true}, agent);
   }
 
-  // Use appendFile instead of writeFile
-  let success = await fileSystem.appendFile(filePath, content, agent);
+  let newFileContents = curFileContents ?? "";
+  if (!newFileContents.endsWith("\n")) {
+    newFileContents += "\n";
+  }
+  newFileContents += content;
 
-  return `Successfully appended to file`;
+  let success = await fileSystem.writeFile(filePath, newFileContents, agent);
+
+  if (curFileContents) {
+    const diff = createPatch(filePath, curFileContents, newFileContents);
+    agent.artifactOutput(`${filePath} (diff)`, "text/x-diff", diff);
+
+    return "File successfully appended to.";
+  }
+
+  agent.artifactOutput(filePath, mime.lookup(filePath) || "text/plain", content);
+
+  return `File successfully created."`;
 }
 
 const description = "Appends content to the end of an existing file. Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the content to be appended to the file";

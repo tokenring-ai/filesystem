@@ -4,6 +4,8 @@ import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
+import { createPatch } from "diff";
+import mime from "mime-types";
 
 // Tool name export as required
 const name = "file_write";
@@ -26,12 +28,13 @@ async function execute(
     );
   }
 
+  let curFileContents = await fileSystem.readTextFile(filePath, agent)
+
   const state = agent.getState(FileSystemState);
-  if (state.fileWrite.requireReadBeforeWrite && !state.readFiles.has(filePath) && await fileSystem.exists(filePath, agent)) {
+  if (curFileContents && state.fileWrite.requireReadBeforeWrite && !state.readFiles.has(filePath)) {
     agent.mutateState(FileSystemState, (state) => {
       state.readFiles.add(filePath);
     });
-    const fileContent = await fileSystem.getFile(filePath, agent);
     return `
 Cannot write to ${filePath}: The tool policy requires that all files must be read before they can be written.
 
@@ -39,7 +42,7 @@ To expedite this process, we have read the file, and included the file contents 
 It is not required that you re-read the file. Verify the file contents below and the changes you would like to make, and re-submit the file_write tool call to write the file.
 
 ${filePath}:\n\n
-${fileContent}`.trim();
+${curFileContents}`.trim();
   }
 
   agent.infoLine(
@@ -52,14 +55,26 @@ ${fileContent}`.trim();
   if (dirPath !== "." && dirPath !== "/") {
     await fileSystem.createDirectory(dirPath, {recursive: true}, agent);
   }
+
   let success = await fileSystem.writeFile(filePath, content, agent);
 
   agent.mutateState(FileSystemState, (state: FileSystemState) => {
     state.readFiles.add(filePath);
   });
 
-  return `File successfully written`;
+  if (curFileContents) {
+    const diff = createPatch(filePath, curFileContents, content);
+    agent.artifactOutput(`${filePath} (diff)`, "text/x-diff", diff);
 
+    if (diff.length <= state.fileWrite.maxReturnedDiffSize ) {
+      return `File successfully written. Changes made:\n${diff}`;
+    }
+    return "File successfully overwritten.";
+  }
+
+  agent.artifactOutput(filePath, mime.lookup(filePath) || "text/plain", content);
+
+  return `File successfully created."`;
 }
 
 const description = "Writes a file to the filesystem. Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the ENTIRE content of the file";

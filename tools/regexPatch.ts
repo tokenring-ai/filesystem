@@ -23,7 +23,7 @@ async function execute(
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Read the original file content
-  const originalContent = await fileSystem.getFile(file, agent);
+  const originalContent = await fileSystem.readTextFile(file, agent);
 
   if (!originalContent) {
     const msg = `Failed to read file content: ${file}`;

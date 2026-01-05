@@ -72,7 +72,7 @@ export default interface FileSystemProvider {
 
   deleteFile(path: string): Promise<boolean>;
 
-  readFile(path: string, encoding?: BufferEncoding | "buffer"): Promise<any>;
+  readFile(path: string): Promise<Buffer|null>;
 
   rename(oldPath: string, newPath: string): Promise<boolean>;
 
