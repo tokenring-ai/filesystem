@@ -64,7 +64,12 @@ ${curFileContents}`.trim();
 
   if (curFileContents) {
     const diff = createPatch(filePath, curFileContents, content);
-    agent.artifactOutput(`${filePath} (diff)`, "text/x-diff", diff);
+    agent.artifactOutput({
+      name: filePath,
+      encoding: "text",
+      mimeType: "text/x-diff",
+      body: diff
+    });
 
     if (diff.length <= state.fileWrite.maxReturnedDiffSize ) {
       return `File successfully written. Changes made:\n${diff}`;
@@ -72,7 +77,12 @@ ${curFileContents}`.trim();
     return "File successfully overwritten.";
   }
 
-  agent.artifactOutput(filePath, mime.lookup(filePath) || "text/plain", content);
+  agent.artifactOutput({
+    name: filePath,
+    encoding: "text",
+    mimeType: mime.lookup(filePath) || "text/plain",
+    body: content
+  });
 
   return `File successfully created."`;
 }

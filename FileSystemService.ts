@@ -14,7 +14,7 @@ import FileSystemProvider, {
   type StatLike,
   type WatchOptions
 } from "./FileSystemProvider.js";
-import {FileSystemAgentConfigSchema, FileSystemConfigSchema} from "./index.ts";
+import {FileSystemAgentConfigSchema, FileSystemConfigSchema} from "./schema.ts";
 import {FileSystemState} from "./state/fileSystemState.js";
 import createIgnoreFilter from "./tools/util/createIgnoreFilter.ts";
 

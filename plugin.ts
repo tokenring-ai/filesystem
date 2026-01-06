@@ -11,9 +11,9 @@ import {z} from "zod";
 import chatCommands from "./chatCommands.ts";
 import contextHandlers from "./contextHandlers.ts";
 import FileSystemService from "./FileSystemService.js";
-import {FileSystemConfigSchema} from "./index.ts";
 import packageJSON from "./package.json" with {type: "json"};
 import filesystemRPC from "./rpc/filesystem.ts";
+import {FileSystemConfigSchema} from "./schema.ts";
 import tools from "./tools.ts";
 
 const packageConfigSchema = z.object({

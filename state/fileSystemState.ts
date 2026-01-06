@@ -1,7 +1,7 @@
 import type {ResetWhat} from "@tokenring-ai/agent/AgentEvents";
 import type {AgentStateSlice} from "@tokenring-ai/agent/types";
 import {z} from "zod";
-import {FileSystemConfigSchema} from "../index.ts";
+import {FileSystemConfigSchema} from "../schema.ts";
 
 export class FileSystemState implements AgentStateSlice {
   name = "FileSystemState";

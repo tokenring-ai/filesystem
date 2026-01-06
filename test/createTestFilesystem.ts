@@ -1,6 +1,7 @@
 import {z} from "zod";
 import FileSystemService from '../FileSystemService.js';
-import {FileSystemConfigSchema} from "../index";
+
+import {FileSystemConfigSchema} from "../schema";
 
 // Test configuration for FileSystemService
 const testConfig = {

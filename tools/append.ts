@@ -64,12 +64,22 @@ ${curFileContents}`.trim();
 
   if (curFileContents) {
     const diff = createPatch(filePath, curFileContents, newFileContents);
-    agent.artifactOutput(`${filePath} (diff)`, "text/x-diff", diff);
+    agent.artifactOutput({
+      name: filePath,
+      encoding: "text",
+      mimeType: "text/x-diff",
+      body: diff
+    });
 
     return "File successfully appended to.";
   }
 
-  agent.artifactOutput(filePath, mime.lookup(filePath) || "text/plain", content);
+  agent.artifactOutput({
+    name: filePath,
+    encoding: "text",
+    mimeType: mime.lookup(filePath) || "text/plain",
+    body: content
+  });
 
   return `File successfully created."`;
 }
