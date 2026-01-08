@@ -1,5 +1,6 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {isBinaryData} from "@tokenring-ai/utility/buffer/isBinaryData";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
@@ -13,7 +14,7 @@ async function execute(
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
-  const { maxFileReadCount } = agent.getState(FileSystemState).fileRead;
+  const { maxFileReadCount, maxFileSize } = agent.getState(FileSystemState).fileRead;
 
   let matchedFiles = new Set<string>();
 
@@ -44,26 +45,31 @@ async function execute(
   }
 
   const retrievedFiles = new Map<string, string>();
-  for (const file of matchedFiles) {
-    try {
-      const stat = await fileSystem.stat(file, agent);
-      if (stat.isDirectory) {
-        for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
-          if (retrievedFiles.has(dirFile)) break;
-          const contents = await fileSystem.readTextFile(file, agent);
-          if (contents) retrievedFiles.set(file,contents);
-          else agent.infoLine(`[${name}] Couldn't read file ${file}`)
+
+  async function retrieveFile(file: string) {
+    const stat = await fileSystem.stat(file, agent);
+    if (stat.isDirectory) {
+      for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
+        await retrieveFile(dirFile);
+      }
+    } else if (maxFileSize > 0 && stat.size && stat.size > maxFileSize) {
+      retrievedFiles.set(file, "[File is too large to retrieve]");
+    } else {
+      const contents = await fileSystem.readFile(file, agent);
+      if (contents) {
+        if (isBinaryData(contents)) {
+          retrievedFiles.set(file, "[File is binary and cannot be displayed]");
+        } else {
+          retrievedFiles.set(file,contents.toString("utf-8"));
         }
       } else {
-        const contents = await fileSystem.readTextFile(file, agent);
-        if (contents) retrievedFiles.set(file,contents);
-        else agent.infoLine(`[${name}] Couldn't read file ${file}`)
+        agent.infoLine(`[${name}] Couldn't read file ${file}`)
       }
-    } catch (err: any) {
-      agent.infoLine(
-        `[${name}] Error reading file ${file}: ${err.message}`,
-      );
     }
+  }
+
+  for (const file of matchedFiles) {
+    await retrieveFile(file);
   }
 
   if (retrievedFiles.size > maxFileReadCount) {
