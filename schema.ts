@@ -17,7 +17,7 @@ export const FileSystemAgentConfigSchema = z.object({
     snippetLinesBefore: z.number().default(5),
     snippetLinesAfter: z.number().default(5),
   }).optional(),
-}).default({});
+}).strict().default({});
 
 export const FileSystemConfigSchema = z.object({
   agentDefaults: z.object({
@@ -60,4 +60,4 @@ export const FileSystemConfigSchema = z.object({
     "(^|\\s)shutdown",
     "git.*reset", // i.e. git reset
   ])
-});
+}).strict();
