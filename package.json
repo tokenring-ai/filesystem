@@ -15,7 +15,7 @@
     "path-browserify": "^1.0.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.16",
+    "@vitest/coverage-v8": "^4.0.17",
     "vitest": "catalog:",
     "typescript": "catalog:"
   },
