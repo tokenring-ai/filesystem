@@ -61,3 +61,7 @@ export const FileSystemConfigSchema = z.object({
     "git.*reset", // i.e. git reset
   ])
 }).strict();
+
+export type FileSystemAgentConfig = {
+  filesystem: z.input<typeof FileSystemAgentConfigSchema>
+};
