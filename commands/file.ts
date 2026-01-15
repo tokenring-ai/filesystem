@@ -1,5 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import numberedList from "@tokenring-ai/utility/string/numberedList";
+import markdownList from "@tokenring-ai/utility/string/markdownList";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 
@@ -28,9 +30,9 @@ async function selectFiles(filesystem: FileSystemService, agent: Agent) {
   );
   if (selectedFiles) {
     await filesystem.setFilesInChat(selectedFiles, agent);
-    agent.infoLine(`Selected ${selectedFiles.length} files for chat session`);
+    agent.infoMessage(`Selected ${selectedFiles.length} files for chat session`);
   } else {
-    agent.infoLine("No files selected.");
+    agent.infoMessage("No files selected.");
   }
 }
 
@@ -43,15 +45,15 @@ async function addFiles(
   for (const file of filesToAdd) {
     try {
       await filesystem.addFileToChat(file, agent);
-      agent.infoLine(`Added file to chat: ${file}`);
+      agent.infoMessage(`Added file to chat: ${file}`);
       addedCount++;
     } catch (error) {
-      agent.errorLine(`Failed to add file ${file}:`, error as Error);
+      agent.errorMessage(`Failed to add file ${file}:`, error as Error);
     }
   }
 
   if (addedCount > 0) {
-    agent.infoLine(
+    agent.infoMessage(
       `Successfully added ${addedCount} file(s) to the chat session.`,
     );
   }
@@ -66,15 +68,15 @@ async function removeFiles(
   for (const file of filesToRemove) {
     try {
       filesystem.removeFileFromChat(file, agent);
-      agent.infoLine(`Removed file from chat: ${file}`);
+      agent.infoMessage(`Removed file from chat: ${file}`);
       removedCount++;
     } catch (error) {
-      agent.errorLine(`Failed to remove file ${file}:`, error as Error);
+      agent.errorMessage(`Failed to remove file ${file}:`, error as Error);
     }
   }
 
   if (removedCount > 0) {
-    agent.infoLine(
+    agent.infoMessage(
       `Successfully removed ${removedCount} file(s) from the chat session.`,
     );
   }
@@ -84,29 +86,31 @@ async function listFiles(filesystem: FileSystemService, agent: Agent) {
   const filesInChat: string[] = Array.from(filesystem.getFilesInChat(agent));
 
   if (!filesInChat || filesInChat.length === 0) {
-    agent.infoLine("No files are currently in the chat session.");
+    agent.infoMessage("No files are currently in the chat session.");
     return;
   }
 
-  agent.infoLine(`Files in chat session:`);
-  filesInChat.forEach((file: string, index: number) => {
-    agent.infoLine(`  ${index + 1}. ${file}`);
-  });
+  const lines: string[] = [
+    "Files in chat session:",
+    numberedList(filesInChat)
+  ];
+  agent.infoMessage(lines.join("\n"));
 }
 
 async function clearFiles(filesystem: FileSystemService, agent: Agent) {
   await filesystem.setFilesInChat([], agent);
-  agent.infoLine("Cleared all files from the chat session.");
+  agent.infoMessage("Cleared all files from the chat session.");
 }
 
 async function defaultFiles(filesystem: FileSystemService, agent: Agent) {
   const { initialConfig } = agent.getState(FileSystemState);
 
   await filesystem.setFilesInChat(initialConfig.selectedFiles, agent);
-  agent.infoLine(`Added default files to the chat session:`);
-  for (const file of initialConfig.selectedFiles) {
-    agent.infoLine(`  ${file}`);
-  }
+  const lines: string[] = [
+    "Added default files to the chat session:",
+    markdownList(initialConfig.selectedFiles)
+  ];
+  agent.infoMessage(lines.join("\n"));
 }
 
 /**

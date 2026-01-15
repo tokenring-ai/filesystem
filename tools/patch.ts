@@ -89,7 +89,7 @@ async function execute(
   // Write the patched content back to the file
   await fileSystem.writeFile(file, patchedContent, agent);
 
-  agent.infoLine(`[${name}] Patched file: ${file}`);
+  agent.infoMessage(`[${name}] Patched file: ${file}`);
   fileSystem.setDirty(true, agent);
 
   return `Successfully patched file ${file} replacing content from line "${fromLine}" to line "${toLine}"`;

@@ -27,7 +27,7 @@ async function execute(
 
   if (!originalContent) {
     const msg = `Failed to read file content: ${file}`;
-    agent.errorLine(`[${toolName}] ${msg}`);
+    agent.errorMessage(`[${toolName}] ${msg}`);
     throw new Error(`[${toolName}] ${msg}`);
   }
 
@@ -37,7 +37,7 @@ async function execute(
   // Check if the pattern matches anything in the file
   if (!pattern.test(originalContent)) {
     const msg = `Could not find a match for the provided regex patterns in file ${file}`;
-    agent.errorLine(`[${toolName}] ${msg}`);
+    agent.errorMessage(`[${toolName}] ${msg}`);
     throw new Error(`[${toolName}] ${msg}`);
   }
 
@@ -53,7 +53,7 @@ async function execute(
   // Write the patched content back to the file
   await fileSystem.writeFile(file, patchedContent, agent);
 
-  agent.infoLine(`[${toolName}] Patched file: ${file}`);
+  agent.infoMessage(`[${toolName}] Patched file: ${file}`);
   fileSystem.setDirty(true, agent);
 
   // Return a plain success string without tool name prefix

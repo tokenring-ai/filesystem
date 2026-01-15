@@ -32,13 +32,13 @@ async function execute(
       }
     } catch (err: any) {
       // Treat pattern resolution errors as informational
-      agent.infoLine(
+      agent.infoMessage(
         `[${name}] Error resolving pattern ${filePattern}: ${err.message}`,
       );
     }
   }
 
-  agent.infoLine(`[${name}] files=${files.join(", ")} matchedFiles=${matchedFiles.size}`);
+  agent.infoMessage(`[${name}] files=${files.join(", ")} matchedFiles=${matchedFiles.size}`);
 
   if (matchedFiles.size === 0) {
     return `No files were found that matched the search criteria`;
@@ -63,7 +63,7 @@ async function execute(
           retrievedFiles.set(file,contents.toString("utf-8"));
         }
       } else {
-        agent.infoLine(`[${name}] Couldn't read file ${file}`)
+        agent.infoMessage(`[${name}] Couldn't read file ${file}`)
       }
     }
   }
@@ -73,7 +73,7 @@ async function execute(
   }
 
   if (retrievedFiles.size > maxFileReadCount) {
-    agent.infoLine(`[${name}] Too many files were matched. Returning only the names.`);
+    agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
 
     const fileNames = Object.keys(retrievedFiles).sort();
 

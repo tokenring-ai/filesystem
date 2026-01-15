@@ -18,7 +18,7 @@ export async function execute(
 
   // Validate command input
   if (!command) {
-    // Throw error instead of returning and logging via agent.errorLine
+    // Throw error instead of returning and logging via agent.errorMessage
     throw new Error(`[${name}] command is required`);
   }
 
@@ -34,7 +34,7 @@ export async function execute(
   }
 
   // Informational message using the tool name variable
-  agent.infoLine(
+  agent.infoMessage(
     `[${name}] Running shell command via ${fileSystem.name}: ${cmdString} (cwd=${workingDirectory} timeout=${timeoutSeconds}s)`,
   );
 

@@ -47,7 +47,7 @@ async function execute(
     }
   }
 
-  agent.infoLine(`[${name}] files=${files.join(", ")} searches=${searches.join(", ")} matchedFiles=${matchedFiles.size}`);
+  agent.infoMessage(`[${name}] files=${files.join(", ")} searches=${searches.join(", ")} matchedFiles=${matchedFiles.size}`);
 
   if (matchedFiles.size === 0) {
     return `No files were found that matched the search criteria`;
@@ -64,15 +64,15 @@ async function execute(
           if (retrievedFiles.has(dirFile)) break;
           const contents = await fileSystem.readTextFile(file, agent);
           if (contents) retrievedFiles.set(file, contents);
-          else agent.infoLine(`[${name}] Couldn't read file ${file}`)
+          else agent.infoMessage(`[${name}] Couldn't read file ${file}`)
         }
       } else {
         const contents = await fileSystem.readTextFile(file, agent);
         if (contents) retrievedFiles.set(file, contents);
-        else agent.infoLine(`[${name}] Couldn't read file ${file}`)
+        else agent.infoMessage(`[${name}] Couldn't read file ${file}`)
       }
     } catch (err: any) {
-      agent.infoLine(
+      agent.infoMessage(
         `[${name}] Error reading file ${file}: ${err.message}`,
       );
     }
@@ -161,7 +161,7 @@ async function execute(
   }
 
   if (results.size > options.maxSnippetCount) {
-    agent.infoLine(`[${name}] Too many files were matched. Returning only the names.`);
+    agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
 
     const fileNames = Array.from(results.keys()).sort();
 

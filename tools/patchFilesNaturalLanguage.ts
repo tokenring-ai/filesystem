@@ -82,7 +82,7 @@ async function execute(
 
       // Check if the patched content is different from the original
       if (patchedContent.trim() === originalContent.trim()) {
-        agent.warningLine(
+        agent.warningMessage(
           `[${name}] No changes made to file: ${file} - content is identical`,
         );
         continue;
@@ -91,7 +91,7 @@ async function execute(
       await fileSystem.writeFile(file, patchedContent, agent);
 
       patchedFiles.push(file);
-      agent.infoLine(`[${name}] Successfully patched file: ${file}`);
+      agent.infoMessage(`[${name}] Successfully patched file: ${file}`);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       throw new Error(`[${name}] Failed to patch file ${file}: ${errMsg}`);

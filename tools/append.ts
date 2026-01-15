@@ -44,7 +44,7 @@ ${filePath}:\n\n
 ${curFileContents}`.trim();
   }
 
-  agent.infoLine(
+  agent.infoMessage(
     `[${name}] Appending to file ${filePath}`,
   );
 
