@@ -1,6 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {file} from "bun";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";

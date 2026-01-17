@@ -1,5 +1,4 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TreeLeaf} from "@tokenring-ai/agent/HumanInterfaceRequest";
 import {TokenRingService} from "@tokenring-ai/app/types";
 import deepMerge from "@tokenring-ai/utility/object/deepMerge";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
@@ -280,59 +279,6 @@ export default class FileSystemService implements TokenRingService {
     }
     agent.mutateState(FileSystemState, (state: FileSystemState) => {
       state.selectedFiles = new Set(files);
-    });
-  }
-
-  /**
-   * Asks the user to select an item from a tree structure using
-   */
-  async askForFileSelection(
-    options: { initialSelection?: string[] | undefined, allowDirectories?: boolean } = {},
-    agent: Agent,
-  ): Promise<Array<string> | null> {
-    const buildTree = async (path = ""): Promise<Array<TreeLeaf>> => {
-      const children: Array<TreeLeaf> = [];
-
-      for await (const itemPath of this.getDirectoryTree(path, {
-        recursive: false,
-      }, agent)) {
-        if (itemPath.endsWith("/")) {
-          // Directory
-          const dirName = itemPath
-            .substring(0, itemPath.length - 1)
-            .split("/")
-            .pop()!;
-          children.push({
-            name: dirName,
-            ...(options.allowDirectories && { value: itemPath}),
-            hasChildren: true,
-            children: () => buildTree(itemPath),
-          });
-        } else {
-          // File
-          const fileName = itemPath.split("/").pop()!;
-          children.push({
-            name: fileName,
-            value: itemPath,
-          });
-        }
-      }
-
-      return children;
-    };
-
-    const {initialSelection} = options;
-
-    return await agent.askHuman({
-      type: "askForMultipleTreeSelection",
-      title: "File Selection",
-      message: "Select a file or directory:",
-      tree: {
-        name: "File Selection",
-        children: buildTree,
-      },
-      loop: false,
-      ...(initialSelection && {initialSelection}),
     });
   }
 }

@@ -1,7 +1,7 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
-import numberedList from "@tokenring-ai/utility/string/numberedList";
 import markdownList from "@tokenring-ai/utility/string/markdownList";
+import numberedList from "@tokenring-ai/utility/string/numberedList";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 
@@ -21,13 +21,17 @@ const description: string =
 
 // Updated function signatures to use concrete types instead of `any`
 async function selectFiles(filesystem: FileSystemService, agent: Agent) {
-  const selectedFiles = await filesystem.askForFileSelection(
-    {
-      initialSelection: Array.from(filesystem.getFilesInChat(agent)),
-      allowDirectories: true
-    },
-    agent,
-  );
+  const selectedFiles = await agent.askQuestion({
+    message: "Select a file or directory:",
+    question: {
+      type: 'fileSelect',
+      label: "File Selection",
+      defaultValue: Array.from(filesystem.getFilesInChat(agent)),
+      allowDirectories: true,
+      allowFiles: true,
+    }
+  });
+
   if (selectedFiles) {
     await filesystem.setFilesInChat(selectedFiles, agent);
     agent.infoMessage(`Selected ${selectedFiles.length} files for chat session`);
