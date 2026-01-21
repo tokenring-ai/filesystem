@@ -15,7 +15,7 @@ import FileSystemProvider, {
 } from "./FileSystemProvider.js";
 import {FileSystemAgentConfigSchema, FileSystemConfigSchema} from "./schema.ts";
 import {FileSystemState} from "./state/fileSystemState.js";
-import createIgnoreFilter from "./tools/util/createIgnoreFilter.ts";
+import createIgnoreFilter from "./util/createIgnoreFilter.ts";
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 

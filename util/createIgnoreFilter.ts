@@ -3,7 +3,7 @@
  * @private
  */
 import ignore from "ignore";
-import FileSystemProvider from "../../FileSystemProvider.ts";
+import FileSystemProvider from "../FileSystemProvider.ts";
 
 export default async function createIgnoreFilter(fileSystem: FileSystemProvider): Promise<(p: string) => boolean> {
   // Create the base ignore filter
