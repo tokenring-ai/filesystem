@@ -5,15 +5,16 @@
 The `@tokenring-ai/filesystem` package provides a filesystem abstraction service for Token Ring AI agents. It enables file operations including reading, writing, searching, and executing shell commands through a provider-based architecture. The package integrates with the agent system for chat-based file management and state tracking.
 
 Key features:
-- Unified API for file operations (read, write, delete, rename, copy)
+- Unified API for file operations (read, write, delete, rename, copy, append)
 - Ignore filters based on `.gitignore` and `.aiignore` patterns
-- Tools for AI agent interactions: file read, file write, file search, and shell execution
+- Tools for AI agent interactions: file read, file write, file append, file search, and shell execution
 - Chat command `/file` for managing files in agent conversations
 - Context handlers for providing file contents and search results to agents
 - Command safety validation for shell commands
 - Support for multiple filesystem providers with provider registry
 - State management with file tracking and read-before-write enforcement
 - JSON-RPC endpoints for remote filesystem access
+- Scripting service integration with file manipulation functions
 
 This package abstracts filesystem access, making it suitable for sandboxed or virtual environments in AI workflows, while providing safety mechanisms for shell commands.
 
@@ -53,11 +54,12 @@ This package abstracts filesystem access, making it suitable for sandboxed or vi
 
 ```
 pkg/filesystem/
-├── index.ts                      # Main exports and config schemas
+├── index.ts                      # Main exports (FileMatchResource, FileSystemService)
 ├── plugin.ts                     # Plugin installation and service registration
 ├── FileSystemService.ts          # Core service implementation
 ├── FileSystemProvider.ts         # Provider interface definitions
 ├── FileMatchResource.ts          # Pattern-based file selection utility
+├── schema.ts                     # Configuration schemas
 ├── chatCommands.ts               # Chat command exports
 ├── commands/
 │   └── file.ts                   # /file command implementation
@@ -69,6 +71,7 @@ pkg/filesystem/
 ├── tools/
 │   ├── read.ts                   # file_read tool
 │   ├── write.ts                  # file_write tool
+│   ├── append.ts                 # file_append tool
 │   ├── search.ts                 # file_search tool
 │   └── bash.ts                   # terminal_bash tool
 ├── rpc/
@@ -76,8 +79,9 @@ pkg/filesystem/
 │   └── filesystem.ts             # RPC endpoint implementation
 ├── state/
 │   └── fileSystemState.ts        # State management
+├── util/
+│   └── createIgnoreFilter.ts     # Ignore filter creation utility
 ├── test/
-│   ├── createTestFilesystem.ts   # Test helper
 │   └── FileSystemService.commandValidation.test.ts
 ├── package.json
 ├── vitest.config.ts
@@ -93,24 +97,26 @@ The main service class implementing `TokenRingService`. It manages filesystem pr
 **Key Properties/Methods:**
 
 - `registerFileSystemProvider(provider: FileSystemProvider)`: Registers a provider
+- `requireFileSystemProviderByName(name: string)`: Retrieves a registered provider by name
 - `setActiveFileSystem(providerName: string, agent: Agent)`: Sets the active provider
 - `attach(agent: Agent)`: Initializes state with FileSystemState
 - `getDirectoryTree(path, options, agent)`: Async generator for directory contents
 - `writeFile(path, content, agent)`: Writes/overwrites file
 - `appendFile(path, content, agent)`: Appends to file
 - `deleteFile(path, agent)`: Deletes a file
-- `getFile(path, agent)`: Reads file as UTF-8 string
-- `readFile(path, encoding, agent)`: Raw file read
+- `readTextFile(path, agent)`: Reads file as UTF-8 string
+- `readFile(path, agent)`: Raw file read
 - `exists(path, agent)`: Checks if file exists
 - `stat(path, agent)`: Returns file stat information
 - `rename(oldPath, newPath, agent)`: Renames a file
 - `createDirectory(path, options, agent)`: Creates a directory
 - `copy(source, dest, options, agent)`: Copies a file
 - `glob(pattern, options, agent)`: Returns matches for glob pattern
-- `grep(searchString, options, agent)`: Searches for text patterns
+- `watch(dir, options, agent)`: Watch for changes
 - `executeCommand(command, options, agent)`: Executes shell command
 - `getCommandSafetyLevel(command)`: Returns 'safe', 'unknown', or 'dangerous'
 - `parseCompoundCommand(command)`: Parses compound shell commands
+- `grep(searchString, options, agent)`: Searches for text patterns
 
 **Chat-specific methods:**
 - `addFileToChat(file, agent)`: Adds file to chat context
@@ -172,47 +178,25 @@ Retrieves files from the filesystem by path or glob pattern.
 
 **Parameters:**
 - `files`: List of file paths or glob patterns (required)
-- `returnType`: 'names' | 'content' (default: 'content')
-
-**Returns:**
-```typescript
-{
-  files: Array<{
-    file: string;
-    exists: boolean;
-    content?: string;
-  }>,
-  summary: {
-    totalFiles: number,
-    totalMatches: 0,
-    returnType: 'names' | 'content',
-    limitExceeded: boolean
-  }
-}
-```
 
 **Behavior:**
 - Resolves glob patterns to specific file paths
 - Checks file existence for each path
-- For `returnType: 'content'`:
-  - Reads file contents
-  - Limits to 50 files (degrades to "names" if exceeded)
-  - Tracks read files in `FileSystemState`
-- For `returnType: 'names'`:
-  - Returns only file paths with existence status
+- Reads file contents (up to maxFileSize limit)
+- Marks read files in `FileSystemState`
+- Returns file names only if too many files are matched
+- Handles binary files gracefully
 
 **Example:**
 ```typescript
 // Read specific file
 const result = await file_read({
-  files: ['src/main.ts'],
-  returnType: 'content'
+  files: ['src/main.ts']
 });
 
 // Get list of files matching a pattern
 const result = await file_read({
-  files: ['src/**/*.ts'],
-  returnType: 'names'
+  files: ['src/**/*.ts']
 });
 ```
 
@@ -221,17 +205,40 @@ const result = await file_read({
 Writes a file to the filesystem.
 
 **Parameters:**
-- `path`: Relative path of the file to write (e.g., 'src/main.ts')
-- `content`: Content to write to the file (must include ENTIRE content)
+- `path`: Relative path of the file to write (required)
+- `content`: Content to write to the file (required)
 
 **Behavior:**
 - Automatically creates parent directories if needed
 - Enforces read-before-write policy if configured
 - Marks filesystem as dirty on success
+- Returns diff if file existed before
+- Marks file as read in state
 
 **Example:**
 ```typescript
 await file_write({path: 'src/main.ts', content: '...'}, agent);
+```
+
+### file_append
+
+Appends content to the end of an existing file.
+
+**Parameters:**
+- `path`: Relative path of the file to append to (required)
+- `content`: Content to append to the file (required)
+
+**Behavior:**
+- Automatically creates parent directories if needed
+- Ensures newline separator before appending
+- Enforces read-before-write policy if configured
+- Marks filesystem as dirty on success
+- Returns diff if file existed before
+- Marks file as read in state
+
+**Example:**
+```typescript
+await file_append({path: 'logs/app.log', content: 'New entry\n'}, agent);
 ```
 
 ### file_search
@@ -240,76 +247,33 @@ Searches for text patterns within files.
 
 **Parameters:**
 - `searches`: List of search patterns for text search (required)
-- `files`: Optional list of file paths or glob patterns to search within
-- `returnType`: 'names' | 'matches' (default: 'matches')
-- `linesBefore`: Context lines before each match (default: 10 for matches mode)
-- `linesAfter`: Context lines after each match (default: 10 for matches mode)
-- `caseSensitive`: Whether searches are case-sensitive (default: true)
-- `matchType`: 'substring' | 'whole-word' | 'regex' (default: 'substring')
-
-**Returns:**
-```typescript
-{
-  files: Array<{
-    file: string;
-    matches?: number;
-  }>,
-  matches: Array<{
-    file: string;
-    line: number;
-    match: string;
-    linesBefore: string[];
-    linesAfter: string[];
-  }>,
-  summary: {
-    totalFiles: number,
-    totalMatches: number,
-    returnType: 'names' | 'matches',
-    limitExceeded: boolean
-  }
-}
-```
+- `files`: Optional list of file paths or glob patterns to search within (default: ['**/*'])
 
 **Behavior:**
-- If `files` provided: searches only within specified files
-- If no `files` provided: searches across all accessible files
-- Supports substring, whole-word, and regex matching
-- For `returnType: 'matches'`:
-  - Returns matched lines with context
-  - Includes `linesBefore` and `linesAfter` context
-  - Limits to 50 matches (degrades to "names" if exceeded)
-- For `returnType: 'names'`:
-  - Returns only file paths with match counts
+- Supports substring, regex, and exact matching
+- Returns grep-style snippets with context lines
+- Automatically decides whether to return full file contents, snippets, or file names based on match count
+- Marks read files in state
+- Supports fuzzy matching and keyword extraction
 
 **Examples:**
 ```typescript
 // Search for a function across all files
 const result = await file_search({
   searches: ['function execute'],
-  returnType: 'matches',
-  linesBefore: 2,
-  linesAfter: 2
-});
-
-// Search with whole-word matching in specific directory
-const result = await file_search({
-  searches: ['ToolDefinition'],
-  files: ['pkg/filesystem/**/*.ts'],
-  matchType: 'whole-word',
-  caseSensitive: false
+  files: ['src/**/*.ts']
 });
 
 // Regex search for pattern
 const result = await file_search({
-  searches: ['class \\w+Service'],
-  matchType: 'regex',
+  searches: ['/class \\w+Service/'],
   files: ['pkg/agent/**/*.ts']
 });
 
-// Get only file names containing matches
+// Search with specific files
 const result = await file_search({
   searches: ['TODO', 'FIXME'],
-  returnType: 'names'
+  files: ['src/**/*.ts', 'pkg/**/*.ts']
 });
 ```
 
@@ -318,8 +282,8 @@ const result = await file_search({
 Executes shell commands with safety validation.
 
 **Parameters:**
-- `command`: The shell command to execute
-- `timeoutSeconds`: Timeout in seconds (default: 60, max: 600)
+- `command`: The shell command to execute (required)
+- `timeoutSeconds`: Timeout in seconds (default: 60, max: 90)
 - `workingDirectory`: Working directory relative to filesystem root
 
 **Returns:**
@@ -340,10 +304,7 @@ Executes shell commands with safety validation.
 
 **Safe Commands:**
 ```typescript
-["awk", "cat", "cd", "chdir", "diff", "echo", "find", "git", "grep",
- "head", "help", "hostname", "id", "ipconfig", "tee", "ls", "netstat",
- "ps", "pwd", "sort", "tail", "tree", "type", "uname", "uniq", "wc", "which",
- "npm", "yarn", "bun", "tsc", "node", "npx", "bunx", "vitest"]
+["awk", "cat", "cd", "chdir", "diff", "echo", "find", "git", "grep", "head", "help", "hostname", "id", "ipconfig", "tee", "ls", "netstat", "ps", "pwd", "sort", "tail", "tree", "type", "uname", "uniq", "wc", "which", "touch", "mkdir", "npm", "yarn", "bun", "tsc", "node", "npx", "bunx", "vitest"]
 ```
 
 **Dangerous Commands:**
@@ -395,9 +356,6 @@ Provides contents of selected files as chat context.
 
 Provides file search results as chat context based on user input.
 
-**Parameters:**
-- `maxResults`: Maximum number of results (default: 25)
-
 **Behavior:**
 - Extracts keywords from chat input (ignores stop words)
 - Performs fuzzy matching on file paths
@@ -413,7 +371,20 @@ const FileSystemConfigSchema = z.object({
   agentDefaults: z.object({
     provider: z.string(),
     selectedFiles: z.array(z.string()).default([]),
-    requireReadBeforeWrite: z.boolean().default(true)
+    fileWrite: z.object({
+      requireReadBeforeWrite: z.boolean().default(true),
+      maxReturnedDiffSize: z.number().default(1024)
+    }).optional(),
+    fileRead: z.object({
+      maxFileReadCount: z.number().default(10),
+      maxFileSize: z.number().default(128 * 1024) // 128KB default
+    }).optional(),
+    fileSearch: z.object({
+      maxSnippetCount: z.number().default(10),
+      maxSnippetSizePercent: z.number().default(0.3),
+      snippetLinesBefore: z.number().default(5),
+      snippetLinesAfter: z.number().default(5)
+    }).optional()
   }),
   providers: z.record(z.string(), z.any()),
   safeCommands: z.array(z.string()).default([...]),
@@ -424,7 +395,14 @@ const FileSystemConfigSchema = z.object({
 **agentDefaults:**
 - `provider`: Name of the default filesystem provider
 - `selectedFiles`: Array of file paths initially selected for chat
-- `requireReadBeforeWrite`: Whether files must be read before writing (default: true)
+- `fileWrite.requireReadBeforeWrite`: Whether files must be read before writing (default: true)
+- `fileWrite.maxReturnedDiffSize`: Maximum size of diff to return (default: 1024)
+- `fileRead.maxFileReadCount`: Maximum number of files to read (default: 10)
+- `fileRead.maxFileSize`: Maximum file size in bytes to read (default: 30KB)
+- `fileSearch.maxSnippetCount`: Maximum number of files to return snippets for (default: 10)
+- `fileSearch.maxSnippetSizePercent`: Max percentage of file content to return if too many matches (default: 30%)
+- `fileSearch.snippetLinesBefore`: Context lines before matches (default: 5)
+- `fileSearch.snippetLinesAfter`: Context lines after matches (default: 5)
 
 **safeCommands:**
 List of commands considered safe to execute without confirmation.
@@ -450,8 +428,10 @@ Tracks filesystem-related state for agents.
 - `selectedFiles`: Set of file paths in chat context
 - `providerName`: Active filesystem provider name
 - `dirty`: Whether files have been modified
-- `requireReadBeforeWrite`: Enforces read-before-write policy
 - `readFiles`: Set of files that have been read
+- `fileRead`: Read configuration (maxFileReadCount, maxFileSize)
+- `fileWrite`: Write configuration (requireReadBeforeWrite, maxReturnedDiffSize)
+- `fileSearch`: Search configuration (maxSnippetCount, maxSnippetSizePercent, snippetLinesBefore, snippetLinesAfter)
 
 **Methods:**
 - `reset(what)`: Resets state (supports 'chat' reset)
@@ -465,7 +445,7 @@ JSON-RPC endpoints available at `/rpc/filesystem`:
 
 | Method | Type | Input | Output |
 |--------|------|-------|--------|
-| readFile | query | {agentId, path} | {content} |
+| readTextFile | query | {agentId, path} | {content} |
 | exists | query | {agentId, path} | {exists} |
 | stat | query | {agentId, path} | {stats} |
 | glob | query | {agentId, pattern} | {files} |
@@ -479,6 +459,69 @@ JSON-RPC endpoints available at `/rpc/filesystem`:
 | addFileToChat | mutation | {agentId, file} | {success} |
 | removeFileFromChat | mutation | {agentId, file} | {success} |
 | getSelectedFiles | query | {agentId} | {files} |
+
+## Scripting Service Integration
+
+The filesystem plugin registers native functions in the scripting service:
+
+### createFile
+
+Creates a new file.
+
+```typescript
+scriptingService.registerFunction("createFile", {
+  type: 'native',
+  params: ['path', 'content'],
+  async execute(this: ScriptingThis, path: string, content: string): Promise<string> {
+    await this.agent.requireServiceByType(FileSystemService).writeFile(path, content, this.agent);
+    return `Created file: ${path}`;
+  }
+});
+```
+
+### deleteFile
+
+Deletes a file.
+
+```typescript
+scriptingService.registerFunction("deleteFile", {
+  type: 'native',
+  params: ['path'],
+  async execute(this: ScriptingThis, path: string): Promise<string> {
+    await this.agent.requireServiceByType(FileSystemService).deleteFile(path, this.agent);
+    return `Deleted file: ${path}`;
+  }
+});
+```
+
+### globFiles
+
+Returns files matching a glob pattern.
+
+```typescript
+scriptingService.registerFunction("globFiles", {
+  type: 'native',
+  params: ['pattern'],
+  async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
+    return await this.agent.requireServiceByType(FileSystemService).glob(pattern, {}, this.agent);
+  }
+});
+```
+
+### searchFiles
+
+Searches for text in files and returns formatted results.
+
+```typescript
+scriptingService.registerFunction("searchFiles", {
+  type: 'native',
+  params: ['searchString'],
+  async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
+    const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString], {}, this.agent);
+    return results.map(r => `${r.file}:${r.line}: ${r.match}`);
+  }
+});
+```
 
 ## Usage Examples
 
@@ -503,11 +546,14 @@ const fs = new FileSystemService({
 // Write a file
 await fs.writeFile('example.txt', 'Hello, world!', agent);
 
-// Read a file
-const content = await fs.getFile('example.txt', agent);
-
 // Append to a file
 await fs.appendFile('example.txt', '\nAdditional content', agent);
+
+// Read a file
+const content = await fs.readTextFile('example.txt', agent);
+
+// Read raw file
+const buffer = await fs.readFile('example.txt', agent);
 ```
 
 ### Directory Traversal
@@ -520,6 +566,9 @@ for await (const path of fs.getDirectoryTree('./src', {recursive: true}, agent))
 
 // Find files with glob pattern
 const tsFiles = await fs.glob('**/*.ts', {}, agent);
+
+// List directory
+const files = await fs.glob('src/', {includeDirectories: true}, agent);
 ```
 
 ### Chat File Management
@@ -548,6 +597,9 @@ const results = await fs.grep(['TODO', 'FIXME'], {
 
 // Glob pattern matching
 const configs = await fs.glob('**/*.config.{js,json,ts}', {}, agent);
+
+// Watch for changes
+const watcher = await fs.watch('src/', {pollInterval: 1000}, agent);
 ```
 
 ### Shell Command Execution
@@ -564,6 +616,34 @@ if (result.ok) {
 } else {
   console.error('Install failed:', result.stderr);
 }
+
+// Check command safety
+const safety = fs.getCommandSafetyLevel('rm -rf /');
+console.log(safety); // 'dangerous'
+```
+
+### Advanced Usage
+
+```typescript
+// Parse compound commands
+const commands = fs.parseCompoundCommand('cd frontend/chat && bun add lucide-react');
+console.log(commands); // ['cd', 'bun']
+
+// Get file stats
+const stats = await fs.stat('src/main.ts', agent);
+console.log(stats.isFile, stats.size, stats.modified);
+
+// Copy files
+await fs.copy('src/old', 'src/new', {overwrite: false}, agent);
+
+// Create directory
+await fs.createDirectory('src/utils', {recursive: true}, agent);
+
+// Delete file
+await fs.deleteFile('src/old.js', agent);
+
+// Rename file
+await fs.rename('src/old.js', 'src/new.js', agent);
 ```
 
 ## License

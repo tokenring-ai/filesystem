@@ -9,7 +9,7 @@ export const FileSystemAgentConfigSchema = z.object({
   }).optional(),
   fileRead: z.object({
     maxFileReadCount: z.number().optional(),
-    maxFileSize: z.number().default(30 * 1024), // 30KB default
+    maxFileSize: z.number().optional()
   }).optional(),
   fileSearch: z.object({
     maxSnippetCount: z.number().default(10),
@@ -29,7 +29,7 @@ export const FileSystemConfigSchema = z.object({
     }).prefault({}),
     fileRead: z.object({
       maxFileReadCount: z.number().default(10),
-      maxFileSize: z.number().default(30 * 1024), // 30KB default
+      maxFileSize: z.number().default(128 * 1024), // 128KB default
     }).prefault({}),
     fileSearch: z.object({
       maxSnippetCount: z.number().default(10),

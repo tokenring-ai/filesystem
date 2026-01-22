@@ -7,7 +7,7 @@ import write from "./tools/write.ts";
 export default {
   write,
   read,
-  append,
+  //append,
   search,
   bash,
 };
