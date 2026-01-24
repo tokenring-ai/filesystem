@@ -6,6 +6,7 @@ import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 
 const name = "file_read";
+const displayName = "Filesystem/read";
 
 async function execute(
   {
@@ -119,5 +120,5 @@ const inputSchema = z
   .strict();
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

@@ -9,6 +9,7 @@ import {FileSystemState} from "../state/fileSystemState.ts";
 
 // Tool name export as required
 const name = "file_write";
+const displayName = "Filesystem/write";
 
 async function execute(
   {
@@ -103,5 +104,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute, skipArtifactOutput: true
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

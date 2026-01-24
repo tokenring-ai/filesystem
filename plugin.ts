@@ -67,7 +67,7 @@ export default {
         );
       });
       app.waitForService(ChatService, chatService => {
-        chatService.addTools(packageJSON.name, tools);
+        chatService.addTools(tools);
         chatService.registerContextHandlers(contextHandlers);
       });
       app.waitForService(AgentCommandService, agentCommandService =>

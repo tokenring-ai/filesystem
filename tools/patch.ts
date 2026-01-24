@@ -5,6 +5,7 @@ import FileSystemService from "../FileSystemService.ts";
 
 // Exported name for the tool
 const name = "file_patch";
+const displayName = "Filesystem/patch";
 
 async function execute(
   {
@@ -120,5 +121,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

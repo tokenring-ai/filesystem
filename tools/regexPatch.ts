@@ -9,6 +9,7 @@ import FileSystemService from "../FileSystemService.ts";
  * Errors are thrown as exceptions with the tool name prefix.
  */
 const name = "file_regexPatch";
+const displayName = "Filesystem/regexPatch";
 const toolName = name.split("/")[1]; // "regexPatch"
 
 async function execute(
@@ -85,5 +86,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

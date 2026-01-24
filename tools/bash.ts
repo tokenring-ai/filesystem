@@ -5,6 +5,7 @@ import type {ExecuteCommandResult} from "../FileSystemProvider.js";
 import FileSystemService from "../FileSystemService.ts";
 
 const name = "terminal_bash";
+const displayName = "Terminal/bash";
 
 export async function execute(
   {
@@ -55,12 +56,10 @@ export async function execute(
   }
 
   try {
-    const result = await fileSystem.executeCommand(command, {
+    return await fileSystem.executeCommand(command, {
       timeoutSeconds,
       workingDirectory: workingDirectory ?? "./",
     }, agent);
-
-    return result;
   } catch (err: unknown) {
     // Extract error message safely
     const message = err instanceof Error ? err.message : String(err);
@@ -85,5 +84,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

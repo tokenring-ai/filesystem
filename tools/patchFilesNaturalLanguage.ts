@@ -11,6 +11,7 @@ const systemPrompt = `
 :`.trim();
 
 const name = "file_patchFilesNaturalLanguage";
+const displayName = "Filesystem/patchFilesNaturalLanguage";
 
 /**
  * Executes the natural language patch tool.
@@ -117,5 +118,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

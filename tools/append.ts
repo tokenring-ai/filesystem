@@ -8,6 +8,7 @@ import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 
 const name = "file_append";
+const displayName = "Filesystem/append";
 
 async function execute(
   {
@@ -100,5 +101,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute, skipArtifactOutput: true
 } satisfies TokenRingToolDefinition<typeof inputSchema>;
