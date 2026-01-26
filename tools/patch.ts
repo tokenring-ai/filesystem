@@ -1,5 +1,6 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {createPatch} from "diff";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -10,19 +11,13 @@ const displayName = "Filesystem/patch";
 async function execute(
   {
     file,
-    fromLine,
-    toLine,
-    contents,
-  }: z.infer<typeof inputSchema>,
+    firstLineToMatchAndRemove,
+    lastLineToMatchAndRemove,
+    replacementContent,
+  }: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
-
-  if (!file || !fromLine || !toLine || !contents) {
-    throw new Error(
-      `[${name}] Missing required parameters: file, fromLine, toLine, contents`,
-    );
-  }
 
   // Read the original file content
   const originalContent = await fileSystem.readTextFile(file, agent);
@@ -33,93 +28,95 @@ async function execute(
 
   // Normalize whitespace for comparison
   const normalizeWhitespace = (line: string) => line.trim();
-  const normalizedFromLine = normalizeWhitespace(fromLine);
-  const normalizedToLine = normalizeWhitespace(toLine);
+  const normalizedFirstLine = normalizeWhitespace(firstLineToMatchAndRemove);
+  const normalizedLastLine = normalizeWhitespace(lastLineToMatchAndRemove);
 
-  // Find all matches for fromLine
-  const fromLineMatches: number[] = [];
+  // Find all matches for firstLineToMatchAndRemove
+  const firstLineMatches: number[] = [];
   lines.forEach((line, index) => {
-    if (normalizeWhitespace(line) === normalizedFromLine) {
-      fromLineMatches.push(index);
+    if (normalizeWhitespace(line) === normalizedFirstLine) {
+      firstLineMatches.push(index);
     }
   });
 
-  // Ensure exactly one fromLine match
-  if (fromLineMatches.length === 0) {
+  // Ensure exactly one firstLineToMatchAndRemove match
+  if (firstLineMatches.length === 0) {
     throw new Error(
-      `[${name}] Could not find the fromLine "${fromLine}" in file ${file}`,
+      `[${name}] Could not find the line "${firstLineToMatchAndRemove}" in file ${file}`,
     );
   }
-  if (fromLineMatches.length > 1) {
+  if (firstLineMatches.length > 1) {
     throw new Error(
-      `[${name}] Found ${fromLineMatches.length} matches for fromLine "${fromLine}" in file ${file}. Expected exactly one match.`,
+      `[${name}] Found ${firstLineMatches.length} matches for line "${firstLineToMatchAndRemove}" in file ${file}. Expected exactly one match.`,
     );
   }
 
-  const fromLineIndex = fromLineMatches[0];
+  const fromLineIndex = firstLineMatches[0];
 
-  // Find toLine matches after the fromLine
-  let toLineIndex = -1;
-  let toLineMatches = 0;
-  for (let i = fromLineIndex + 1; i < lines.length; i++) {
-    if (normalizeWhitespace(lines[i]) === normalizedToLine) {
-      toLineIndex = i;
-      toLineMatches++;
+  // Find the first occurrence of lastLineToMatchAndRemove starting from fromLineIndex
+  let lastLineIndex = -1;
+  for (let i = fromLineIndex; i < lines.length; i++) {
+    if (normalizeWhitespace(lines[i]) === normalizedLastLine) {
+      lastLineIndex = i;
+      break;
     }
   }
 
-  // Ensure exactly one toLine match after fromLine
-  if (toLineMatches === 0) {
+  // Ensure lastLineToMatchAndRemove was found
+  if (lastLineIndex === -1) {
     throw new Error(
-      `[${name}] Could not find the toLine "${toLine}" after fromLine "${fromLine}" in file ${file}`,
-    );
-  }
-  if (toLineMatches > 1) {
-    throw new Error(
-      `[${name}] Found ${toLineMatches} matches for toLine "${toLine}" after fromLine "${fromLine}" in file ${file}. Expected exactly one match.`,
+      `[${name}] Could not find the line "${lastLineToMatchAndRemove}" after line "${firstLineToMatchAndRemove}" in file ${file}`,
     );
   }
 
   // Replace the content between fromLine and toLine (inclusive)
   const beforeLines = lines.slice(0, fromLineIndex);
-  const afterLines = lines.slice(toLineIndex + 1);
-  const contentsLines = contents.split("\n");
+  const afterLines = lines.slice(lastLineIndex + 1);
+  const contentsLines = replacementContent.split("\n");
   const patchedLines = [...beforeLines, ...contentsLines, ...afterLines];
   const patchedContent = patchedLines.join("\n");
 
   // Write the patched content back to the file
   await fileSystem.writeFile(file, patchedContent, agent);
 
-  agent.infoMessage(`[${name}] Patched file: ${file}`);
   fileSystem.setDirty(true, agent);
 
-  return `Successfully patched file ${file} replacing content from line "${fromLine}" to line "${toLine}"`;
+  const diff = createPatch(file, originalContent, patchedContent);
+
+  agent.artifactOutput({
+    name: file,
+    encoding: "text",
+    mimeType: "text/x-diff",
+    body: diff
+  });
+
+  return `File successfully patched. Changes made:\n${diff}`;
 }
 
 const description =
-  "Patches a file by replacing content between two specific lines that match exactly (ignoring whitespace).";
+  "Removes blocks of content from a file, replacing the content between two matched lines with new content.";
 
 const inputSchema = z.object({
   file: z
     .string()
     .describe("Path to the file to patch, relative to the source directory."),
-  fromLine: z
+  firstLineToMatchAndRemove: z
     .string()
     .describe(
-      "A line of text that must match exactly to mark the beginning of the content to replace.",
+      "The first line of text to remove.",
     ),
-  toLine: z
+  lastLineToMatchAndRemove: z
     .string()
     .describe(
-      "A line of text that must match exactly to mark the end of the content to replace.",
+      "The last line of text to remove. The text between firstLineToMatchAndRemove and lastLineToMatchAndRemove will be removed, and replaced with the replacementContent.",
     ),
-  contents: z
+  replacementContent: z
     .string()
     .describe(
-      "The content that will replace everything from fromLine to toLine (inclusive).",
+      "The content that will replace everything from the firstLineToReplace to lastLineToRemove (inclusive).",
     ),
 });
 
 export default {
-  name, displayName, description, inputSchema, execute,
+  name, displayName, description, inputSchema, execute, skipArtifactOutput: true
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

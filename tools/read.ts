@@ -39,7 +39,7 @@ async function execute(
     }
   }
 
-  agent.infoMessage(`[${name}] files=${files.join(", ")} matchedFiles=${matchedFiles.size}`);
+  //agent.infoMessage(`[${name}] files=${files.join(", ")} matchedFiles=${matchedFiles.size}`);
 
   if (matchedFiles.size === 0) {
     return `No files were found that matched the search criteria`;
@@ -49,7 +49,9 @@ async function execute(
 
   async function retrieveFile(file: string) {
     const stat = await fileSystem.stat(file, agent);
-    if (stat.isDirectory) {
+    if (! stat.exists) {
+      retrievedFiles.set(file, "[File does not exist]");
+    } else if (stat.isDirectory) {
       for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
         await retrieveFile(dirFile);
       }

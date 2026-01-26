@@ -1,6 +1,7 @@
-export interface StatLike {
+export type StatLike = {
   path: string;
   absolutePath?: string;
+  exists: true;
   isFile: boolean;
   isDirectory: boolean;
   isSymbolicLink?: boolean;
@@ -8,6 +9,9 @@ export interface StatLike {
   created?: Date;
   modified?: Date;
   accessed?: Date;
+} | {
+  path: string;
+  exists: false;
 }
 
 export interface GrepResult {

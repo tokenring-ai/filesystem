@@ -7,8 +7,6 @@ import {FileSystemState} from "../state/fileSystemState.ts";
 const name = "file_search";
 const displayName = "Filesystem/search";
 
-export type MatchType = "substring" | "whole-word" | "regex";
-
 export interface MatchInfo {
   file: string;
   line: number;
@@ -25,29 +23,21 @@ export interface SearchSummary {
   limitExceeded: boolean;
 }
 
-export interface FileSearchResult {
-  files: string[];
-  matches: MatchInfo[];
-  summary: SearchSummary;
-}
-
 async function execute(
   {
-    files,
-    searches,
+    filePaths,
+    searchTerms,
   }: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   const matchedFiles = new Set<string>();
-  for (const filePattern of files) {
+  for (const filePattern of filePaths) {
     for (const file of await fileSystem.glob(filePattern, {}, agent)) {
       matchedFiles.add(file);
     }
   }
-
-  agent.infoMessage(`[${name}] files=${files.join(", ")} searches=${searches.join(", ")} matchedFiles=${matchedFiles.size}`);
 
   if (matchedFiles.size === 0) {
     return `No files were found that matched the search criteria`;
@@ -59,17 +49,19 @@ async function execute(
   for (const file of matchedFiles) {
     try {
       const stat = await fileSystem.stat(file, agent);
-      if (stat.isDirectory) {
-        for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
-          if (retrievedFiles.has(dirFile)) break;
+      if (stat.exists) {
+        if (stat.isDirectory) {
+          for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
+            if (retrievedFiles.has(dirFile)) break;
+            const contents = await fileSystem.readTextFile(file, agent);
+            if (contents) retrievedFiles.set(file, contents);
+            else agent.infoMessage(`[${name}] Couldn't read file ${file}`)
+          }
+        } else {
           const contents = await fileSystem.readTextFile(file, agent);
           if (contents) retrievedFiles.set(file, contents);
           else agent.infoMessage(`[${name}] Couldn't read file ${file}`)
         }
-      } else {
-        const contents = await fileSystem.readTextFile(file, agent);
-        if (contents) retrievedFiles.set(file, contents);
-        else agent.infoMessage(`[${name}] Couldn't read file ${file}`)
       }
     } catch (err: any) {
       agent.infoMessage(
@@ -78,7 +70,7 @@ async function execute(
     }
   }
 
-  const searchPatterns = searches.map(s => {
+  const searchPatterns = searchTerms.map(s => {
     if (s.startsWith("/") && s.endsWith("/")) {
       return new RegExp(s.slice(1, -1), "si");
     } else {
@@ -189,17 +181,17 @@ Search for text patterns in files. Supports searching across all files or within
 
 const inputSchema = z
   .object({
-    searches: z
-      .array(z.string())
-      .describe(
-        "List of search terms to search for. Search terms can either by plain strings, which will be matched by a fuzzy substring search, or regex, if enclosed in '/'. Examples: \"searchTerm\", \"/searchTerm.*/\""
-      ),
-    files: z
+    filePaths: z
       .array(z.string())
       .describe(
         "List of file paths or glob patterns to search within. Omit to search across all files in the project directory. Examples: \"**/*.ts\", \"path/to/file.txt\")",
       )
-      .default(["**/*"])
+      .default(["**/*"]),
+    searchTerms: z
+      .array(z.string())
+      .describe(
+        "List of search terms to search for. Search terms can either by plain strings, which will be matched by a fuzzy substring search, or regex, if enclosed in '/'. Examples: \"searchTerm\", \"/searchTerm.*/\""
+      ),
   })
   .strict();
 

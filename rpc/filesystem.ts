@@ -1,10 +1,10 @@
 import {AgentManager} from "@tokenring-ai/agent";
 import TokenRingApp from "@tokenring-ai/app";
-import {createJsonRPCEndpoint} from "@tokenring-ai/web-host/jsonrpc/createJsonRPCEndpoint";
+import {createRPCEndpoint} from "@tokenring-ai/rpc/createRPCEndpoint";
 import FileSystemService from "../FileSystemService.js";
 import FileSystemRpcSchema from "./schema.ts";
 
-export default createJsonRPCEndpoint(FileSystemRpcSchema, {
+export default createRPCEndpoint(FileSystemRpcSchema, {
   async readTextFile(args, app: TokenRingApp) {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
     if (!agent) throw new Error("Agent not found");

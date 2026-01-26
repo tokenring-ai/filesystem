@@ -1,6 +1,7 @@
 import {AgentCommandService} from "@tokenring-ai/agent";
 import {TokenRingPlugin} from "@tokenring-ai/app";
 import {ChatService} from "@tokenring-ai/chat";
+import {RpcService} from "@tokenring-ai/rpc";
 import {ScriptingService} from "@tokenring-ai/scripting";
 import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService";
 import {WebHostService} from "@tokenring-ai/web-host";
@@ -75,9 +76,9 @@ export default {
       );
       app.addServices(new FileSystemService(config.filesystem));
 
-      app.waitForService(WebHostService, webHostService => {
-        webHostService.registerResource("FileSystem RPC endpoint", new JsonRpcResource(app, filesystemRPC));
-      });
+      app.waitForService(RpcService, rpcService => {
+        rpcService.registerEndpoint(filesystemRPC);
+      })
     }
   },
   config: packageConfigSchema

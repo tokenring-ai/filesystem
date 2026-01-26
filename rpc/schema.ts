@@ -1,7 +1,8 @@
-import {JsonRPCSchema} from "@tokenring-ai/web-host/jsonrpc/types";
+import {RPCSchema} from "@tokenring-ai/rpc/types";
 import {z} from "zod";
 
 export default {
+  name: "Filesystem RPC",
   path: "/rpc/filesystem",
   methods: {
     readTextFile: {
@@ -152,4 +153,4 @@ export default {
       })
     }
   }
-} satisfies JsonRPCSchema;
+} satisfies RPCSchema;
