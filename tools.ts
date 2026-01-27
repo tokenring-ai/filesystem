@@ -8,7 +8,7 @@ export default {
   write,
   read,
   //append,
-  patch,
+  //patch,
   search,
   bash,
 };
