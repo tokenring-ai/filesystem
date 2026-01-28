@@ -22,7 +22,7 @@ async function execute(
   {
     files,
     naturalLanguagePatch,
-  }: z.infer<typeof inputSchema>,
+  }: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const chatService = agent.requireServiceByType(ChatService);

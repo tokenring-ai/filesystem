@@ -18,7 +18,7 @@ async function execute(
     startRegex,
     endRegex,
     replacement,
-  }: z.infer<typeof inputSchema>,
+  }: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);

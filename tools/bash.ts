@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {TokenRingToolDefinition, type TokenRingToolJSONResult} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import type {ExecuteCommandResult} from "../FileSystemProvider.js";
 import FileSystemService from "../FileSystemService.ts";
@@ -12,9 +12,9 @@ export async function execute(
     command,
     timeoutSeconds = 60,
     workingDirectory,
-  }: z.infer<typeof inputSchema>,
+  }: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<ExecuteCommandResult> {
+): Promise<TokenRingToolJSONResult<ExecuteCommandResult>> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Validate command input
@@ -56,12 +56,15 @@ export async function execute(
   }
 
   try {
-    return await fileSystem.executeCommand(command, {
+    const result = await fileSystem.executeCommand(command, {
       timeoutSeconds,
       workingDirectory: workingDirectory ?? "./",
     }, agent);
+    return {
+      type: "json",
+      data: result
+    };
   } catch (err: unknown) {
-    // Extract error message safely
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`[${name}] ${message}`);
   }
