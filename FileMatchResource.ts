@@ -12,10 +12,7 @@ export interface MatchItem {
  * Class representing a file tree context extending DirectoryService.
  */
 export default class FileMatchResource {
-  private readonly items: MatchItem[];
-
-  constructor({items}: { items: MatchItem[] }) {
-    this.items = items;
+  constructor(private readonly items: MatchItem[]) {
   }
 
   /**

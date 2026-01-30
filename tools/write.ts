@@ -29,7 +29,7 @@ async function execute(
     );
   }
 
-  let curFileContents = await fileSystem.readTextFile(filePath, agent)
+  const curFileContents = await fileSystem.readTextFile(filePath, agent)
 
   const state = agent.getState(FileSystemState);
   if (curFileContents && state.fileWrite.requireReadBeforeWrite && !state.readFiles.has(filePath)) {

@@ -5,8 +5,6 @@ import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import {z} from "zod";
 import FileSystemProvider, {
   type DirectoryTreeOptions,
-  type ExecuteCommandOptions,
-  type ExecuteCommandResult,
   type GlobOptions,
   type GrepOptions,
   type GrepResult,
@@ -27,7 +25,6 @@ export default class FileSystemService implements TokenRingService {
   name = "FileSystemService";
   description = "Abstract interface for virtual file system operations";
 
-  protected dangerousCommands: RegExp[];
   protected defaultProvider!: FileSystemProvider;
 
   private fileSystemProviderRegistry =
@@ -40,7 +37,6 @@ export default class FileSystemService implements TokenRingService {
    * Creates an instance of FileSystem
    */
   constructor(private options: z.output<typeof FileSystemConfigSchema>) {
-    this.dangerousCommands = options.dangerousCommands.map(command => new RegExp(command, "is"));
   }
 
   run(): void {
@@ -172,58 +168,7 @@ export default class FileSystemService implements TokenRingService {
     return activeFileSystem.watch(dir, options as WatchOptions);
   }
 
-  async executeCommand(
-    command: string | string[],
-    options: Partial<ExecuteCommandOptions>,
-    agent: Agent
-  ): Promise<ExecuteCommandResult> {
-    this.setDirty(true, agent);
-    const activeFileSystem = this.requireActiveFileSystem(agent);
-    return activeFileSystem.executeCommand(command, { timeoutSeconds: 120, ...options});
-  }
 
-  getCommandSafetyLevel(shellString: string): "safe" | "unknown" | "dangerous" {
-    for (const dangerousCommand of this.dangerousCommands) {
-      if (dangerousCommand.test(shellString)) {
-        return "dangerous";
-      }
-    }
-
-    const commands = this.parseCompoundCommand(shellString.toLowerCase());
-    for (let command of commands) {
-      command = command.trim();
-      if (!this.options.safeCommands.some((pattern) => command.startsWith(pattern))) {
-        return "unknown";
-      }
-    }
-    return "safe";
-  }
-
-  /**
-   * Parse compound commands to extract individual commands
-   * Handles cases like: "cd frontend/chat && bun add lucide-react"
-   * Returns: ["cd", "bun"]
-   */
-  parseCompoundCommand(command: string): string[] {
-    // Split by common command separators
-    const separators = ["&&", "||", ";", "|"];
-    let commands = [command];
-
-    // Split by each separator
-    for (const sep of separators) {
-      const newCommands: string[] = [];
-      for (const cmd of commands) {
-        newCommands.push(...cmd.split(sep));
-      }
-      commands = newCommands;
-    }
-
-    // Extract command names (first word of each command)
-    return commands
-      .map(cmd => cmd.trim())
-      .filter(cmd => cmd.length > 0)
-      .map(cmd => cmd.split(" ")[0]);
-  }
 
   async grep(
     searchString: string | string[],

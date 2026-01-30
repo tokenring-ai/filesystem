@@ -39,20 +39,6 @@ export interface WatchOptions {
   stabilityThreshold?: number;
 }
 
-export interface ExecuteCommandOptions {
-  timeoutSeconds: number;
-  env?: Record<string, string | undefined>;
-  workingDirectory?: string;
-}
-
-export interface ExecuteCommandResult {
-  ok: boolean;
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  error?: string;
-}
-
 export interface GrepOptions {
   ignoreFilter: (path: string) => boolean;
   includeContent?: { linesBefore?: number; linesAfter?: number };
@@ -98,11 +84,6 @@ export default interface FileSystemProvider {
   glob(pattern: string, options?: GlobOptions): Promise<string[]>;
 
   watch(dir: string, options?: WatchOptions): Promise<any>;
-
-  executeCommand(
-    command: string | string[],
-    options?: ExecuteCommandOptions,
-  ): Promise<ExecuteCommandResult>;
 
   grep(
     searchString: string | string[],
