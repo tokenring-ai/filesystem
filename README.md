@@ -143,7 +143,7 @@ import FileSystemService from "@tokenring-ai/filesystem/FileSystemService";
 #### Provider Management
 - `registerFileSystemProvider(name: string, provider: FileSystemProvider)`: Registers a provider
 - `requireFileSystemProviderByName(name: string)`: Retrieves a registered provider
-- `setActiveFileSystem(name: string, agent: Agent)`: Sets the active provider for an agent
+- `setActiveFileSystem(providerName: string, agent: Agent)`: Sets the active provider for an agent
 - `requireActiveFileSystem(agent: Agent)`: Gets the active provider for an agent
 
 #### State Management
@@ -205,6 +205,7 @@ Abstract interface for filesystem implementations. Implementations can provide v
 export interface StatLike {
   path: string;
   absolutePath?: string;
+  exists: true;
   isFile: boolean;
   isDirectory: boolean;
   isSymbolicLink?: boolean;
@@ -212,6 +213,9 @@ export interface StatLike {
   created?: Date;
   modified?: Date;
   accessed?: Date;
+} | {
+  path: string;
+  exists: false;
 }
 
 export interface GrepResult {
@@ -367,42 +371,6 @@ const result = await write({
 }, agent);
 ```
 
-### file_append
-
-Appends content to the end of a file.
-
-**Tool Basic Setup:**
-```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
-import append from "./tools/append.ts";
-
-const name = "file_append";
-const displayName = "Filesystem/append";
-```
-
-**Parameters:**
-- `path`: Relative path of the file to append to (required)
-- `content`: The content to add to the end of the file (required)
-
-**Behavior:**
-- Ensures file has newline before appending if file exists
-- Enforces read-before-write policy if configured
-- Creates parent directories automatically if needed
-- Returns diff if file existed before (up to maxReturnedDiffSize limit)
-- Sets filesystem as dirty on success
-- Marks file as read in state
-- Generates artifact output (diff)
-- Cannot write `skipArtifactOutput: true` to suppress
-
-**Example:**
-```typescript
-const result = await append({
-  path: 'logs/app.log',
-  content: '2024-01-15: New entry\n'
-}, agent);
-```
-
 ### file_read
 
 Reads files from the filesystem by path or glob pattern.
@@ -446,158 +414,6 @@ const result = await read({
 // Get all TypeScript files
 const result = await read({
   files: ['**/*.ts']
-}, agent);
-```
-
-### patchFilesNaturalLanguage
-
-Patches multiple files using natural language descriptions processed by an LLM.
-
-**Tool Basic Setup:**
-```typescript
-import Agent from "@tokenring-ai/agent/Agent";
-import {ChatModelRegistry} from "@tokenring-ai/ai-client/ModelRegistry";
-import {ChatService} from "@tokenring-ai/chat";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
-import patchFilesNaturalLanguage from "./tools/patchFilesNaturalLanguage.ts";
-
-const systemPrompt = `:The user has provided a file, and a natural language description of an adjustment or patch that needs to be made to the file.:Apply the adjustment to the file, and return the raw updated file content.:`;
-
-const name = "file_patchFilesNaturalLanguage";
-const displayName = "Filesystem/patchFilesNaturalLanguage";
-```
-
-**Parameters:**
-- `files`: List of file paths to patch
-- `naturalLanguagePatch`: Detailed natural language description of the patch to apply
-
-**Behavior:**
-- Reads original file content
-- Uses AI client to generate patched content
-- Validates that content is different from original
-- Deletes AI! markers from patched content
-- Writes patched content back to files
-- Sets filesystem as dirty
-- Returns success count
-
-**Error Handling:**
-- Throws error if no files provided
-- Throws error if patch description is required
-- Throws error if file doesn't exist
-- Throws error if file content can't be read
-- Throws error if LLM returns empty content
-
-**Agent State:**
-- Sets `state.dirty = true`
-- Returns string message with success count
-
-**Example:**
-```typescript
-const result = await patchFilesNaturalLanguage({
-  files: ['src/main.ts'],
-  naturalLanguagePatch: 'Replace the deprecated function call with the new async equivalent'
-}, agent);
-```
-
-### file_patch
-
-Patches a file by replacing content between two specific lines that match exactly.
-
-**Tool Basic Setup:**
-```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
-import patch from "./tools/patch.ts";
-
-const name = "file_patch";
-const displayName = "Filesystem/patch";
-```
-
-**Parameters:**
-- `file`: Path to the file to patch
-- `fromLine`: A line of text that must match exactly to mark the beginning of the content to replace
-- `toLine`: A line of text that must match exactly to mark the end of the content to replace
-- `content`: The content that will replace everything from fromLine to toLine (inclusive)
-
-**Behavior:**
-- Reads original file content
-- Normalizes whitespace for comparison
-- Finds exact matches for fromLine
-- Validates exactly one fromLine match
-- Finds toLine matches after fromLine
-- Validates exactly one toLine match after fromLine
-- Replaces content between fromLine and toLine (inclusive)
-- Writes patched content back to file
-- Sets filesystem as dirty
-- Returns success message with line numbers
-
-**Error Handling:**
-- Throws error if required parameters are missing
-- Throws error if file content can't be read
-- Throws error if fromLine doesn't match anywhere in file
-- Throws error if fromLine matches multiple times
-- Throws error if toLine doesn't match after fromLine
-- Throws error if toLine matches multiple times after fromLine
-- All informational messages prefixed with `[patch]`
-
-**Agent State:**
-- Sets `state.dirty = true`
-
-**Example:**
-```typescript
-const result = await patch({
-  file: 'src/old-config.ts',
-  fromLine: 'export const oldConfig = {',
-  toLine: 'export const newConfig = {',
-  content: '// New configuration values'
-}, agent);
-```
-
-### file_regexPatch
-
-Patches a file using regular expressions.
-
-**Tool Basic Setup:**
-```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
-import regexPatch from "./tools/regexPatch.ts";
-
-const name = "file_regexPatch";
-const displayName = "Filesystem/regexPatch";
-```
-
-**Parameters:**
-- `file`: Path to the file to patch
-- `startRegex`: Regular expression to match beginning of block
-- `endRegex`: Regular expression to match end of block
-- `replacement`: Code to replace matched block
-
-**Behavior:**
-- Reads original file content
-- Validates regex patterns exist in file
-- Replaces content between start and end patterns
-- Writes patched content back to file
-- Sets filesystem as dirty
-- Returns success message
-
-**Error Handling:**
-- Throws error if file content can't be read
-- Throws error if patterns don't match
-- All informational messages prefixed with `[regexPatch]`
-- Errors thrown with tool name prefix
-
-**Agent State:**
-- Sets `state.dirty = true`
-
-**Example:**
-```typescript
-const result = await regexPatch({
-  file: 'src/main.ts',
-  startRegex: 'function oldFunction\\(',
-  endRegex: '\\}$',
-  replacement: 'async function newFunction() {'
 }, agent);
 ```
 
@@ -647,7 +463,7 @@ const result = await search({
 // Regex search for pattern
 const result = await search({
   filePaths: ['pkg/agent/**/*.ts'],
-  searchTerms: ['/class \\w+Service/']
+  searchTerms: ['/class \w+Service/']
 }, agent);
 
 // Search with specific files
@@ -657,82 +473,94 @@ const result = await search({
 }, agent);
 ```
 
-### terminal_bash
+### file_append
 
-Executes shell commands with safety validation.
+Appends content to the end of a file.
 
 **Tool Basic Setup:**
 ```typescript
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
-import bash from "./tools/bash.ts";
+import append from "./tools/append.ts";
 
-const name = "terminal_bash";
-const displayName = "Terminal/bash";
+const name = "file_append";
+const displayName = "Filesystem/append";
 ```
 
 **Parameters:**
-- `command`: The shell command to execute (required)
-- `timeoutSeconds`: Timeout for the command in seconds (default 60, max 90)
-- `workingDirectory`: Working directory, relative to the filesystem root
+- `path`: Relative path of the file to append to (required)
+- `content`: The content to add to the end of the file (required)
 
-**Returns:**
-```typescript
-{
-  ok: boolean,
-  stdout: string,
-  stderr: string,
-  exitCode: number,
-  error?: string
-}
-```
-
-**Safety Levels:**
-- `safe`: Pre-approved commands (e.g., ls, cat, git, npm, bun)
-- `unknown`: Commands not in safe/dangerous lists (requires confirmation)
-- `dangerous`: Commands matching dangerous patterns (e.g., rm, sudo, chmod)
-
-**Confirmation Flow:**
-- Asks for confirmation for unknown commands
-- Asks for confirmation for dangerous commands
-- User can choose to cancel execution
-
-**Safe Commands:**
-```typescript
-["awk", "cat", "cd", "chdir", "diff", "echo", "find", "git", "grep", "head", "help", "hostname", "id", "ipconfig", "tee",
- "ls", "netstat", "ps", "pwd", "sort", "tail", "tree", "type", "uname", "uniq", "wc", "which", "touch", "mkdir",
- "npm", "yarn", "bun", "tsc", "node", "npx", "bunx", "vitest"]
-```
-
-**Dangerous Commands:**
-Commands matching patterns like:
-- `rm -rf *`
-- `dd *`
-- `chmod -R *`
-- `chown -R *`
-- `rmdir *`
-- `find --delete`
-- `find --exec rm`
-- `sudo *`
-- `del *`
-- `format *`
-- `reboot`
-- `shutdown`
-- `git reset`
+**Behavior:**
+- Ensures file has newline before appending if file exists
+- Enforces read-before-write policy if configured
+- Creates parent directories automatically if needed
+- Returns diff if file existed before (up to maxReturnedDiffSize limit)
+- Sets filesystem as dirty on success
+- Marks file as read in state
+- Generates artifact output (diff)
+- Cannot write `skipArtifactOutput: true` to suppress
 
 **Example:**
 ```typescript
-const result = await bash({
-  command: ['npm', 'install'],
-  timeoutSeconds: 120,
-  workingDirectory: './frontend'
+const result = await append({
+  path: 'logs/app.log',
+  content: '2024-01-15: New entry\n'
 }, agent);
+```
 
-if (result.ok) {
-  console.log('Install completed:', result.stdout);
-} else {
-  console.error('Install failed:', result.stderr);
-}
+### file_patch
+
+Patches a file by replacing content between two specific lines that match exactly.
+
+**Tool Basic Setup:**
+```typescript
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {z} from "zod";
+import patch from "./tools/patch.ts";
+
+const name = "file_patch";
+const displayName = "Filesystem/patch";
+```
+
+**Parameters:**
+- `file`: Path to the file to patch
+- `firstLineToMatchAndRemove`: The first line of text to remove
+- `lastLineToMatchAndRemove`: The last line of text to remove
+- `replacementContent`: The content that will replace everything between the two lines
+
+**Behavior:**
+- Reads original file content
+- Normalizes whitespace for comparison
+- Finds exact matches for firstLineToMatchAndRemove
+- Validates exactly one firstLineToMatchAndRemove match
+- Finds lastLineToMatchAndRemove matches after firstLineToMatchAndRemove
+- Validates exactly one lastLineToMatchAndRemove match after firstLineToMatchAndRemove
+- Replaces content between firstLineToMatchAndRemove and lastLineToMatchAndRemove (inclusive)
+- Writes patched content back to file
+- Sets filesystem as dirty
+- Returns success message with line numbers
+
+**Error Handling:**
+- Throws error if required parameters are missing
+- Throws error if file content can't be read
+- Throws error if firstLineToMatchAndRemove doesn't match anywhere in file
+- Throws error if firstLineToMatchAndRemove matches multiple times
+- Throws error if lastLineToMatchAndRemove doesn't match after firstLineToMatchAndRemove
+- Throws error if lastLineToMatchAndRemove matches multiple times after firstLineToMatchAndRemove
+- All informational messages prefixed with `[patch]`
+
+**Agent State:**
+- Sets `state.dirty = true`
+
+**Example:**
+```typescript
+const result = await patch({
+  file: 'src/old-config.ts',
+  firstLineToMatchAndRemove: 'export const oldConfig = {',
+  lastLineToMatchAndRemove: 'export const newConfig = {',
+  replacementContent: '// New configuration values'
+}, agent);
 ```
 
 **Tool Export Pattern:**
@@ -740,22 +568,16 @@ if (result.ok) {
 // tools.ts
 import write from "./tools/write.ts";
 import read from "./tools/read.ts";
+import search from "./tools/search.ts";
 import append from "./tools/append.ts";
 import patch from "./tools/patch.ts";
-import search from "./tools/search.ts";
-import bash from "./tools/bash.ts";
-import patchFilesNaturalLanguage from "./tools/patchFilesNaturalLanguage.ts";
-import regexPatch from "./tools/regexPatch.ts";
 
 export default {
   write,
   read,
+  search,
   append,
   patch,
-  patchFilesNaturalLanguage,
-  regexPatch,
-  search,
-  bash,
 };
 ```
 
@@ -799,7 +621,33 @@ Manage files in your chat session with various actions to add, remove, list, or 
 - **remove [files...]** or `rm [files...]` - Remove specific files from chat
 - **list** or `ls` - Show all files currently in chat session
 - **clear** - Remove all files from chat session
-- **default** - Reset to default files from configuration
+- **default** - Reset to default files from your configuration
+
+## Action Aliases
+
+- **ls** - Alias for 'list' action
+- **rm** - Alias for 'remove' action
+
+## Usage Examples
+
+/file select                    # Interactive file selection
+/file add src/main.ts           # Add a specific file
+/file add src/*.ts              # Add all TypeScript files
+/file add file1.txt file2.txt   # Add multiple files
+/file remove src/main.ts        # Remove a specific file
+/file rm old-file.js            # Remove using alias
+/file list                      # Show current files
+/file ls                        # Show current files (alias)
+/file clear                     # Remove all files
+/file default                   # Reset to config defaults
+
+## Notes
+
+- Use 'select' for a visual file picker when you're unsure which files to add
+- File paths are relative to your current working directory
+- Wildcard patterns (like *.ts) are supported for adding multiple files
+- The 'default' action restores your configured default file set
+- Use 'list' to verify which files are currently in your chat context`;
 ```
 
 **Options:**
@@ -817,7 +665,9 @@ async function selectFiles(filesystem: FileSystemService, agent: Agent) {
   });
   if (selectedFiles) {
     await filesystem.setFilesInChat(selectedFiles, agent);
-    agent.infoMessage(`Selected ${selectedFiles.length} files`);
+    agent.infoMessage(`Selected ${selectedFiles.length} files for chat session`);
+  } else {
+    agent.infoMessage("No files selected.");
   }
 }
 
@@ -829,11 +679,14 @@ async function addFiles(filesystem: FileSystemService, agent: Agent, filesToAdd:
       agent.infoMessage(`Added file to chat: ${file}`);
       addedCount++;
     } catch (error) {
-      agent.errorMessage(`Failed to add file ${file}:`, error);
+      agent.errorMessage(`Failed to add file ${file}:`, error as Error);
     }
   }
+
   if (addedCount > 0) {
-    agent.infoMessage(`Successfully added ${addedCount} file(s)`);
+    agent.infoMessage(
+      `Successfully added ${addedCount} file(s) to the chat session.`,
+    );
   }
 }
 ```
@@ -885,14 +738,14 @@ export default async function* getContextItems(input: string, chatConfig: Parsed
     yield {
       role: "user",
       content: `// The user has attached the following files:\n\n${fileContents.join("\n\n")}`,
-    }
+    };
   }
 
   if (directoryContents.length > 0) {
     yield {
       role: "user",
       content: `// The user has attached the following directory listing:\n\n${directoryContents.join("\n\n")}`,
-    }
+    };
   }
 }
 ```
@@ -1028,7 +881,7 @@ import createIgnoreFilter from "./util/createIgnoreFilter.ts";
 
 async function createIgnoreFilter(fileSystem: FileSystemProvider): Promise<(p: string) => boolean> {
   const ig = ignore();
-  ig.add(".git");
+  ig.add(".git"); // always ignore .git dir at root
   ig.add("*.lock");
   ig.add("node_modules");
   ig.add(".*");
@@ -1084,13 +937,10 @@ pkg/filesystem/
 ├── tools.ts                         # Tool exports
 ├── tools/
 │   ├── write.ts                     # file_write tool
-│   ├── append.ts                    # file_append tool
 │   ├── read.ts                      # file_read tool
-│   ├── patch.ts                     # file_patch tool
-│   ├── patchFilesNaturalLanguage.ts # file_patchFilesNaturalLanguage tool
-│   ├── regexPatch.ts                # file_regexPatch tool
 │   ├── search.ts                    # file_search tool
-│   └── bash.ts                      # terminal_bash tool
+│   ├── append.ts                    # file_append tool
+│   └── patch.ts                     # file_patch tool
 ├── commands/
 │   └── file.ts                      # /file command implementation
 ├── contextHandlers.ts               # Context handler exports
@@ -1135,7 +985,7 @@ bun test:all
 - `@tokenring-ai/ai-client`: AI client registry
 - `@tokenring-ai/utility`: Utility functions
 - `@tokenring-ai/scripting`: Scripting service
-- `@tokenring-ai/web-host`: Web host services
+- `@tokenring-ai/rpc`: RPC service
 - `ignore`: Git ignore pattern matching
 - `path-browserify`: Path manipulation for browser
 - `zod`: Schema validation
