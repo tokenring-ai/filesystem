@@ -4,8 +4,6 @@ import {ChatService} from "@tokenring-ai/chat";
 import {RpcService} from "@tokenring-ai/rpc";
 import {ScriptingService} from "@tokenring-ai/scripting";
 import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService";
-import {WebHostService} from "@tokenring-ai/web-host";
-import JsonRpcResource from "@tokenring-ai/web-host/JsonRpcResource";
 
 import {z} from "zod";
 
