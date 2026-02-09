@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {TokenRingToolDefinition, type TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import {createPatch} from "diff";
 import mime from "mime-types";
 import path from "path";
@@ -16,7 +16,7 @@ async function execute(
     content
   }: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<string> {
+): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   if (!filePath) {
@@ -65,24 +65,28 @@ ${curFileContents}`.trim();
 
   if (curFileContents) {
     const diff = createPatch(filePath, curFileContents, newFileContents);
-    agent.artifactOutput({
-      name: filePath,
-      encoding: "text",
-      mimeType: "text/x-diff",
-      body: diff
-    });
-
-    return "File successfully appended to.";
+    return {
+      type: "text",
+      text: "File successfully appended to.",
+      artifact: {
+        name: filePath,
+        encoding: "text",
+        mimeType: "text/x-diff",
+        body: diff
+      }
+    };
   }
 
-  agent.artifactOutput({
-    name: filePath,
-    encoding: "text",
-    mimeType: mime.lookup(filePath) || "text/plain",
-    body: content
-  });
-
-  return `File successfully created."`;
+  return {
+    type: "text",
+    text: "File successfully created.",
+    artifact: {
+      name: filePath,
+      encoding: "text",
+      mimeType: mime.lookup(filePath) || "text/plain",
+      body: content
+    }
+  };
 }
 
 const description = "Appends content to the end of an existing file. Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the content to be appended to the file";
@@ -101,5 +105,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, displayName, description, inputSchema, execute, skipArtifactOutput: true
+  name, displayName, description, inputSchema, execute
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

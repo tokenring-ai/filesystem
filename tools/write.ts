@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {TokenRingToolDefinition, type TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import {createPatch} from "diff";
 import mime from "mime-types";
 import path from "path";
@@ -17,17 +17,8 @@ async function execute(
     content
   }: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<string> {
+): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
-
-  if (!filePath) {
-    throw new Error(`[${name}] 'path' parameter is required`);
-  }
-  if (!content) {
-    throw new Error(
-      `[${name}] 'content' parameter is required`,
-    );
-  }
 
   const curFileContents = await fileSystem.readTextFile(filePath, agent)
 
@@ -65,27 +56,31 @@ ${curFileContents}`.trim();
 
   if (curFileContents) {
     const diff = createPatch(filePath, curFileContents, content);
-    agent.artifactOutput({
-      name: filePath,
-      encoding: "text",
-      mimeType: "text/x-diff",
-      body: diff
-    });
 
-    if (diff.length <= state.fileWrite.maxReturnedDiffSize ) {
-      return `File successfully written. Changes made:\n${diff}`;
+    return {
+      type: "text",
+      text: diff.length <= state.fileWrite.maxReturnedDiffSize
+        ? `File successfully written. Changes made:\n${diff}`
+        :  "File successfully overwritten.",
+      artifact: {
+        name: filePath,
+        encoding: "text",
+        mimeType: "text/x-diff",
+        body: diff
+      }
     }
-    return "File successfully overwritten.";
   }
 
-  agent.artifactOutput({
-    name: filePath,
-    encoding: "text",
-    mimeType: mime.lookup(filePath) || "text/plain",
-    body: content
-  });
-
-  return `File successfully created."`;
+  return {
+    type: "text",
+    text: "File successfully created.",
+    artifact: {
+      name: filePath,
+      encoding: "text",
+      mimeType: mime.lookup(filePath) || "text/plain",
+      body: content
+    }
+  };
 }
 
 const description = "Writes a file to the filesystem. Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the ENTIRE content of the file";
@@ -104,5 +99,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, displayName, description, inputSchema, execute, skipArtifactOutput: true
+  name, displayName, description, inputSchema, execute
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

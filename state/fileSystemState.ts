@@ -14,7 +14,7 @@ const serializationSchema = z.object({
 });
 
 export class FileSystemState implements AgentStateSlice<typeof serializationSchema> {
-  name = "FileSystemState";
+  readonly name = "FileSystemState";
   serializationSchema = serializationSchema;
   selectedFiles: Set<string>;
   providerName: string | null;

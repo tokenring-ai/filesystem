@@ -7,22 +7,6 @@ import {FileSystemState} from "../state/fileSystemState.ts";
 const name = "file_search";
 const displayName = "Filesystem/search";
 
-export interface MatchInfo {
-  file: string;
-  line: number;
-  match: string;
-  matchedPattern: string;
-  content?: string;
-}
-
-export interface SearchSummary {
-  totalMatches: number;
-  totalFiles: number;
-  searchPatterns: string[];
-  returnType: "names" | "matches";
-  limitExceeded: boolean;
-}
-
 async function execute(
   {
     filePaths,

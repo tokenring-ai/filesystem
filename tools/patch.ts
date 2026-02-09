@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import {TokenRingToolDefinition, type TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import {createPatch} from "diff";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
@@ -16,7 +16,7 @@ async function execute(
     replacementContent,
   }: z.output<typeof inputSchema>,
   agent: Agent,
-): Promise<string> {
+): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   // Read the original file content
@@ -83,14 +83,16 @@ async function execute(
 
   const diff = createPatch(file, originalContent, patchedContent);
 
-  agent.artifactOutput({
-    name: file,
-    encoding: "text",
-    mimeType: "text/x-diff",
-    body: diff
-  });
-
-  return `File successfully patched. Changes made:\n${diff}`;
+  return {
+    type: "text",
+    text: `File successfully patched. Changes made:\n${diff}`,
+    artifact: {
+      name: file,
+      encoding: "text",
+      mimeType: "text/x-diff",
+      body: diff
+    }
+  };
 }
 
 const description =
@@ -118,5 +120,5 @@ const inputSchema = z.object({
 });
 
 export default {
-  name, displayName, description, inputSchema, execute, skipArtifactOutput: true
+  name, displayName, description, inputSchema, execute
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

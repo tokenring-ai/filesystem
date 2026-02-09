@@ -22,7 +22,7 @@ type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
  * for file operations, allowing for different implementations of file systems.
  */
 export default class FileSystemService implements TokenRingService {
-  name = "FileSystemService";
+  readonly name = "FileSystemService";
   description = "Abstract interface for virtual file system operations";
 
   protected defaultProvider!: FileSystemProvider;
@@ -39,7 +39,7 @@ export default class FileSystemService implements TokenRingService {
   constructor(private options: z.output<typeof FileSystemConfigSchema>) {
   }
 
-  run(): void {
+  start(): void {
     // Throws an error if the default provider is not registered, since this is most likely a mistake
     this.defaultProvider = this.fileSystemProviderRegistry.requireItemByName(this.options.agentDefaults.provider);
   }
