@@ -28,7 +28,7 @@ import {TokenRingPlugin} from "@tokenring-ai/app";
 import {z} from "zod";
 import FileSystemService from "./FileSystemService.ts";
 import FileMatchResource from "./FileMatchResource.ts";
-import packageJSON from './package.json' with {type: 'json'};
+import packageJSON from "./package.json" with {type: 'json'};
 import {FileSystemConfigSchema} from "./schema.ts";
 
 const packageConfigSchema = z.object({
@@ -56,7 +56,7 @@ export default {
 } satisfies TokenRingPlugin<typeof packageConfigSchema>;
 ```
 
-## Configuration Schema
+## Plugin Configuration
 
 ### FileSystemConfigSchema
 
@@ -81,26 +81,6 @@ const FileSystemConfigSchema = z.object({
     }).prefault({}),
   }),
   providers: z.record(z.string(), z.any()),
-  resources: z.record(z.string(), z.any()),
-  safeCommands: z.array(z.string()).default([
-    "awk", "cat", "cd", "chdir", "diff", "echo", "find", "git", "grep", "head", "help", "hostname", "id", "ipconfig", "tee",
-    "ls", "netstat", "ps", "pwd", "sort", "tail", "tree", "type", "uname", "uniq", "wc", "which", "touch", "mkdir",
-    "npm", "yarn", "bun", "tsc", "node", "npx", "bunx", "vitest"
-  ]),
-  dangerousCommands: z.array(z.string()).default([
-    "(^|\\s)dd\\s",
-    "(^|\\s)rm.*-.*r",
-    "(^|\\s)chmod.*-.*r",
-    "(^|\\s)chown.*-.*r",
-    "(^|\\s)rmdir\\s",
-    "find.*-(delete|exec)",
-    "(^|\\s)sudo\\s",
-    "(^|\\s)del\\s",
-    "(^|\\s)format\\s",
-    "(^|\\s)reboot",
-    "(^|\\s)shutdown",
-    "git.*reset",
-  ])
 }).strict();
 ```
 
@@ -119,10 +99,10 @@ const FileSystemAgentConfigSchema = z.object({
     maxFileSize: z.number().optional()
   }).optional(),
   fileSearch: z.object({
-    maxSnippetCount: z.number().default(10),
-    maxSnippetSizePercent: z.number().default(0.3),
-    snippetLinesBefore: z.number().default(5),
-    snippetLinesAfter: z.number().default(5),
+    maxSnippetCount: z.number().optional(),
+    maxSnippetSizePercent: z.number().optional(),
+    snippetLinesBefore: z.number().optional(),
+    snippetLinesAfter: z.number().optional(),
   }).optional(),
 }).strict().default({});
 ```
@@ -173,14 +153,11 @@ import FileSystemService from "@tokenring-ai/filesystem/FileSystemService";
 - `watch(dir: string, options, agent)`: Watch for filesystem changes
 
 #### Search Operations
-- `executeCommand(command: string | string[], options, agent)`: Execute shell command
-- `getCommandSafetyLevel(command: string)`: Returns "safe", "unknown", or "dangerous"
-- `parseCompoundCommand(command: string)`: Parse compound commands (&&, ||, ;, |)
 - `grep(searchString: string | string[], options, agent)`: Search for text patterns in files
 
 **Run Method:**
 ```typescript
-run(): void {
+start(): void {
   this.defaultProvider = this.fileSystemProviderRegistry.requireItemByName(this.options.agentDefaults.provider);
 }
 ```
@@ -243,20 +220,6 @@ export interface WatchOptions {
   stabilityThreshold?: number;
 }
 
-export interface ExecuteCommandOptions {
-  timeoutSeconds: number;
-  env?: Record<string, string | undefined>;
-  workingDirectory?: string;
-}
-
-export interface ExecuteCommandResult {
-  ok: boolean;
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  error?: string;
-}
-
 export interface GrepOptions {
   ignoreFilter: (path: string) => boolean;
   includeContent?: { linesBefore?: number; linesAfter?: number };
@@ -271,7 +234,7 @@ export default interface FileSystemProvider {
 
   // File operations
   writeFile(path: string, content: string | Buffer): Promise<boolean>;
-  appendFile(filePath: string, content: string | Buffer): Promise<boolean>;
+  appendFile(filePath: string, finalContent: string | Buffer): Promise<boolean>;
   deleteFile(path: string): Promise<boolean>;
   readFile(path: string): Promise<Buffer|null>;
   rename(oldPath: string, newPath: string): Promise<boolean>;
@@ -288,10 +251,6 @@ export default interface FileSystemProvider {
   ): Promise<boolean>;
   glob(pattern: string, options?: GlobOptions): Promise<string[]>;
   watch(dir: string, options?: WatchOptions): Promise<any>;
-  executeCommand(
-    command: string | string[],
-    options?: ExecuteCommandOptions,
-  ): Promise<ExecuteCommandResult>;
   grep(
     searchString: string | string[],
     options?: GrepOptions,
@@ -473,114 +432,6 @@ const result = await search({
 }, agent);
 ```
 
-### file_append
-
-Appends content to the end of a file.
-
-**Tool Basic Setup:**
-```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
-import append from "./tools/append.ts";
-
-const name = "file_append";
-const displayName = "Filesystem/append";
-```
-
-**Parameters:**
-- `path`: Relative path of the file to append to (required)
-- `content`: The content to add to the end of the file (required)
-
-**Behavior:**
-- Ensures file has newline before appending if file exists
-- Enforces read-before-write policy if configured
-- Creates parent directories automatically if needed
-- Returns diff if file existed before (up to maxReturnedDiffSize limit)
-- Sets filesystem as dirty on success
-- Marks file as read in state
-- Generates artifact output (diff)
-- Cannot write `skipArtifactOutput: true` to suppress
-
-**Example:**
-```typescript
-const result = await append({
-  path: 'logs/app.log',
-  content: '2024-01-15: New entry\n'
-}, agent);
-```
-
-### file_patch
-
-Patches a file by replacing content between two specific lines that match exactly.
-
-**Tool Basic Setup:**
-```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
-import patch from "./tools/patch.ts";
-
-const name = "file_patch";
-const displayName = "Filesystem/patch";
-```
-
-**Parameters:**
-- `file`: Path to the file to patch
-- `firstLineToMatchAndRemove`: The first line of text to remove
-- `lastLineToMatchAndRemove`: The last line of text to remove
-- `replacementContent`: The content that will replace everything between the two lines
-
-**Behavior:**
-- Reads original file content
-- Normalizes whitespace for comparison
-- Finds exact matches for firstLineToMatchAndRemove
-- Validates exactly one firstLineToMatchAndRemove match
-- Finds lastLineToMatchAndRemove matches after firstLineToMatchAndRemove
-- Validates exactly one lastLineToMatchAndRemove match after firstLineToMatchAndRemove
-- Replaces content between firstLineToMatchAndRemove and lastLineToMatchAndRemove (inclusive)
-- Writes patched content back to file
-- Sets filesystem as dirty
-- Returns success message with line numbers
-
-**Error Handling:**
-- Throws error if required parameters are missing
-- Throws error if file content can't be read
-- Throws error if firstLineToMatchAndRemove doesn't match anywhere in file
-- Throws error if firstLineToMatchAndRemove matches multiple times
-- Throws error if lastLineToMatchAndRemove doesn't match after firstLineToMatchAndRemove
-- Throws error if lastLineToMatchAndRemove matches multiple times after firstLineToMatchAndRemove
-- All informational messages prefixed with `[patch]`
-
-**Agent State:**
-- Sets `state.dirty = true`
-
-**Example:**
-```typescript
-const result = await patch({
-  file: 'src/old-config.ts',
-  firstLineToMatchAndRemove: 'export const oldConfig = {',
-  lastLineToMatchAndRemove: 'export const newConfig = {',
-  replacementContent: '// New configuration values'
-}, agent);
-```
-
-**Tool Export Pattern:**
-```typescript
-// tools.ts
-import write from "./tools/write.ts";
-import read from "./tools/read.ts";
-import search from "./tools/search.ts";
-import append from "./tools/append.ts";
-import patch from "./tools/patch.ts";
-
-export default {
-  write,
-  read,
-  search,
-  append,
-  patch,
-};
-```
-
 ## Chat Commands
 
 ### /file
@@ -612,14 +463,14 @@ const help: string = `# 📁 FILE MANAGEMENT COMMAND
 
 /file [action] [files...]
 
-Manage files in your chat session with various actions to add, remove, list, or clear files.
+Manage files in your chat session with various actions to add, remove, list, or clear files. The file system tracks which files are included in your current chat context.
 
 ## Available Actions
 
-- **select** - Open interactive file selector
+- **select** - Open interactive file selector to choose files
 - **add [files...]** - Add specific files to chat session
-- **remove [files...]** or `rm [files...]` - Remove specific files from chat
-- **list** or `ls` - Show all files currently in chat session
+- **remove [files...]** - Remove specific files from chat session
+- **list (or ls)** - Show all files currently in chat session
 - **clear** - Remove all files from chat session
 - **default** - Reset to default files from your configuration
 
@@ -650,50 +501,9 @@ Manage files in your chat session with various actions to add, remove, list, or 
 - Use 'list' to verify which files are currently in your chat context`;
 ```
 
-**Options:**
-```typescript
-async function selectFiles(filesystem: FileSystemService, agent: Agent) {
-  const selectedFiles = await agent.askQuestion({
-    message: "Select a file or directory:",
-    question: {
-      type: 'fileSelect',
-      label: "File Selection",
-      defaultValue: Array.from(filesystem.getFilesInChat(agent)),
-      allowDirectories: true,
-      allowFiles: true,
-    }
-  });
-  if (selectedFiles) {
-    await filesystem.setFilesInChat(selectedFiles, agent);
-    agent.infoMessage(`Selected ${selectedFiles.length} files for chat session`);
-  } else {
-    agent.infoMessage("No files selected.");
-  }
-}
-
-async function addFiles(filesystem: FileSystemService, agent: Agent, filesToAdd: string[]) {
-  let addedCount = 0;
-  for (const file of filesToAdd) {
-    try {
-      await filesystem.addFileToChat(file, agent);
-      agent.infoMessage(`Added file to chat: ${file}`);
-      addedCount++;
-    } catch (error) {
-      agent.errorMessage(`Failed to add file ${file}:`, error as Error);
-    }
-  }
-
-  if (addedCount > 0) {
-    agent.infoMessage(
-      `Successfully added ${addedCount} file(s) to the chat session.`,
-    );
-  }
-}
-```
-
 ## Context Handlers
 
-### selectedFiles
+### selected-files
 
 Provides contents of selected files as chat context.
 
@@ -713,9 +523,9 @@ Provides contents of selected files as chat context.
 ```typescript
 export default async function* getContextItems(input: string, chatConfig: ParsedChatConfig, params: {}, agent: Agent): AsyncGenerator<ContextItem> {
   const fileSystemService = agent.requireServiceByType(FileSystemService);
+
   const fileContents: string[] = [];
   const directoryContents: string[] = [];
-
   for (const file of agent.getState(FileSystemState).selectedFiles) {
     const content = await fileSystemService.readTextFile(file, agent);
     if (content) {
@@ -729,7 +539,7 @@ export default async function* getContextItems(input: string, chatConfig: Parsed
         const files = await Array.fromAsync(directoryListing);
         directoryContents.push(`BEGIN DIRECTORY LISTING:\n${file}\n${files.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`);
       } catch (error) {
-        // File doesn't exist or is not a directory
+        // The file does not exist, or is not a directory
       }
     }
   }
@@ -738,19 +548,19 @@ export default async function* getContextItems(input: string, chatConfig: Parsed
     yield {
       role: "user",
       content: `// The user has attached the following files:\n\n${fileContents.join("\n\n")}`,
-    };
+    }
   }
 
   if (directoryContents.length > 0) {
     yield {
       role: "user",
       content: `// The user has attached the following directory listing:\n\n${directoryContents.join("\n\n")}`,
-    };
+    }
   }
 }
 ```
 
-### searchFiles
+### search-files
 
 Provides file search results based on user input keywords.
 
@@ -803,6 +613,31 @@ Matching lines:
 Finding line N: content
 ```
 
+## RPC Endpoints
+
+The package registers RPC endpoints under `/rpc/filesystem`.
+
+**Location:** `rpc/filesystem.ts`
+
+### Endpoints
+
+| Method | Type | Description |
+|--------|------|-------------|
+| `readTextFile` | Query | Read file content as text |
+| `exists` | Query | Check if a file exists |
+| `stat` | Query | Get file statistics |
+| `glob` | Query | Match files with glob pattern |
+| `listDirectory` | Query | List directory contents |
+| `writeFile` | Mutation | Write a file |
+| `appendFile` | Mutation | Append to a file |
+| `deleteFile` | Mutation | Delete a file |
+| `rename` | Mutation | Rename a file |
+| `createDirectory` | Mutation | Create a directory |
+| `copy` | Mutation | Copy a file or directory |
+| `addFileToChat` | Mutation | Add file to chat context |
+| `removeFileFromChat` | Mutation | Remove file from chat context |
+| `getSelectedFiles` | Query | Get currently selected files in chat |
+
 ## State Management
 
 ### FileSystemState
@@ -813,9 +648,12 @@ Tracks filesystem-related state for agents.
 ```typescript
 interface FileSystemState {
   selectedFiles: Set<string>       // Files in chat context
-  providerName: string            // Active provider name
-  dirty: boolean                  // Whether files have been modified
+  providerName: string | null      // Active provider name
+  dirty: boolean                   // Whether files have been modified
   readFiles: Set<string>          // Files that have been read
+  fileWrite: FileWriteConfig      // Write configuration
+  fileRead: FileReadConfig        // Read configuration
+  fileSearch: FileSearchConfig    // Search configuration
   initialConfig?: {
     selectedFiles: string[]       // Initial selected files from config
   }
@@ -938,21 +776,21 @@ pkg/filesystem/
 ├── tools/
 │   ├── write.ts                     # file_write tool
 │   ├── read.ts                      # file_read tool
-│   ├── search.ts                    # file_search tool
-│   ├── append.ts                    # file_append tool
-│   └── patch.ts                     # file_patch tool
+│   └── search.ts                    # file_search tool
 ├── commands/
 │   └── file.ts                      # /file command implementation
 ├── contextHandlers.ts               # Context handler exports
 ├── contextHandlers/
-│   ├── selectedFiles.ts             # selectedFiles context handler
-│   └── searchFiles.ts               # searchFiles context handler
+│   ├── selectedFiles.ts             # selected-files context handler
+│   └── searchFiles.ts               # search-files context handler
 ├── state/
 │   └── fileSystemState.ts           # State management
 ├── util/
 │   └── createIgnoreFilter.ts        # Ignore filter creation
-├── test/
-│   └── FileSystemService.commandValidation.test.ts
+├── chatCommands.ts                  # Chat command exports
+├── rpc/
+│   ├── filesystem.ts                # RPC endpoint definitions
+│   └── schema.ts                    # RPC schema definitions
 ├── vitest.config.ts                 # Test configuration
 └── README.md                        # This file
 ```
@@ -971,6 +809,9 @@ bun test:coverage
 
 # Run integration tests
 bun test:integration
+
+# Run e2e tests
+bun test:e2e
 
 # Run all tests including integration
 bun test:all
@@ -991,6 +832,11 @@ bun test:all
 - `zod`: Schema validation
 - `diff`: Diff generation for file operations
 - `mime-types`: MIME type detection
+
+**Development Dependencies:**
+- `@vitest/coverage-v8`: Coverage tool
+- `vitest`: Testing framework
+- `typescript`: TypeScript compiler
 
 ## License
 
