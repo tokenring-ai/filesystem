@@ -1,4 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
+import type {AgentCreationContext} from "@tokenring-ai/agent/types";
 import {TokenRingService} from "@tokenring-ai/app/types";
 import deepMerge from "@tokenring-ai/utility/object/deepMerge";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
@@ -45,11 +46,11 @@ export default class FileSystemService implements TokenRingService {
   }
 
 
-  attach(agent: Agent): void {
+  attach(agent: Agent, creationContext: AgentCreationContext): void {
     const config = deepMerge(this.options.agentDefaults, agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema))
     agent.initializeState(FileSystemState, config);
     if (config.selectedFiles.length > 0) {
-      agent.infoMessage(`Selected files: ${config.selectedFiles.join(', ')}`);
+      creationContext.items.push(`Selected files: ${config.selectedFiles.join(', ')}`);
     }
   }
 
