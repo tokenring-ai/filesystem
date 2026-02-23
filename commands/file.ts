@@ -1,5 +1,6 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
 import markdownList from "@tokenring-ai/utility/string/markdownList";
 import numberedList from "@tokenring-ai/utility/string/numberedList";
 import FileSystemService from "../FileSystemService.ts";
@@ -20,7 +21,7 @@ const description: string =
   "/file - Manage files in the chat session (select, add, remove, list, clear, defaults).";
 
 // Updated function signatures to use concrete types instead of `any`
-async function selectFiles(filesystem: FileSystemService, agent: Agent) {
+async function selectFiles(filesystem: FileSystemService, agent: Agent): Promise<string> {
   const selectedFiles = await agent.askQuestion({
     message: "Select a file or directory:",
     question: {
@@ -34,9 +35,9 @@ async function selectFiles(filesystem: FileSystemService, agent: Agent) {
 
   if (selectedFiles) {
     await filesystem.setFilesInChat(selectedFiles, agent);
-    agent.infoMessage(`Selected ${selectedFiles.length} files for chat session`);
+    return `Selected ${selectedFiles.length} files for chat session`;
   } else {
-    agent.infoMessage("No files selected.");
+    return "No files selected.";
   }
 }
 
@@ -44,69 +45,86 @@ async function addFiles(
   filesystem: FileSystemService,
   agent: Agent,
   filesToAdd: string[],
-) {
+): Promise<string> {
   let addedCount = 0;
+  const errors: string[] = [];
+  
   for (const file of filesToAdd) {
     try {
       await filesystem.addFileToChat(file, agent);
-      agent.infoMessage(`Added file to chat: ${file}`);
       addedCount++;
     } catch (error) {
-      agent.errorMessage(`Failed to add file ${file}:`, error as Error);
+      errors.push(`Failed to add file ${file}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   if (addedCount > 0) {
-    agent.infoMessage(
-      `Successfully added ${addedCount} file(s) to the chat session.`,
-    );
+    const msg = `Successfully added ${addedCount} file(s) to the chat session.`;
+    if (errors.length > 0) {
+      return msg + "\n" + errors.join("\n");
+    }
+    return msg;
   }
+  
+  if (errors.length > 0) {
+    throw new CommandFailedError(errors.join("\n"));
+  }
+  
+  return "No files added.";
 }
 
 async function removeFiles(
   filesystem: FileSystemService,
   agent: Agent,
   filesToRemove: string[],
-) {
+): Promise<string> {
   let removedCount = 0;
+  const errors: string[] = [];
+  
   for (const file of filesToRemove) {
     try {
       filesystem.removeFileFromChat(file, agent);
-      agent.infoMessage(`Removed file from chat: ${file}`);
       removedCount++;
     } catch (error) {
-      agent.errorMessage(`Failed to remove file ${file}:`, error as Error);
+      errors.push(`Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   if (removedCount > 0) {
-    agent.infoMessage(
-      `Successfully removed ${removedCount} file(s) from the chat session.`,
-    );
+    const msg = `Successfully removed ${removedCount} file(s) from the chat session.`;
+    if (errors.length > 0) {
+      return msg + "\n" + errors.join("\n");
+    }
+    return msg;
   }
+  
+  if (errors.length > 0) {
+    throw new CommandFailedError(errors.join("\n"));
+  }
+  
+  return "No files removed.";
 }
 
-async function listFiles(filesystem: FileSystemService, agent: Agent) {
+async function listFiles(filesystem: FileSystemService, agent: Agent): Promise<string> {
   const filesInChat: string[] = Array.from(filesystem.getFilesInChat(agent));
 
   if (!filesInChat || filesInChat.length === 0) {
-    agent.infoMessage("No files are currently in the chat session.");
-    return;
+    return "No files are currently in the chat session.";
   }
 
   const lines: string[] = [
     "Files in chat session:",
     numberedList(filesInChat)
   ];
-  agent.infoMessage(lines.join("\n"));
+  return lines.join("\n");
 }
 
-async function clearFiles(filesystem: FileSystemService, agent: Agent) {
+async function clearFiles(filesystem: FileSystemService, agent: Agent): Promise<string> {
   await filesystem.setFilesInChat([], agent);
-  agent.infoMessage("Cleared all files from the chat session.");
+  return "Cleared all files from the chat session.";
 }
 
-async function defaultFiles(filesystem: FileSystemService, agent: Agent) {
+async function defaultFiles(filesystem: FileSystemService, agent: Agent): Promise<string> {
   const { initialConfig } = agent.getState(FileSystemState);
 
   await filesystem.setFilesInChat(initialConfig.selectedFiles, agent);
@@ -114,7 +132,7 @@ async function defaultFiles(filesystem: FileSystemService, agent: Agent) {
     "Added default files to the chat session:",
     markdownList(initialConfig.selectedFiles)
   ];
-  agent.infoMessage(lines.join("\n"));
+  return lines.join("\n");
 }
 
 /**
@@ -163,7 +181,7 @@ Manage files in your chat session with various actions to add, remove, list, or 
 - The 'default' action restores your configured default file set
 - Use 'list' to verify which files are currently in your chat context`;
 
-async function execute(remainder: string, agent: Agent) {
+async function execute(remainder: string, agent: Agent): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
 
   const args = remainder ? remainder.trim().split(/\s+/) : [];
@@ -173,34 +191,27 @@ async function execute(remainder: string, agent: Agent) {
 
   switch (action) {
     case "select":
-      await selectFiles(filesystem, agent);
-      break;
+      return await selectFiles(filesystem, agent);
 
     case "add":
-      await addFiles(filesystem, agent, actionArgs);
-      break;
+      return await addFiles(filesystem, agent, actionArgs);
 
     case "remove":
     case "rm":
-      await removeFiles(filesystem, agent, actionArgs);
-      break;
+      return await removeFiles(filesystem, agent, actionArgs);
 
     case "list":
     case "ls":
-      await listFiles(filesystem, agent);
-      break;
+      return await listFiles(filesystem, agent);
 
     case "clear":
-      await clearFiles(filesystem, agent);
-      break;
+      return await clearFiles(filesystem, agent);
 
     case "default":
-      await defaultFiles(filesystem, agent);
-      break;
+      return await defaultFiles(filesystem, agent);
 
     default:
-      agent.chatOutput(help);
-      break;
+      return help;
   }
 }
 
