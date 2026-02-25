@@ -37,11 +37,6 @@ ${filePath}:\n\n
 ${curFileContents}`.trim();
   }
 
-  agent.infoMessage(
-    `[${name}] Modifying file ${filePath}`,
-  );
-
-
   // Ensure parent directory exists
   const dirPath = path.dirname(filePath);
   if (dirPath !== "." && dirPath !== "/") {
@@ -98,6 +93,9 @@ const inputSchema = z.object({
     ),
 });
 
+
+const requiredContextHandlers= ["selected-files"];
+
 export default {
-  name, displayName, description, inputSchema, execute
+  name, displayName, description, inputSchema, execute, requiredContextHandlers
 } satisfies TokenRingToolDefinition<typeof inputSchema>;
