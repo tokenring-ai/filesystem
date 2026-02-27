@@ -1,5 +1,5 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {ContextItem, ParsedChatConfig} from "@tokenring-ai/chat/schema";
+import {type ContextHandlerOptions, ContextItem, ParsedChatConfig} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import {GrepResult} from "../FileSystemProvider.js";
 import FileSystemService from "../FileSystemService.js";
@@ -386,18 +386,13 @@ function formatResults(results: FileMatch[], keywords: string[]): string {
 /**
  * Main context provider function
  */
-export default async function* getContextItems(
-  chatInputMessage: string,
-  chatConfig: ParsedChatConfig,
-  params: unknown,
-  agent: Agent
-): AsyncGenerator<ContextItem> {
-  const { maxResults } = FileSearchContextSchema.parse(params);
+export default async function* getContextItems({input, attachments, chatConfig, sourceConfig, agent}: ContextHandlerOptions): AsyncGenerator<ContextItem> {
+  const { maxResults } = FileSearchContextSchema.parse(sourceConfig);
 
   const fileSystemService = agent.requireServiceByType(FileSystemService);
 
-  const keywords = extractKeywords(chatInputMessage);
-  const extensions = extractFileExtensions(chatInputMessage);
+  const keywords = extractKeywords(input);
+  const extensions = extractFileExtensions(input);
 
   if (keywords.length === 0) {
     return;
