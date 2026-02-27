@@ -7,7 +7,7 @@ import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService";
 
 import {z} from "zod";
 
-import chatCommands from "./chatCommands.ts";
+import agentCommands from "./commands.ts";
 import contextHandlers from "./contextHandlers.ts";
 import FileSystemService from "./FileSystemService.js";
 import packageJSON from "./package.json" with {type: "json"};
@@ -70,7 +70,7 @@ export default {
         chatService.registerContextHandlers(contextHandlers);
       });
       app.waitForService(AgentCommandService, agentCommandService =>
-        agentCommandService.addAgentCommands(chatCommands)
+        agentCommandService.addAgentCommands(agentCommands)
       );
       app.addServices(new FileSystemService(config.filesystem));
 

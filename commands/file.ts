@@ -216,6 +216,7 @@ async function execute(remainder: string, agent: Agent): Promise<string> {
 }
 
 export default {
+  name: "file",
   description,
   execute,
   help,

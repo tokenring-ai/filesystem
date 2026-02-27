@@ -1,5 +1,5 @@
 import file from "./commands/file.ts";
 
-export default {
+export default [
   file,
-};
+];
