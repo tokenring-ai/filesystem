@@ -2,6 +2,7 @@ import Agent from "@tokenring-ai/agent/Agent";
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
+import runFileValidator from "../util/runFileValidator.ts";
 
 /**
  * Executes a regex based patch on a file.
@@ -57,8 +58,8 @@ async function execute(
   agent.infoMessage(`[${toolName}] Patched file: ${file}`);
   fileSystem.setDirty(true, agent);
 
-  // Return a plain success string without tool name prefix
-  return `Successfully patched file ${file} using regex pattern`;
+  const validationSuffix = await runFileValidator(file, patchedContent, agent);
+  return `Successfully patched file ${file} using regex pattern` + validationSuffix;
 }
 
 const description =

@@ -6,6 +6,7 @@ import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
+import runFileValidator from "../util/runFileValidator.ts";
 
 // Tool name export as required
 const name = "file_write";
@@ -43,20 +44,22 @@ ${curFileContents}`.trim();
     await fileSystem.createDirectory(dirPath, {recursive: true}, agent);
   }
 
-  let success = await fileSystem.writeFile(filePath, content, agent);
+  await fileSystem.writeFile(filePath, content, agent);
 
   agent.mutateState(FileSystemState, (state: FileSystemState) => {
     state.readFiles.add(filePath);
   });
+
+  const validationSuffix = state.fileWrite.validateWrittenFiles ? await runFileValidator(filePath, content, agent) : '';
 
   if (curFileContents) {
     const diff = createPatch(filePath, curFileContents, content);
 
     return {
       type: "text",
-      text: diff.length <= state.fileWrite.maxReturnedDiffSize
+      text: (diff.length <= state.fileWrite.maxReturnedDiffSize
         ? `File successfully written. Changes made:\n${diff}`
-        :  "File successfully overwritten.",
+        : "File successfully overwritten.") + validationSuffix,
       artifact: {
         name: filePath,
         encoding: "text",
@@ -68,7 +71,7 @@ ${curFileContents}`.trim();
 
   return {
     type: "text",
-    text: "File successfully created.",
+    text: "File successfully created." + validationSuffix,
     artifact: {
       name: filePath,
       encoding: "text",

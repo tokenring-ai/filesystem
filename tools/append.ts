@@ -6,6 +6,7 @@ import path from "path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
+import runFileValidator from "../util/runFileValidator.ts";
 
 const name = "file_append";
 const displayName = "Filesystem/append";
@@ -61,13 +62,15 @@ ${curFileContents}`.trim();
   }
   newFileContents += content;
 
-  let success = await fileSystem.writeFile(filePath, newFileContents, agent);
+  await fileSystem.writeFile(filePath, newFileContents, agent);
+
+  const validationSuffix = await runFileValidator(filePath, newFileContents, agent);
 
   if (curFileContents) {
     const diff = createPatch(filePath, curFileContents, newFileContents);
     return {
       type: "text",
-      text: "File successfully appended to.",
+      text: "File successfully appended to." + validationSuffix,
       artifact: {
         name: filePath,
         encoding: "text",
@@ -79,7 +82,7 @@ ${curFileContents}`.trim();
 
   return {
     type: "text",
-    text: "File successfully created.",
+    text: "File successfully created." + validationSuffix,
     artifact: {
       name: filePath,
       encoding: "text",

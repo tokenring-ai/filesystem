@@ -3,6 +3,7 @@ import {TokenRingToolDefinition, type TokenRingToolResult} from "@tokenring-ai/c
 import {createPatch} from "diff";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
+import runFileValidator from "../util/runFileValidator.ts";
 
 // Exported name for the tool
 const name = "file_patch";
@@ -76,16 +77,16 @@ async function execute(
   const patchedLines = [...beforeLines, ...contentsLines, ...afterLines];
   const patchedContent = patchedLines.join("\n");
 
-  // Write the patched content back to the file
   await fileSystem.writeFile(file, patchedContent, agent);
 
   fileSystem.setDirty(true, agent);
 
   const diff = createPatch(file, originalContent, patchedContent);
+  const validationSuffix = await runFileValidator(file, patchedContent, agent);
 
   return {
     type: "text",
-    text: `File successfully patched. Changes made:\n${diff}`,
+    text: `File successfully patched. Changes made:\n${diff}` + validationSuffix,
     artifact: {
       name: file,
       encoding: "text",
