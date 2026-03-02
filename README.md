@@ -1,6 +1,6 @@
 # @tokenring-ai/filesystem Package
 
-A filesystem abstraction service for Token Ring AI agents that provides unified file operations including reading, writing, searching, and executing shell commands through a provider-based architecture.
+A filesystem abstraction service for Token Ring AI agents that provides unified file operations including reading, writing, searching, and executing commands through a provider-based architecture.
 
 ## Overview
 
@@ -8,10 +8,11 @@ The `@tokenring-ai/filesystem` package provides a unified, abstracted filesystem
 
 - File reading and writing with safety controls
 - File search and content management
-- Shell command execution with safety validation
 - Chat-based file management
 - Context-aware file tracking and state management
 - Multi-provider architecture for different filesystem implementations
+- RPC endpoints for remote file operations
+- Scripting functions for common file operations
 
 The package integrates deeply with the agent system, providing both tools for AI-driven operations and chat commands for user interface control.
 
@@ -26,8 +27,7 @@ bun install @tokenring-ai/filesystem
 ```typescript
 import {TokenRingPlugin} from "@tokenring-ai/app";
 import {z} from "zod";
-import FileSystemService from "./FileSystemService.ts";
-import FileMatchResource from "./FileMatchResource.ts";
+import plugin from "./plugin.ts";
 import packageJSON from "./package.json" with {type: 'json'};
 import {FileSystemConfigSchema} from "./schema.ts";
 
@@ -35,25 +35,7 @@ const packageConfigSchema = z.object({
   filesystem: FileSystemConfigSchema.optional(),
 });
 
-export default {
-  name: packageJSON.name,
-  version: packageJSON.version,
-  description: packageJSON.description,
-  config: packageConfigSchema,
-  install(app, config) {
-    if (!config.filesystem) return;
-
-    const fileSystemService = new FileSystemService(config.filesystem);
-    app.addServices(fileSystemService);
-
-    // Register resources if configured
-    if (config.filesystem.resources) {
-      for (const [name, resourceConfig] of Object.entries(config.filesystem.resources)) {
-        app.addResource(name, new FileMatchResource(resourceConfig));
-      }
-    }
-  },
-} satisfies TokenRingPlugin<typeof packageConfigSchema>;
+export default plugin satisfies TokenRingPlugin<typeof packageConfigSchema>;
 ```
 
 ## Plugin Configuration
@@ -68,6 +50,7 @@ const FileSystemConfigSchema = z.object({
     fileWrite: z.object({
       requireReadBeforeWrite: z.boolean().default(true),
       maxReturnedDiffSize: z.number().default(1024),
+      validateWrittenFiles: z.boolean().default(true),
     }).prefault({}),
     fileRead: z.object({
       maxFileReadCount: z.number().default(10),
@@ -93,6 +76,7 @@ const FileSystemAgentConfigSchema = z.object({
   fileWrite: z.object({
     requireReadBeforeWrite: z.boolean().optional(),
     maxReturnedDiffSize: z.number().optional(),
+    validateWrittenFiles: z.boolean().optional(),
   }).optional(),
   fileRead: z.object({
     maxFileReadCount: z.number().optional(),
@@ -126,8 +110,12 @@ import FileSystemService from "@tokenring-ai/filesystem/FileSystemService";
 - `setActiveFileSystem(providerName: string, agent: Agent)`: Sets the active provider for an agent
 - `requireActiveFileSystem(agent: Agent)`: Gets the active provider for an agent
 
+#### File Validator Management
+- `registerFileValidator(extension: string, validator: FileValidator)`: Registers a validator for file extension
+- `getFileValidatorForExtension(extension: string)`: Gets validator for file extension
+
 #### State Management
-- `attach(agent: Agent)`: Initializes state for agent
+- `attach(agent: Agent, creationContext: AgentCreationContext)`: Initializes state for agent
 - `addFileToChat(file: string, agent: Agent)`: Adds file to chat context
 - `removeFileFromChat(file: string, agent: Agent)`: Removes file from chat context
 - `getFilesInChat(agent: Agent)`: Returns set of files in chat
@@ -164,11 +152,11 @@ start(): void {
 
 **Attach Method:**
 ```typescript
-attach(agent: Agent): void {
+attach(agent: Agent, creationContext: AgentCreationContext): void {
   const config = deepMerge(this.options.agentDefaults, agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema))
   agent.initializeState(FileSystemState, config);
   if (config.selectedFiles.length > 0) {
-    agent.infoMessage(`Selected files: ${config.selectedFiles.join(', ')}`);
+    creationContext.items.push(`Selected files: ${config.selectedFiles.join(', ')}`);
   }
 }
 ```
@@ -312,6 +300,7 @@ const displayName = "Filesystem/write";
 - Sets filesystem as dirty on success
 - Marks file as read in state
 - Generates artifact output (diff)
+- Runs file validator if configured (validateWrittenFiles)
 - Cannot write `skipArtifactOutput: true` to suppress
 
 **Error Cases:**
@@ -354,6 +343,7 @@ const displayName = "Filesystem/read";
 - Marks read files in `FileSystemState`
 - Returns file names only if too many files are matched
 - Handles binary files gracefully
+- Handles directories by recursively reading contents
 
 **Error Cases:**
 - Returns "No files were found" if no files match
@@ -509,7 +499,7 @@ Provides contents of selected files as chat context.
 
 **Location:** `contextHandlers/selectedFiles.ts`
 
-**Handler:** `getContextItems(input: string, chatConfig: ParsedChatConfig, params: {}, agent: Agent): AsyncGenerator<ContextItem>`
+**Handler:** `getContextItems({agent}: ContextHandlerOptions): AsyncGenerator<ContextItem>`
 
 **Behavior:**
 - Yields file contents for files in `state.selectedFiles`
@@ -521,7 +511,7 @@ Provides contents of selected files as chat context.
 
 **Implementation:**
 ```typescript
-export default async function* getContextItems(input: string, chatConfig: ParsedChatConfig, params: {}, agent: Agent): AsyncGenerator<ContextItem> {
+export default async function* getContextItems({agent}: ContextHandlerOptions): AsyncGenerator<ContextItem> {
   const fileSystemService = agent.requireServiceByType(FileSystemService);
 
   const fileContents: string[] = [];
@@ -566,7 +556,7 @@ Provides file search results based on user input keywords.
 
 **Location:** `contextHandlers/searchFiles.ts`
 
-**Handler:** `getContextItems(chatInputMessage: string, chatConfig: ParsedChatConfig, params: unknown, agent: Agent): AsyncGenerator<ContextItem>`
+**Handler:** `getContextItems({input, attachments, chatConfig, sourceConfig, agent}: ContextHandlerOptions): AsyncGenerator<ContextItem>`
 
 **Configuration Schema:**
 ```typescript
@@ -637,6 +627,36 @@ The package registers RPC endpoints under `/rpc/filesystem`.
 | `addFileToChat` | Mutation | Add file to chat context |
 | `removeFileFromChat` | Mutation | Remove file from chat context |
 | `getSelectedFiles` | Query | Get currently selected files in chat |
+
+## Scripting Functions
+
+The package registers scripting functions for common file operations:
+
+**Location:** `plugin.ts`
+
+### Functions
+
+| Function | Parameters | Description |
+|----------|------------|-------------|
+| `createFile` | `path`, `content` | Create a file with content |
+| `deleteFile` | `path` | Delete a file |
+| `globFiles` | `pattern` | Match files with glob pattern |
+| `searchFiles` | `searchString` | Search for text patterns in files |
+
+**Example:**
+```typescript
+// Create a file
+await scriptingService.executeFunction("createFile", ["src/main.ts", "// content"]);
+
+// Delete a file
+await scriptingService.executeFunction("deleteFile", ["src/old.ts"]);
+
+// Find all TypeScript files
+const files = await scriptingService.executeFunction("globFiles", ["**/*.ts"]);
+
+// Search for a pattern
+const results = await scriptingService.executeFunction("searchFiles", ["function execute"]);
+```
 
 ## State Management
 
@@ -762,12 +782,34 @@ options.ignoreFilter ??= await createIgnoreFilter(activeFileSystem);
 const files = await fs.glob(pattern, options, agent);
 ```
 
+## File Validator System
+
+File validators can be registered to validate file contents after writing:
+
+**Registration:**
+```typescript
+const fileSystemService = app.requireService(FileSystemService);
+
+fileSystemService.registerFileValidator('.ts', async (path: string, content: string) => {
+  // Validate TypeScript file
+  const result = await runTypeScriptValidator(content);
+  return result ? `TypeScript validation failed: ${result}` : null;
+});
+```
+
+**Usage:**
+- Validators are automatically run after file writes if `validateWrittenFiles` is enabled
+- Validators receive the file path and content
+- Return `null` for success, or an error message string for failure
+- Error messages are appended to the tool result
+
 ## Package Structure
 
 ```
 pkg/filesystem/
 ├── index.ts                         # Main exports
 ├── package.json                     # Package configuration
+├── plugin.ts                        # Plugin registration
 ├── schema.ts                        # Zod configuration schemas
 ├── FileSystemService.ts             # Core service implementation
 ├── FileSystemProvider.ts            # Provider interface definitions
@@ -777,6 +819,7 @@ pkg/filesystem/
 │   ├── write.ts                     # file_write tool
 │   ├── read.ts                      # file_read tool
 │   └── search.ts                    # file_search tool
+├── commands.ts                      # Command exports
 ├── commands/
 │   └── file.ts                      # /file command implementation
 ├── contextHandlers.ts               # Context handler exports
@@ -786,8 +829,8 @@ pkg/filesystem/
 ├── state/
 │   └── fileSystemState.ts           # State management
 ├── util/
-│   └── createIgnoreFilter.ts        # Ignore filter creation
-├── chatCommands.ts                  # Chat command exports
+│   ├── createIgnoreFilter.ts        # Ignore filter creation
+│   └── runFileValidator.ts          # File validator runner
 ├── rpc/
 │   ├── filesystem.ts                # RPC endpoint definitions
 │   └── schema.ts                    # RPC schema definitions
@@ -831,7 +874,6 @@ bun test:all
 - `path-browserify`: Path manipulation for browser
 - `zod`: Schema validation
 - `diff`: Diff generation for file operations
-- `mime-types`: MIME type detection
 
 **Development Dependencies:**
 - `@vitest/coverage-v8`: Coverage tool
