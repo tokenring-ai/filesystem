@@ -1,5 +1,4 @@
-import type {ResetWhat} from "@tokenring-ai/agent/AgentEvents";
-import type {AgentStateSlice} from "@tokenring-ai/agent/types";
+import {AgentStateSlice} from "@tokenring-ai/agent/types";
 import {z} from "zod";
 import {FileSystemConfigSchema} from "../schema.ts";
 
@@ -13,9 +12,7 @@ const serializationSchema = z.object({
   readFiles: z.array(z.string())
 });
 
-export class FileSystemState implements AgentStateSlice<typeof serializationSchema> {
-  readonly name = "FileSystemState";
-  serializationSchema = serializationSchema;
+export class FileSystemState extends AgentStateSlice<typeof serializationSchema> {
   selectedFiles: Set<string>;
   providerName: string | null;
   dirty: boolean = false;
@@ -26,6 +23,7 @@ export class FileSystemState implements AgentStateSlice<typeof serializationSche
   fileSearch: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileSearch"];
 
   constructor(readonly initialConfig: z.output<typeof FileSystemConfigSchema>["agentDefaults"]) {
+    super("FileSystemState",serializationSchema);
     this.selectedFiles = new Set(initialConfig.selectedFiles);
     this.providerName = initialConfig.provider ?? null
     this.fileRead = initialConfig.fileRead;
@@ -33,12 +31,10 @@ export class FileSystemState implements AgentStateSlice<typeof serializationSche
     this.fileSearch = initialConfig.fileSearch;
   }
 
-  reset(what: ResetWhat[]): void {
-    if (what.includes("chat")) {
-      this.selectedFiles = new Set(this.initialConfig.selectedFiles);
-      this.dirty = false;
-      this.readFiles.clear();
-    }
+  reset(): void {
+    this.selectedFiles = new Set(this.initialConfig.selectedFiles);
+    this.dirty = false;
+    this.readFiles.clear();
   }
 
   serialize(): z.output<typeof serializationSchema> {

@@ -1,10 +1,9 @@
+import {AgentLifecycleService} from "@tokenring-ai/agent";
 import Agent from "@tokenring-ai/agent/Agent";
 import type {AgentCreationContext} from "@tokenring-ai/agent/types";
 import {TokenRingService} from "@tokenring-ai/app/types";
 import deepMerge from "@tokenring-ai/utility/object/deepMerge";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
-
-export type FileValidator = (path: string, content: string) => Promise<string | null>;
 import {z} from "zod";
 import FileSystemProvider, {
   type DirectoryTreeOptions,
@@ -17,6 +16,8 @@ import FileSystemProvider, {
 import {FileSystemAgentConfigSchema, FileSystemConfigSchema} from "./schema.ts";
 import {FileSystemState} from "./state/fileSystemState.js";
 import createIgnoreFilter from "./util/createIgnoreFilter.ts";
+
+export type FileValidator = (path: string, content: string) => Promise<string | null>;
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
@@ -56,8 +57,10 @@ export default class FileSystemService implements TokenRingService {
     const config = deepMerge(this.options.agentDefaults, agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema))
     agent.initializeState(FileSystemState, config);
     if (config.selectedFiles.length > 0) {
-      creationContext.items.push(`Selected files: ${config.selectedFiles.join(', ')}`);
+      creationContext.items.push(`Selected Files: ${config.selectedFiles.join(', ')}`);
     }
+
+    agent.requireServiceByType(AgentLifecycleService).enableHooks(["@tokenring-ai/filesystem/clearReadFiles"], agent);
   }
 
   requireActiveFileSystem(agent: Agent): FileSystemProvider {

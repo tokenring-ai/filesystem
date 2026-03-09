@@ -1,0 +1,24 @@
+import {Agent} from "@tokenring-ai/agent";
+import {HookSubscription} from "@tokenring-ai/agent/types";
+import {HookCallback} from "@tokenring-ai/agent/util/hooks";
+import {AfterChatClear, AfterChatCompaction} from "@tokenring-ai/chat/hooks";
+import {FileSystemState} from "../state/fileSystemState";
+
+const name = "clearReadFiles";
+const displayName = "Filesystem/Clear Read Files";
+const description =
+  "Automatically clears the read files state when the chat context is compacted or cleared";
+
+function clearReadFiles(_data: any, agent: Agent) {
+  agent.mutateState(FileSystemState, state => {
+    state.readFiles = new Set();
+    state.dirty = false;
+  });
+}
+
+const callbacks = [
+  new HookCallback(AfterChatCompaction, clearReadFiles),
+  new HookCallback(AfterChatClear, clearReadFiles),
+];
+
+export default {name, displayName, description, callbacks} satisfies HookSubscription;

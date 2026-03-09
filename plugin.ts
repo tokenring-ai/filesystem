@@ -1,6 +1,7 @@
-import {AgentCommandService} from "@tokenring-ai/agent";
+import {AgentCommandService, AgentLifecycleService} from "@tokenring-ai/agent";
 import {TokenRingPlugin} from "@tokenring-ai/app";
 import {ChatService} from "@tokenring-ai/chat";
+import hooks from "./hooks.ts";
 import {RpcService} from "@tokenring-ai/rpc";
 import {ScriptingService} from "@tokenring-ai/scripting";
 import {ScriptingThis} from "@tokenring-ai/scripting/ScriptingService";
@@ -69,6 +70,10 @@ export default {
         chatService.addTools(tools);
         chatService.registerContextHandlers(contextHandlers);
       });
+
+      app.waitForService(AgentLifecycleService, lifecycleService =>
+        lifecycleService.addHooks(packageJSON.name, hooks)
+      );
       app.waitForService(AgentCommandService, agentCommandService =>
         agentCommandService.addAgentCommands(agentCommands)
       );
