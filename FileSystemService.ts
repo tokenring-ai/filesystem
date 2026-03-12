@@ -59,8 +59,6 @@ export default class FileSystemService implements TokenRingService {
     if (config.selectedFiles.length > 0) {
       creationContext.items.push(`Selected Files: ${config.selectedFiles.join(', ')}`);
     }
-
-    agent.requireServiceByType(AgentLifecycleService).enableHooks(["@tokenring-ai/filesystem/clearReadFiles"], agent);
   }
 
   requireActiveFileSystem(agent: Agent): FileSystemProvider {
