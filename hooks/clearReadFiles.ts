@@ -1,7 +1,7 @@
 import {Agent} from "@tokenring-ai/agent";
-import {HookSubscription} from "@tokenring-ai/agent/types";
-import {HookCallback} from "@tokenring-ai/agent/util/hooks";
 import {AfterChatClear, AfterChatCompaction} from "@tokenring-ai/chat/hooks";
+import type {HookSubscription} from "@tokenring-ai/lifecycle/types";
+import {HookCallback} from "@tokenring-ai/lifecycle/util/hooks";
 import {FileSystemState} from "../state/fileSystemState";
 
 const name = "clearReadFiles";
