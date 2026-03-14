@@ -2,6 +2,7 @@ import z from "zod";
 
 export const FileSystemAgentConfigSchema = z.object({
   provider: z.string().optional(),
+  workingDirectory: z.string().optional(),
   selectedFiles: z.array(z.string()).optional(),
   fileWrite: z.object({
     requireReadBeforeWrite: z.boolean().optional(),
@@ -23,6 +24,7 @@ export const FileSystemAgentConfigSchema = z.object({
 export const FileSystemConfigSchema = z.object({
   agentDefaults: z.object({
     provider: z.string(),
+    workingDirectory: z.string(),
     selectedFiles: z.array(z.string()).default([]),
     fileWrite: z.object({
       requireReadBeforeWrite: z.boolean().default(true),

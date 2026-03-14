@@ -13,6 +13,8 @@ The `@tokenring-ai/filesystem` package provides a unified, abstracted filesystem
 - Multi-provider architecture for different filesystem implementations
 - RPC endpoints for remote file operations
 - Scripting functions for common file operations
+- Automatic ignore filter system (.gitignore, .aiignore support)
+- File validation system for post-write validation
 
 The package integrates deeply with the agent system, providing both tools for AI-driven operations and chat commands for user interface control.
 
@@ -46,6 +48,7 @@ export default plugin satisfies TokenRingPlugin<typeof packageConfigSchema>;
 const FileSystemConfigSchema = z.object({
   agentDefaults: z.object({
     provider: z.string(),
+    workingDirectory: z.string(),
     selectedFiles: z.array(z.string()).default([]),
     fileWrite: z.object({
       requireReadBeforeWrite: z.boolean().default(true),
@@ -72,6 +75,7 @@ const FileSystemConfigSchema = z.object({
 ```typescript
 const FileSystemAgentConfigSchema = z.object({
   provider: z.string().optional(),
+  workingDirectory: z.string().optional(),
   selectedFiles: z.array(z.string()).optional(),
   fileWrite: z.object({
     requireReadBeforeWrite: z.boolean().optional(),
@@ -143,9 +147,15 @@ import FileSystemService from "@tokenring-ai/filesystem/FileSystemService";
 #### Search Operations
 - `grep(searchString: string | string[], options, agent)`: Search for text patterns in files
 
-**Run Method:**
+**Constructor:**
+```typescript
+constructor(options: z.output<typeof FileSystemConfigSchema>)
+```
+
+**Start Method:**
 ```typescript
 start(): void {
+  // Throws an error if the default provider is not registered
   this.defaultProvider = this.fileSystemProviderRegistry.requireItemByName(this.options.agentDefaults.provider);
 }
 ```
@@ -211,34 +221,35 @@ export interface WatchOptions {
 export interface GrepOptions {
   ignoreFilter: (path: string) => boolean;
   includeContent?: { linesBefore?: number; linesAfter?: number };
+  cwd?: string;
 }
 
 export default interface FileSystemProvider {
   // Directory walking
   getDirectoryTree(
-    path: string,
+    absolutePath: string,
     params?: DirectoryTreeOptions,
   ): AsyncGenerator<string>;
 
   // File operations
-  writeFile(path: string, content: string | Buffer): Promise<boolean>;
-  appendFile(filePath: string, finalContent: string | Buffer): Promise<boolean>;
-  deleteFile(path: string): Promise<boolean>;
-  readFile(path: string): Promise<Buffer|null>;
-  rename(oldPath: string, newPath: string): Promise<boolean>;
-  exists(path: string): Promise<boolean>;
-  stat(path: string): Promise<StatLike>;
+  writeFile(absolutePath: string, content: string | Buffer): Promise<boolean>;
+  appendFile(absoluteFilePath: string, finalContent: string | Buffer): Promise<boolean>;
+  deleteFile(absolutePath: string): Promise<boolean>;
+  readFile(absolutePath: string): Promise<Buffer|null>;
+  rename(oldAbsolutePath: string, newAbsolutePath: string): Promise<boolean>;
+  exists(absolutePath: string): Promise<boolean>;
+  stat(absolutePath: string): Promise<StatLike>;
   createDirectory(
-    path: string,
+    absolutePath: string,
     options?: { recursive?: boolean },
   ): Promise<boolean>;
   copy(
-    source: string,
-    destination: string,
+    absoluteSource: string,
+    absoluteDestination: string,
     options?: { overwrite?: boolean },
   ): Promise<boolean>;
-  glob(pattern: string, options?: GlobOptions): Promise<string[]>;
-  watch(dir: string, options?: WatchOptions): Promise<any>;
+  glob(absolutePattern: string, options?: GlobOptions): Promise<string[]>;
+  watch(absoluteDir: string, options?: WatchOptions): Promise<any>;
   grep(
     searchString: string | string[],
     options?: GrepOptions,
@@ -248,7 +259,7 @@ export default interface FileSystemProvider {
 
 ### FileMatchResource
 
-A resource class for matching files based on include/exclude patterns. Provides async generation of matched files.
+A resource class for matching files based on include/exclude patterns. Provides async generation of matched files using the FileSystemService.
 
 **Exports:**
 ```typescript
@@ -271,6 +282,18 @@ export default class FileMatchResource {
 }
 ```
 
+**Usage:**
+```typescript
+const fileMatchResource = new FileMatchResource([
+  { path: 'src', include: /\.ts$/ },
+  { path: 'pkg', exclude: /node_modules/ }
+]);
+
+for await (const file of fileMatchResource.getMatchedFiles(agent)) {
+  console.log(file);
+}
+```
+
 ## Tools
 
 Tools are exported from `tools.ts` and registered with ChatService during plugin installation.
@@ -279,10 +302,9 @@ Tools are exported from `tools.ts` and registered with ChatService during plugin
 
 Writes a file to the filesystem.
 
-**Tool Basic Setup:**
+**Tool Definition:**
 ```typescript
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
 import write from "./tools/write.ts";
 
 const name = "file_write";
@@ -301,7 +323,6 @@ const displayName = "Filesystem/write";
 - Marks file as read in state
 - Generates artifact output (diff for modifications, full content for new files)
 - Runs file validator if configured (`validateWrittenFiles`)
-- Cannot write `skipArtifactOutput: true` to suppress
 
 **Error Cases:**
 - Returns helpful message if file wasn't read before write and policy is enforced
@@ -315,9 +336,16 @@ const displayName = "Filesystem/write";
 
 **Example:**
 ```typescript
+// Create a new file
 const result = await write({
   path: 'src/main.ts',
   content: '// New file content'
+}, agent);
+
+// Modify an existing file
+const result = await write({
+  path: 'src/main.ts',
+  content: '// Updated file content'
 }, agent);
 ```
 
@@ -325,10 +353,9 @@ const result = await write({
 
 Reads files from the filesystem by path or glob pattern.
 
-**Tool Basic Setup:**
+**Tool Definition:**
 ```typescript
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
 import read from "./tools/read.ts";
 
 const name = "file_read";
@@ -369,16 +396,20 @@ const result = await read({
 const result = await read({
   files: ['**/*.ts']
 }, agent);
+
+// Read multiple files
+const result = await read({
+  files: ['src/main.ts', 'src/utils.ts']
+}, agent);
 ```
 
 ### file_search
 
 Searches for text patterns within files.
 
-**Tool Basic Setup:**
+**Tool Definition:**
 ```typescript
 import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
 import search from "./tools/search.ts";
 
 const name = "file_search";
@@ -394,7 +425,7 @@ const displayName = "Filesystem/search";
 - Returns grep-style snippets with context lines (`snippetLinesBefore` and `snippetLinesAfter`)
 - Automatically decides whether to return full file contents, snippets, or file names based on match count
 - Marks read files in state
-- Supports fuzzy matching and keyword extraction
+- Searches are OR-based across multiple patterns (any match counts)
 
 **Search Patterns:**
 - Plain strings: Fuzzy substring matching (case-insensitive)
@@ -433,6 +464,11 @@ const result = await search({
   filePaths: ['src/**/*.ts', 'pkg/**/*.ts'],
   searchTerms: ['TODO', 'FIXME']
 }, agent);
+
+// Search across all files (default)
+const result = await search({
+  searchTerms: ['import']
+}, agent);
 ```
 
 ## Chat Commands
@@ -443,14 +479,37 @@ Manage files in the chat session.
 
 **Location:** `commands/file/`
 
-| Command | File | Description |
-|---------|------|-------------|
-| `/file select` | `commands/file/select.ts` | Interactive file selector |
-| `/file add [files...]` | `commands/file/add.ts` | Add specific files to chat |
-| `/file remove [files...]` | `commands/file/remove.ts` | Remove specific files from chat |
-| `/file list` | `commands/file/list.ts` | List all files currently in chat |
-| `/file clear` | `commands/file/clear.ts` | Remove all files from chat |
-| `/file default` | `commands/file/default.ts` | Reset to default files from config |
+| Command | File | Aliases | Description |
+|---------|------|---------|-------------|
+| `/file select` | `commands/file/select.ts` | - | Interactive file selector |
+| `/file add [files...]` | `commands/file/add.ts` | - | Add specific files to chat |
+| `/file remove [files...]` | `commands/file/remove.ts` | `/file rm` | Remove specific files from chat |
+| `/file list` | `commands/file/list.ts` | `/file ls` | List all files currently in chat |
+| `/file clear` | `commands/file/clear.ts` | - | Remove all files from chat |
+| `/file default` | `commands/file/default.ts` | - | Reset to default files from config |
+
+**Command Examples:**
+```bash
+# Interactive file selection
+/file select
+
+# Add specific files
+/file add src/main.ts src/utils.ts
+
+# Remove a file
+/file remove src/main.ts
+/file rm src/main.ts
+
+# List files in chat
+/file list
+/file ls
+
+# Clear all files
+/file clear
+
+# Reset to default files
+/file default
+```
 
 ## Context Handlers
 
@@ -589,6 +648,33 @@ The package registers RPC endpoints under `/rpc/filesystem`.
 | `removeFileFromChat` | Mutation | Remove file from chat context | `{ agentId, file }` | `{ success: boolean }` |
 | `getSelectedFiles` | Query | Get currently selected files in chat | `{ agentId }` | `{ files: string[] }` |
 
+**RPC Client Example:**
+```typescript
+import { createRPCClient } from "@tokenring-ai/rpc";
+
+const client = createRPCClient("/rpc/filesystem");
+
+// Read a file
+const { content } = await client.readTextFile({
+  agentId: "agent-123",
+  path: "src/main.ts"
+});
+
+// Write a file
+const { success } = await client.writeFile({
+  agentId: "agent-123",
+  path: "src/new.ts",
+  content: "// New file"
+});
+
+// List directory
+const { files } = await client.listDirectory({
+  agentId: "agent-123",
+  path: "src",
+  recursive: true
+});
+```
+
 ## Scripting Functions
 
 The package registers scripting functions for common file operations:
@@ -630,6 +716,7 @@ Tracks filesystem-related state for agents.
 class FileSystemState {
   selectedFiles: Set<string>       // Files in chat context
   providerName: string | null      // Active provider name
+  workingDirectory: string         // Working directory for path resolution
   dirty: boolean                   // Whether files have been modified
   readFiles: Set<string>          // Files that have been read
   fileWrite: FileWriteConfig      // Write configuration
@@ -654,6 +741,7 @@ agent.initializeState(FileSystemState, config);
 // Access state
 const state = agent.getState(FileSystemState);
 console.log('Active provider:', state.providerName);
+console.log('Working Directory:', state.workingDirectory);
 console.log('Dirty:', state.dirty);
 console.log('Selected files:', Array.from(state.selectedFiles));
 console.log('Read files:', Array.from(state.readFiles));
@@ -764,6 +852,30 @@ fileSystemService.registerFileValidator('.ts', async (path: string, content: str
 - Return `null` for success, or an error message string for failure
 - Error messages are appended to the tool result
 
+## Hooks
+
+### clearReadFiles
+
+Automatically clears the read files state when the chat context is compacted or cleared.
+
+**Location:** `hooks/clearReadFiles.ts`
+
+**Hook Subscription:**
+```typescript
+const name = "clearReadFiles";
+const displayName = "Filesystem/Clear Read Files";
+const description = "Automatically clears the read files state when the chat context is compacted or cleared";
+
+const callbacks = [
+  new HookCallback(AfterChatCompaction, clearReadFiles),
+  new HookCallback(AfterChatClear, clearReadFiles),
+];
+```
+
+**Behavior:**
+- Clears `state.readFiles` when chat is compacted or cleared
+- Resets `state.dirty` to false
+
 ## Package Structure
 
 ```
@@ -782,7 +894,6 @@ pkg/filesystem/
 │   └── search.ts                    # file_search tool
 ├── commands.ts                      # Command exports
 ├── commands/
-│   ├── file.ts                      # /file command index
 │   └── file/
 │       ├── select.ts                # /file select
 │       ├── add.ts                   # /file add
@@ -802,6 +913,9 @@ pkg/filesystem/
 ├── rpc/
 │   ├── filesystem.ts                # RPC endpoint definitions
 │   └── schema.ts                    # RPC schema definitions
+├── hooks.ts                         # Hook exports
+├── hooks/
+│   └── clearReadFiles.ts            # clearReadFiles hook
 ├── vitest.config.ts                 # Test configuration
 └── README.md                        # This file
 ```
@@ -836,6 +950,7 @@ bun test:all
 - `@tokenring-ai/chat`: Chat service
 - `@tokenring-ai/ai-client`: AI client registry
 - `@tokenring-ai/utility`: Utility functions
+- `@tokenring-ai/lifecycle`: Lifecycle service
 - `@tokenring-ai/scripting`: Scripting service
 - `@tokenring-ai/rpc`: RPC service
 - `zod`: Schema validation

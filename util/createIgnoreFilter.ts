@@ -3,9 +3,13 @@
  * @private
  */
 import ignore from "ignore";
-import FileSystemProvider from "../FileSystemProvider.ts";
 
-export default async function createIgnoreFilter(fileSystem: FileSystemProvider): Promise<(p: string) => boolean> {
+type IgnoreFilterFileSystem = {
+  exists(path: string): Promise<boolean>;
+  readFile(path: string): Promise<Buffer | null>;
+};
+
+export default async function createIgnoreFilter(fileSystem: IgnoreFilterFileSystem): Promise<(p: string) => boolean> {
   // Create the base ignore filter
   const ig = ignore();
   ig.add(".git"); // always ignore .git dir at root

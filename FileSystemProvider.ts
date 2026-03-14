@@ -42,6 +42,7 @@ export interface WatchOptions {
 export interface GrepOptions {
   ignoreFilter: (path: string) => boolean;
   includeContent?: { linesBefore?: number; linesAfter?: number };
+  cwd?: string;
 }
 
 /**
@@ -51,39 +52,39 @@ export interface GrepOptions {
 export default interface FileSystemProvider {
   // Directory walking
   getDirectoryTree(
-    path: string,
+    absolutePath: string,
     params?: DirectoryTreeOptions,
   ): AsyncGenerator<string>;
 
   // file ops
-  writeFile(path: string, content: string | Buffer): Promise<boolean>;
+  writeFile(absolutePath: string, content: string | Buffer): Promise<boolean>;
 
-  appendFile(filePath: string, finalContent: string | Buffer): Promise<boolean>;
+  appendFile(absoluteFilePath: string, finalContent: string | Buffer): Promise<boolean>;
 
-  deleteFile(path: string): Promise<boolean>;
+  deleteFile(absolutePath: string): Promise<boolean>;
 
-  readFile(path: string): Promise<Buffer|null>;
+  readFile(absolutePath: string): Promise<Buffer|null>;
 
-  rename(oldPath: string, newPath: string): Promise<boolean>;
+  rename(oldAbsolutePath: string, newAbsolutePath: string): Promise<boolean>;
 
-  exists(path: string): Promise<boolean>;
+  exists(absolutePath: string): Promise<boolean>;
 
-  stat(path: string): Promise<StatLike>;
+  stat(absolutePath: string): Promise<StatLike>;
 
   createDirectory(
-    path: string,
+    absolutePath: string,
     options?: { recursive?: boolean },
   ): Promise<boolean>;
 
   copy(
-    source: string,
-    destination: string,
+    absoluteSource: string,
+    absoluteDestination: string,
     options?: { overwrite?: boolean },
   ): Promise<boolean>;
 
-  glob(pattern: string, options?: GlobOptions): Promise<string[]>;
+  glob(absolutePattern: string, options?: GlobOptions): Promise<string[]>;
 
-  watch(dir: string, options?: WatchOptions): Promise<any>;
+  watch(absoluteDir: string, options?: WatchOptions): Promise<any>;
 
   grep(
     searchString: string | string[],

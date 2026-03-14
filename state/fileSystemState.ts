@@ -5,6 +5,7 @@ import {FileSystemConfigSchema} from "../schema.ts";
 const serializationSchema = z.object({
   selectedFiles: z.array(z.string()),
   activeFileSystemProviderName: z.string().nullable(),
+  workingDirectory: z.string(),
   dirty: z.boolean(),
   fileRead: FileSystemConfigSchema.shape.agentDefaults.shape.fileRead,
   fileSearch: FileSystemConfigSchema.shape.agentDefaults.shape.fileSearch,
@@ -15,6 +16,7 @@ const serializationSchema = z.object({
 export class FileSystemState extends AgentStateSlice<typeof serializationSchema> {
   selectedFiles: Set<string>;
   providerName: string | null;
+  workingDirectory: string;
   dirty: boolean = false;
   readFiles: Set<string> = new Set();
 
@@ -26,12 +28,15 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     super("FileSystemState",serializationSchema);
     this.selectedFiles = new Set(initialConfig.selectedFiles);
     this.providerName = initialConfig.provider ?? null
+    this.workingDirectory = initialConfig.workingDirectory;
     this.fileRead = initialConfig.fileRead;
     this.fileWrite = initialConfig.fileWrite;
     this.fileSearch = initialConfig.fileSearch;
   }
 
   reset(): void {
+    this.providerName = this.initialConfig.provider ?? null;
+    this.workingDirectory = this.initialConfig.workingDirectory;
     this.selectedFiles = new Set(this.initialConfig.selectedFiles);
     this.dirty = false;
     this.readFiles.clear();
@@ -41,6 +46,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     return {
       selectedFiles: Array.from(this.selectedFiles),
       activeFileSystemProviderName: this.providerName,
+      workingDirectory: this.workingDirectory,
       dirty: this.dirty,
       fileRead: this.fileRead,
       fileSearch: this.fileSearch,
@@ -52,6 +58,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
   deserialize(data: z.output<typeof serializationSchema>): void {
     this.selectedFiles = new Set(data.selectedFiles);
     this.providerName = data.activeFileSystemProviderName;
+    this.workingDirectory = data.workingDirectory;
     this.dirty = data.dirty;
     this.fileRead = data.fileRead;
     this.fileSearch = data.fileSearch;
@@ -62,6 +69,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
   show(): string[] {
     return [
       `Provider: ${this.providerName}`,
+      `Working Directory: ${this.workingDirectory}`,
       `Dirty: ${this.dirty}`,
       `Selected Files and Directories: ${this.selectedFiles.size}`,
       ...Array.from(this.selectedFiles).map(f => `  - ${f}`)
