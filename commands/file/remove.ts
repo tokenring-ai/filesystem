@@ -1,32 +1,53 @@
-import Agent from "@tokenring-ai/agent/Agent";
 import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
-import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../FileSystemService.ts";
+
+const inputSchema = {
+  args: {},
+  prompt: {
+    description: "Space-separated file paths to remove",
+    required: true,
+  },
+  allowAttachments: false,
+} as const satisfies AgentCommandInputSchema;
+
+async function execute({prompt, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+  const filesystem = agent.requireServiceByType(FileSystemService);
+  const filesToRemove = prompt ? prompt.trim().split(/\s+/) : [];
+  let removedCount = 0;
+  const errors: string[] = [];
+
+  for (const file of filesToRemove) {
+    try {
+      filesystem.removeFileFromChat(file, agent);
+      removedCount++;
+    } catch (error) {
+      errors.push(`Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (removedCount > 0) {
+    const msg = `Successfully removed ${removedCount} file(s) from the chat session.`;
+    return errors.length > 0 ? msg + "\n" + errors.join("\n") : msg;
+  }
+  if (errors.length > 0) throw new CommandFailedError(errors.join("\n"));
+  return "No files removed.";
+}
 
 export default {
   name: "file remove",
   description: "Remove files from the chat session",
-  help: `# /file remove\n\nRemove specific files from the chat session.\n\n## Aliases\n\n/file rm\n\n## Example\n\n/file remove src/main.ts`,
-  execute: async (remainder: string, agent: Agent): Promise<string> => {
-    const filesystem = agent.requireServiceByType(FileSystemService);
-    const filesToRemove = remainder ? remainder.trim().split(/\s+/) : [];
-    let removedCount = 0;
-    const errors: string[] = [];
+  inputSchema,
+  execute,
+  help: `# /file remove
 
-    for (const file of filesToRemove) {
-      try {
-        filesystem.removeFileFromChat(file, agent);
-        removedCount++;
-      } catch (error) {
-        errors.push(`Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
+Remove specific files from the chat session.
 
-    if (removedCount > 0) {
-      const msg = `Successfully removed ${removedCount} file(s) from the chat session.`;
-      return errors.length > 0 ? msg + "\n" + errors.join("\n") : msg;
-    }
-    if (errors.length > 0) throw new CommandFailedError(errors.join("\n"));
-    return "No files removed.";
-  },
-} satisfies TokenRingAgentCommand;
+## Aliases
+
+/file rm
+
+## Example
+
+/file remove src/main.ts`,
+} satisfies TokenRingAgentCommand<typeof inputSchema>;
