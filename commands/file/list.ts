@@ -5,7 +5,7 @@ import FileSystemService from "../../FileSystemService.ts";
 
 export default {
   name: "file list",
-  description: "/file list - List all files in the chat session",
+  description: "List all files in the chat session",
   help: `# /file list\n\nList all files currently in the chat session.\n\n## Aliases\n\n/file ls\n\n## Example\n\n/file list`,
   execute: async (_remainder: string, agent: Agent): Promise<string> => {
     const filesystem = agent.requireServiceByType(FileSystemService);

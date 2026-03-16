@@ -1,11 +1,11 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
+import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../FileSystemService.ts";
 
 export default {
   name: "file add",
-  description: "/file add [files...] - Add files to the chat session",
+  description: "Add files to the chat session",
   help: `# /file add\n\nAdd specific files to the chat session.\n\n## Example\n\n/file add src/main.ts\n/file add file1.txt file2.txt`,
   execute: async (remainder: string, agent: Agent): Promise<string> => {
     const filesystem = agent.requireServiceByType(FileSystemService);

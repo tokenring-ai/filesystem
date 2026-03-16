@@ -1,11 +1,11 @@
 import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
+import {TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../FileSystemService.ts";
 
 export default {
   name: "file remove",
-  description: "/file remove [files...] - Remove files from the chat session",
+  description: "Remove files from the chat session",
   help: `# /file remove\n\nRemove specific files from the chat session.\n\n## Aliases\n\n/file rm\n\n## Example\n\n/file remove src/main.ts`,
   execute: async (remainder: string, agent: Agent): Promise<string> => {
     const filesystem = agent.requireServiceByType(FileSystemService);

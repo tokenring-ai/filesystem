@@ -4,7 +4,7 @@ import FileSystemService from "../../FileSystemService.ts";
 
 export default {
   name: "file select",
-  description: "/file select - Open interactive file selector",
+  description: "Open interactive file selector",
   help: `# /file select\n\nOpen interactive file selector to choose files for the chat session.\n\n## Example\n\n/file select`,
   execute: async (_remainder: string, agent: Agent): Promise<string> => {
     const filesystem = agent.requireServiceByType(FileSystemService);

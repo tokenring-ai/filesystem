@@ -6,8 +6,7 @@ import {FileSystemState} from "../state/fileSystemState";
 
 const name = "clearReadFiles";
 const displayName = "Filesystem/Clear Read Files";
-const description =
-  "Automatically clears the read files state when the chat context is compacted or cleared";
+const description = "Automatically clears the read files state when the chat context is compacted or cleared";
 
 function clearReadFiles(_data: any, agent: Agent) {
   agent.mutateState(FileSystemState, state => {

@@ -6,7 +6,7 @@ import {FileSystemState} from "../../state/fileSystemState.ts";
 
 export default {
   name: "file default",
-  description: "/file default - Reset to default files from config",
+  description: "Reset to default files from config",
   help: `# /file default\n\nReset to default files from your configuration.\n\n## Example\n\n/file default`,
   execute: async (_remainder: string, agent: Agent): Promise<string> => {
     const filesystem = agent.requireServiceByType(FileSystemService);

@@ -103,8 +103,7 @@ async function execute(
   return `Patched ${patchedFiles.length} files successfully`;
 }
 
-const description =
-  "Patches multiple files using a natural language description, processed by an LLM. Includes code extraction from markdown, line ending preservation, file type validation, and optional diff preview for critical files.";
+const description = "Patches multiple files using a natural language description, processed by an LLM. Includes code extraction from markdown, line ending preservation, file type validation, and optional diff preview for critical files.";
 
 const inputSchema = z.object({
   files: z

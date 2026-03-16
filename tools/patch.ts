@@ -96,8 +96,7 @@ async function execute(
   };
 }
 
-const description =
-  "Removes blocks of content from a file, replacing the content between two matched lines with new content.";
+const description = "Removes blocks of content from a file, replacing the content between two matched lines with new content.";
 
 const inputSchema = z.object({
   file: z

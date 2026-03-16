@@ -62,8 +62,7 @@ async function execute(
   return `Successfully patched file ${file} using regex pattern` + validationSuffix;
 }
 
-const description =
-  "Patches a file using regular expressions to match the beginning and end of a code block to replace.";
+const description = "Patches a file using regular expressions to match the beginning and end of a code block to replace.";
 
 const inputSchema = z.object({
   file: z

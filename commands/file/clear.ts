@@ -4,7 +4,7 @@ import FileSystemService from "../../FileSystemService.ts";
 
 export default {
   name: "file clear",
-  description: "/file clear - Remove all files from the chat session",
+  description: "Remove all files from the chat session",
   help: `# /file clear\n\nRemove all files from the chat session.\n\n## Example\n\n/file clear`,
   execute: async (_remainder: string, agent: Agent): Promise<string> => {
     const filesystem = agent.requireServiceByType(FileSystemService);
