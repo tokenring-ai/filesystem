@@ -4,16 +4,18 @@ import FileSystemService from "../../FileSystemService.ts";
 
 const inputSchema = {
   args: {},
-  prompt: {
+  positionals: [{
+    name: "paths",
     description: "Space-separated file paths to add",
     required: true,
-  },
+    greedy: true,
+  }],
   allowAttachments: false,
 } as const satisfies AgentCommandInputSchema;
 
-async function execute({prompt, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+async function execute({positionals: { paths }, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
-  const filesToAdd = prompt ? prompt.trim().split(/\s+/) : [];
+  const filesToAdd = paths.split(/\s+/);
   let addedCount = 0;
   const errors: string[] = [];
 
@@ -39,9 +41,7 @@ export default {
   description: "Add files to the chat session",
   inputSchema,
   execute,
-  help: `# /file add
-
-Add specific files to the chat session.
+  help: `Add specific files to the chat session.
 
 ## Example
 

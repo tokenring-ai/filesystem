@@ -4,16 +4,18 @@ import FileSystemService from "../../FileSystemService.ts";
 
 const inputSchema = {
   args: {},
-  prompt: {
+  positionals: [{
+    name: "paths",
     description: "Space-separated file paths to remove",
     required: true,
-  },
+    greedy: true,
+  }],
   allowAttachments: false,
 } as const satisfies AgentCommandInputSchema;
 
-async function execute({prompt, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+async function execute({positionals: { paths }, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
-  const filesToRemove = prompt ? prompt.trim().split(/\s+/) : [];
+  const filesToRemove = paths.split(/\s+/);
   let removedCount = 0;
   const errors: string[] = [];
 
@@ -39,13 +41,7 @@ export default {
   description: "Remove files from the chat session",
   inputSchema,
   execute,
-  help: `# /file remove
-
-Remove specific files from the chat session.
-
-## Aliases
-
-/file rm
+  help: `Remove specific files from the chat session.
 
 ## Example
 

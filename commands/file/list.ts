@@ -2,10 +2,7 @@ import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} f
 import numberedList from "@tokenring-ai/utility/string/numberedList";
 import FileSystemService from "../../FileSystemService.ts";
 
-const inputSchema = {
-  args: {},
-  allowAttachments: false,
-} as const satisfies AgentCommandInputSchema;
+const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
 async function execute({agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
@@ -19,9 +16,7 @@ export default {
   description: "List all files in the chat session",
   inputSchema,
   execute,
-  help: `# /file list
-
-List all files currently in the chat session.
+  help: `List all files currently in the chat session.
 
 ## Aliases
 

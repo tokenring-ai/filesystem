@@ -1,10 +1,7 @@
 import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../FileSystemService.ts";
 
-const inputSchema = {
-  args: {},
-  allowAttachments: false,
-} as const satisfies AgentCommandInputSchema;
+const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
 async function execute({agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
@@ -17,9 +14,7 @@ export default {
   description: "Remove all files from the chat session",
   inputSchema,
   execute,
-  help: `# /file clear
-
-Remove all files from the chat session.
+  help: `Remove all files from the chat session.
 
 ## Example
 

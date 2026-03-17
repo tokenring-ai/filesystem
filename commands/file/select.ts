@@ -1,10 +1,7 @@
 import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../FileSystemService.ts";
 
-const inputSchema = {
-  args: {},
-  allowAttachments: false,
-} as const satisfies AgentCommandInputSchema;
+const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
 async function execute({agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
@@ -31,9 +28,7 @@ export default {
   description: "Open interactive file selector",
   inputSchema,
   execute,
-  help: `# /file select
-
-Open interactive file selector to choose files for the chat session.
+  help: `Open interactive file selector to choose files for the chat session.
 
 ## Example
 
