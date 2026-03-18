@@ -4,18 +4,12 @@ import FileSystemService from "../../FileSystemService.ts";
 
 const inputSchema = {
   args: {},
-  positionals: [{
-    name: "paths",
-    description: "Space-separated file paths to remove",
-    required: true,
-    greedy: true,
-  }],
-  allowAttachments: false,
+  remainder: {name: "paths", description: "Space-separated file paths to remove", required: true}
 } as const satisfies AgentCommandInputSchema;
 
-async function execute({positionals: { paths }, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+async function execute({remainder, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
-  const filesToRemove = paths.split(/\s+/);
+  const filesToRemove = remainder.split(/\s+/);
   let removedCount = 0;
   const errors: string[] = [];
 
