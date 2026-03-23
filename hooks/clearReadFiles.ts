@@ -1,5 +1,5 @@
 import {Agent} from "@tokenring-ai/agent";
-import {AfterChatClear, AfterChatCompaction} from "@tokenring-ai/chat/hooks";
+import {AfterChatClear, AfterChatCompaction} from "@tokenring-ai/chat/lifecycle";
 import type {HookSubscription} from "@tokenring-ai/lifecycle/types";
 import {HookCallback} from "@tokenring-ai/lifecycle/util/hooks";
 import {FileSystemState} from "../state/fileSystemState";
