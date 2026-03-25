@@ -10,7 +10,7 @@ const serializationSchema = z.object({
   fileRead: FileSystemConfigSchema.shape.agentDefaults.shape.fileRead,
   fileSearch: FileSystemConfigSchema.shape.agentDefaults.shape.fileSearch,
   fileWrite: FileSystemConfigSchema.shape.agentDefaults.shape.fileWrite,
-  readFiles: z.array(z.string())
+  readFiles: z.record(z.string(), z.number())
 });
 
 export class FileSystemState extends AgentStateSlice<typeof serializationSchema> {
@@ -18,7 +18,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
   providerName: string | null;
   workingDirectory: string;
   dirty: boolean = false;
-  readFiles: Set<string> = new Set();
+  readFiles: Map<string, number> = new Map();
 
   fileWrite: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileWrite"];
   fileRead:  z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileRead"];
@@ -51,7 +51,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
       fileRead: this.fileRead,
       fileSearch: this.fileSearch,
       fileWrite: this.fileWrite,
-      readFiles: Array.from(this.readFiles)
+      readFiles: Object.fromEntries(this.readFiles)
     };
   }
 
@@ -63,7 +63,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     this.fileRead = data.fileRead;
     this.fileSearch = data.fileSearch;
     this.fileWrite = data.fileWrite;
-    this.readFiles = new Set(data.readFiles);
+    this.readFiles = new Map(Object.entries(data.readFiles).map(([k, v]) => [k, Number(v)]));
   }
 
   show(): string[] {
@@ -72,7 +72,8 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
       `Working Directory: ${this.workingDirectory}`,
       `Dirty: ${this.dirty}`,
       `Selected Files and Directories: ${this.selectedFiles.size}`,
-      ...Array.from(this.selectedFiles).map(f => `  - ${f}`)
+      `Read Files with modification times: ${this.readFiles.size}`,
+      ...Array.from(this.readFiles.keys()).map(f => `  - ${f}: ${new Date(this.readFiles.get(f)!).toISOString()}`)
     ];
   }
 }

@@ -21,21 +21,29 @@ async function execute(
 ): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
-  const curFileContents = await fileSystem.readTextFile(filePath, agent)
+  let curFileContents = await fileSystem.readTextFile(filePath, agent)
+  const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
 
   const state = agent.getState(FileSystemState);
-  if (curFileContents && state.fileWrite.requireReadBeforeWrite && !state.readFiles.has(filePath)) {
-    agent.mutateState(FileSystemState, (state) => {
-      state.readFiles.add(filePath);
-    });
-    return `
+  const previouslyReadTime = state.readFiles.get(filePath) ?? 0;
+  if (curFileContents && state.fileWrite.requireReadBeforeWrite) {
+    if (fileModificationTime === null) {
+      agent.infoMessage(`[${name}] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`);
+    } else if (fileModificationTime > previouslyReadTime) {
+      agent.mutateState(FileSystemState, (state) => {
+        state.readFiles.set(filePath, fileModificationTime);
+      })
+
+      return `
 Cannot write to ${filePath}: The tool policy requires that all files must be read before they can be written.
 
 To expedite this process, we have read the file, and included the file contents below, and marked it as read, so that it can now be written.
-It is not required that you re-read the file. Verify the file contents below and the changes you would like to make, and re-submit the file_write tool call to write the file.
+It is not required that you re-read the file. Verify the file contents below and the changes you would like to make, and re-submit the file_append tool call to write the file.
 
 ${filePath}:\n\n
+
 ${curFileContents}`.trim();
+    }
   }
 
   // Ensure parent directory exists
@@ -47,7 +55,7 @@ ${curFileContents}`.trim();
   await fileSystem.writeFile(filePath, content, agent);
 
   agent.mutateState(FileSystemState, (state: FileSystemState) => {
-    state.readFiles.add(filePath);
+    state.readFiles.set(filePath, Date.now());
   });
 
   const validationSuffix = state.fileWrite.validateWrittenFiles ? await runFileValidator(filePath, content, agent) : '';

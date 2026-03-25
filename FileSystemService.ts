@@ -185,6 +185,15 @@ export default class FileSystemService implements TokenRingService {
       });
   }
 
+  async getModifiedTimeNanos(path: string, agent: Agent): Promise<number | null> {
+    const stat = await this.stat(path,agent);
+    if (stat.exists) {
+      const result = stat.modified?.getTime() ?? 0;
+      return result > 0 ? result : null;
+    }
+    return null;
+  }
+
   async createDirectory(
     path: string,
     options: { recursive?: boolean },

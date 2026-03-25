@@ -10,7 +10,7 @@ const description = "Automatically clears the read files state when the chat con
 
 function clearReadFiles(_data: any, agent: Agent) {
   agent.mutateState(FileSystemState, state => {
-    state.readFiles = new Set();
+    state.readFiles.clear();
     state.dirty = false;
   });
 }

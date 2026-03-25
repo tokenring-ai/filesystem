@@ -3,24 +3,30 @@ import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 
 export default async function* getContextItems({agent}: ContextHandlerOptions): AsyncGenerator<ContextItem> {
-  const fileSystemService = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireServiceByType(FileSystemService);
 
   const fileContents: string[] = [];
   const directoryContents: string[] = [];
-  for (const file of agent.getState(FileSystemState).selectedFiles) {
-    const content = await fileSystemService.readTextFile(file, agent);
+  for (const filePath of agent.getState(FileSystemState).selectedFiles) {
+    const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
+
+    const content = await fileSystem.readTextFile(filePath, agent);
     if (content) {
-      fileContents.push(`BEGIN FILE ATTACHMENT: ${file}\n${content}\nEND FILE ATTACHMENT: ${file}`);
-      agent.mutateState(FileSystemState, (state: FileSystemState) => {
-        state.readFiles.add(file);
-      });
+      fileContents.push(`BEGIN FILE ATTACHMENT: ${filePath}\n${content}\nEND FILE ATTACHMENT: ${filePath}`);
+      if (fileModificationTime === null) {
+        agent.infoMessage(`[FileSystemService] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`);
+      } else {
+        agent.mutateState(FileSystemState, (state) => {
+          state.readFiles.set(filePath, fileModificationTime);
+        });
+      }
     } else {
       try {
-        const directoryListing = await fileSystemService.getDirectoryTree(file, {}, agent);
+        const directoryListing = await fileSystem.getDirectoryTree(filePath, {}, agent);
 
         const files = await Array.fromAsync(directoryListing);
 
-        directoryContents.push(`BEGIN DIRECTORY LISTING:\n${file}\n${files.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`);
+        directoryContents.push(`BEGIN DIRECTORY LISTING:\n${filePath}\n${files.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`);
       } catch (error) {
         // The file does not exist, or is not a directory
       }

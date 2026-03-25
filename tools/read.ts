@@ -45,25 +45,25 @@ async function execute(
     return `No files were found that matched the search criteria`;
   }
 
-  const retrievedFiles = new Map<string, string>();
+  const retrievedFiles = new Map<string, { contents: string, modificationTime?: number | null }>();
 
   async function retrieveFile(file: string) {
     const stat = await fileSystem.stat(file, agent);
     if (! stat.exists) {
-      retrievedFiles.set(file, "[File does not exist]");
+      retrievedFiles.set(file, { contents: "[File does not exist]" });
     } else if (stat.isDirectory) {
       for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
         await retrieveFile(dirFile);
       }
     } else if (maxFileSize > 0 && stat.size && stat.size > maxFileSize) {
-      retrievedFiles.set(file, "[File is too large to retrieve]");
+      retrievedFiles.set(file, { contents: "[File is too large to retrieve]" });
     } else {
       const contents = await fileSystem.readFile(file, agent);
       if (contents) {
         if (isBinaryData(contents)) {
-          retrievedFiles.set(file, "[File is binary and cannot be displayed]");
+          retrievedFiles.set(file, { contents: "[File is binary and cannot be displayed]" });
         } else {
-          retrievedFiles.set(file,contents.toString("utf-8"));
+          retrievedFiles.set(file,{ contents: contents.toString("utf-8"), modificationTime: stat.modified?.getTime() });
         }
       } else {
         agent.infoMessage(`[${name}] Couldn't read file ${file}`)
@@ -90,16 +90,18 @@ ${fileNames.map(f => `- ${f}`).join("\n")}
 `.trim();
   }
 
-  agent.mutateState(FileSystemState, (state: FileSystemState) => {
-    for (const fileName of retrievedFiles.keys()) {
-      state.readFiles.add(fileName);
+  agent.mutateState(FileSystemState, (state) => {
+    for (const [fileName, { modificationTime }] of retrievedFiles.entries()) {
+      if (modificationTime) {
+        state.readFiles.set(fileName, modificationTime);
+      }
     }
   });
 
   return `
 The file read operation matched ${retrievedFiles.size} files, the file contents are provided below, between the BEGIN|END FILE ATTACHMENT block headers
   
-${Array.from(retrievedFiles.entries()).map(([file, contents]) => 
+${Array.from(retrievedFiles.entries()).map(([file, {contents}]) => 
     `BEGIN FILE ATTACHMENT: ${file}\n${contents}\nEND FILE ATTACHMENT`
   ).join('\n\n')}
 `.trim();
