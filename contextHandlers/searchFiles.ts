@@ -1,8 +1,8 @@
 import Agent from "@tokenring-ai/agent/Agent";
 import {type ContextHandlerOptions, ContextItem, ParsedChatConfig} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
-import {GrepResult} from "../FileSystemProvider.js";
-import FileSystemService from "../FileSystemService.js";
+import {GrepResult} from "../FileSystemProvider.ts";
+import FileSystemService from "../FileSystemService.ts";
 
 const FileSearchContextSchema = z.object({
   maxResults: z.number().default(25),

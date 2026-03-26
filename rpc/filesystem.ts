@@ -1,7 +1,7 @@
 import {AgentManager} from "@tokenring-ai/agent";
 import TokenRingApp from "@tokenring-ai/app";
 import {createRPCEndpoint} from "@tokenring-ai/rpc/createRPCEndpoint";
-import FileSystemService from "../FileSystemService.js";
+import FileSystemService from "../FileSystemService.ts";
 import FileSystemRpcSchema from "./schema.ts";
 
 export default createRPCEndpoint(FileSystemRpcSchema, {

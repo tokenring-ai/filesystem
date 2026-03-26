@@ -15,7 +15,7 @@ import FileSystemProvider, {
   type WatchOptions
 } from "./FileSystemProvider.js";
 import {FileSystemAgentConfigSchema, FileSystemConfigSchema} from "./schema.ts";
-import {FileSystemState} from "./state/fileSystemState.js";
+import {FileSystemState} from "./state/fileSystemState.ts";
 import createIgnoreFilter from "./util/createIgnoreFilter.ts";
 
 export type FileValidator = (path: string, content: string) => Promise<string | null>;

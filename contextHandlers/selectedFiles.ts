@@ -12,7 +12,7 @@ export default async function* getContextItems({agent}: ContextHandlerOptions): 
 
     const content = await fileSystem.readTextFile(filePath, agent);
     if (content) {
-      fileContents.push(`BEGIN FILE ATTACHMENT: ${filePath}\n${content}\nEND FILE ATTACHMENT: ${filePath}`);
+      fileContents.push(`BEGIN FILE ATTACHMENT: ${filePath}\n${content}\nEND FILE ATTACHMENT`);
       if (fileModificationTime === null) {
         agent.infoMessage(`[FileSystemService] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`);
       } else {

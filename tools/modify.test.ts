@@ -1,10 +1,10 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent";
 import createTestingApp from "@tokenring-ai/app/test/createTestingApp";
-import {FileSystemConfigSchema} from "../schema.js";
-import FileSystemService from "../FileSystemService.js";
-import {FileSystemState} from "../state/fileSystemState.js";
-import findReplaceTool from "./modify.js";
+import {FileSystemConfigSchema} from "../schema.ts";
+import FileSystemService from "../FileSystemService.ts";
+import {FileSystemState} from "../state/fileSystemState.ts";
+import findReplaceTool from "./modify.ts";
 
 function createMockFileSystemProvider(initialFiles: Record<string, string>) {
   const files = new Map(

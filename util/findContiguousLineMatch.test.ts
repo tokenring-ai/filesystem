@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import findContiguousLineMatch from "./findContiguousLineMatch.js";
+import findContiguousLineMatch from "./findContiguousLineMatch.ts";
 
 describe("findContiguousLineMatch", () => {
   it("finds an exact contiguous line match while ignoring whitespace", () => {

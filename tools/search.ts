@@ -62,13 +62,13 @@ async function execute(
     }
   });
 
-  const results = new Map<string, string>
+  const results = new Map<string, string>();
 
   for (const [file, fileContent] of retrievedFiles.entries()) {
     let lines = fileContent.split("\n");
     let lowerCaseLines = lines.map(l => l.toLowerCase());
 
-    const matchedLines = new Set<number>;
+    const matchedLines = new Set<number>();
     for (let pattern of searchPatterns) {
       if (typeof pattern === 'string') {
         for (let i = 0; i < lowerCaseLines.length; i++) {
@@ -128,7 +128,7 @@ async function execute(
       const snippetString = snippets.join("\n");
       // If there are too many snippets, send the whole file
       if (snippetString.length > fileContent.length * options.maxSnippetSizePercent) {
-        results.set(file, `BEGIN FILE ATTACHMENT: ${file}\n${fileContent}\nEND FILE ATTACHMENT`)
+        results.set(file, `BEGIN FILE ATTACHMENT: ${file}\n${fileContent}\nEND FILE ATTACHMENT`);
         continue;
       }
 

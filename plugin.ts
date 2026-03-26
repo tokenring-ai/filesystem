@@ -11,7 +11,7 @@ import {z} from "zod";
 
 import agentCommands from "./commands.ts";
 import contextHandlers from "./contextHandlers.ts";
-import FileSystemService from "./FileSystemService.js";
+import FileSystemService from "./FileSystemService.ts";
 import packageJSON from "./package.json" with {type: "json"};
 import filesystemRPC from "./rpc/filesystem.ts";
 import {FileSystemConfigSchema} from "./schema.ts";
