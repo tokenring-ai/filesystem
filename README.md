@@ -298,6 +298,71 @@ for await (const file of fileMatchResource.getMatchedFiles(agent)) {
 
 Tools are exported from `tools.ts` and registered with ChatService during plugin installation.
 
+### file_modify
+
+Modifies an existing file by finding and replacing contiguous blocks of lines.
+
+**Tool Definition:**
+```typescript
+import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import findReplace from "./tools/findReplace.ts";
+
+const name = "file_modify";
+const displayName = "Filesystem/file_modify";
+```
+
+**Parameters:**
+- `path`: Relative path of the file to modify (required). Relative to the project root directory.
+- `findLines`: Array of lines to find in the file (required). Up to a maximum of 5 lines, each must be a complete contiguous line.
+- `replaceLines`: Array of lines to replace the matched block with (required). Provide an empty array to delete the matched lines.
+
+**Behavior:**
+- Finds a contiguous block of complete lines in an existing file
+- Matches must be exact, complete lines with the exact prior content
+- Partial-line matches are not allowed
+- Supports fuzzy matching with similarity threshold (0.95) when exact match fails
+- Automatically writes the updated file if content changes
+- Returns diff if file existed before (up to `maxReturnedDiffSize` limit)
+- Sets filesystem as dirty on success
+- Marks file as read in state
+- Runs file validator if configured (`validateWrittenFiles`)
+
+**Matching Rules:**
+- Ignores whitespace when matching lines
+- Requires contiguous block of lines (no gaps)
+- Maximum 5 lines for find operation
+- Fuzzy matching uses Levenshtein similarity when exact match fails
+- Minimum 15 characters required for fuzzy matching
+
+**Error Cases:**
+- Returns error if multiple exact matches found
+- Returns error if fuzzy match is not unique enough
+- Returns error if no match found
+- Returns error if file cannot be read
+
+**Agent State:**
+- Sets `state.dirty = true`
+- Updates `state.readFiles` with modification time
+
+**Required Context Handlers:** `["selected-files"]`
+
+**Example:**
+```typescript
+// Modify an existing file
+const result = await file_modify({
+  path: 'src/main.ts',
+  findLines: ['const x = 1;', 'const y = 2;'],
+  replaceLines: ['const x = 10;', 'const y = 20;']
+}, agent);
+
+// Delete lines
+const result = await file_modify({
+  path: 'src/main.ts',
+  findLines: ['// Old comment', 'const old = true;'],
+  replaceLines: []
+}, agent);
+```
+
 ### file_write
 
 Writes a file to the filesystem.
@@ -889,6 +954,7 @@ pkg/filesystem/
 ├── FileMatchResource.ts             # File matching resource class
 ├── tools.ts                         # Tool exports
 ├── tools/
+│   ├── findReplace.ts               # file_modify tool
 │   ├── write.ts                     # file_write tool
 │   ├── read.ts                      # file_read tool
 │   └── search.ts                    # file_search tool
@@ -909,7 +975,9 @@ pkg/filesystem/
 │   └── fileSystemState.ts           # State management
 ├── util/
 │   ├── createIgnoreFilter.ts        # Ignore filter creation
-│   └── runFileValidator.ts          # File validator runner
+│   ├── runFileValidator.ts          # File validator runner
+│   ├── createFileWriteResult.ts     # File write result creation
+│   └── findContiguousLineMatch.ts   # Line matching utility
 ├── rpc/
 │   ├── filesystem.ts                # RPC endpoint definitions
 │   └── schema.ts                    # RPC schema definitions

@@ -56,11 +56,11 @@ export default class FileSystemService implements TokenRingService {
 
   attach(agent: Agent, creationContext: AgentCreationContext): void {
     const config = deepMerge(this.options.agentDefaults, agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema))
-    agent.initializeState(FileSystemState, config);
+    const initialState = agent.initializeState(FileSystemState, config);
     if (config.selectedFiles.length > 0) {
-      creationContext.items.push(`Selected Files: ${config.selectedFiles.join(', ')}`);
+      creationContext.items.push(`Selected Files: ${Array.from(initialState.selectedFiles).join(', ')}`);
     }
-    creationContext.items.push(`Working Directory: ${config.workingDirectory}`);
+    creationContext.items.push(`Working Directory: ${initialState.workingDirectory}`);
   }
 
   requireActiveFileSystem(agent: Agent): FileSystemProvider {
