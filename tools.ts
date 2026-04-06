@@ -1,12 +1,14 @@
-import modify from "./tools/modify.ts";
+import edit from "./tools/edit.ts";
 import read from "./tools/read.ts";
-import search from "./tools/search.ts";
+import glob from "./tools/glob.ts";
+import grep from "./tools/grep.ts";
 import write from "./tools/write.ts";
 
 export default {
-  modify,
+  edit,
   write,
   read,
   //append,
-  search,
+  glob,
+  grep,
 };

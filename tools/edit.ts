@@ -7,8 +7,8 @@ import createFileWriteResult from "../util/createFileWriteResult.ts";
 import findContiguousLineMatch from "../util/findContiguousLineMatch.ts";
 import runFileValidator from "../util/runFileValidator.ts";
 
-const name = "file_modify";
-const displayName = "Filesystem/file_modify";
+const name = "file_edit";
+const displayName = "Filesystem/edit";
 
 const fuzzyMatch = {
   minimumCharacters: 15,
@@ -44,6 +44,12 @@ async function execute(
   }: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<TokenRingToolResult> {
+  const { enabled } = agent.getState(FileSystemState).fileEdit;
+
+  if (!enabled) {
+    throw new Error(`[${name}] File modification is disabled for this session; use the file_write tool instead for all other file updating operations, and do not use file_edit again`);
+  }
+
   const fileSystem = agent.requireServiceByType(FileSystemService);
   const originalContent = await fileSystem.readTextFile(filePath, agent);
 
@@ -55,6 +61,15 @@ async function execute(
   const matchResult = findContiguousLineMatch(originalLines, findLines.split("\n"), {fuzzyMatch});
 
   if (!matchResult.match) {
+    agent.mutateState(FileSystemState, (state) => {
+      state.fileEdit.consecutiveFailureCount += 1;
+      const { consecutiveFailureCount, disableAfterConsecutiveFailures } = state.fileEdit;
+      if (consecutiveFailureCount >= disableAfterConsecutiveFailures) {
+        state.fileEdit.enabled = false;
+        agent.warningMessage(`[${name}] File modification tool has been disabled due to ${disableAfterConsecutiveFailures} consecutive failures.`);
+      }
+    })
+
     if (matchResult.exactMatches.length > 1) {
       throw new Error(
         `[${name}] Found ${matchResult.exactMatches.length} exact matches for the requested line block in file ${filePath}. Expected exactly one match.`,
@@ -77,6 +92,10 @@ async function execute(
       `[${name}] Could not find the requested line block in file ${filePath}. Matching ignores whitespace and only considers whole-line contiguous blocks.`,
     );
   }
+
+  agent.mutateState(FileSystemState, (state) => {
+    state.fileEdit.consecutiveFailureCount = 0;
+  });
 
   if (matchResult.match.matchType === "fuzzy") {
     agent.infoMessage(
@@ -121,7 +140,7 @@ const inputSchema = z.object({
   path: z
     .string()
     .describe(
-      "Relative path of the file to modify (e.g., 'src/main.ts' or 'docs/design.md'). Relative to the project root directory. Required.",
+      "Relative path of the file to edit (e.g., 'src/main.ts' or 'docs/design.md'). Relative to the project root directory. Required.",
     ),
   findLines: z.string()
     .describe(
@@ -133,6 +152,10 @@ const inputSchema = z.object({
     ),
 });
 
+function adjustActivation(enabled: boolean, agent: Agent) {
+  return enabled && agent.getState(FileSystemState).fileEdit.enabled;
+}
+
 const requiredContextHandlers = ["selected-files"];
 
 export default {
@@ -142,4 +165,5 @@ export default {
   inputSchema,
   execute,
   requiredContextHandlers,
+  adjustActivation
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

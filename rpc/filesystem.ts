@@ -2,104 +2,117 @@ import {AgentManager} from "@tokenring-ai/agent";
 import TokenRingApp from "@tokenring-ai/app";
 import {createRPCEndpoint} from "@tokenring-ai/rpc/createRPCEndpoint";
 import FileSystemService from "../FileSystemService.ts";
+import {FileSystemState} from "../state/fileSystemState.ts";
+import fallbackGlob from "../util/fallbackGlob.ts";
 import FileSystemRpcSchema from "./schema.ts";
 
 export default createRPCEndpoint(FileSystemRpcSchema, {
-  async readTextFile(args, app: TokenRingApp) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async getFilesystemProviders(_args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    const content = await fs.readTextFile(args.path, agent);
-    return { content };
+    const providers = fs.getFilesystemProviderNames();
+    return { providers };
   },
 
-  async exists(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async readTextFile(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    const exists = await fs.exists(args.path, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    const content = await provider.readFile(args.path);
+    return { content: content ? content.toString("utf-8") : null };
+  },
+
+  async exists(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    const exists = await provider.exists(args.path);
     return { exists };
   },
 
-  async stat(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async stat(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    const stats = await fs.stat(args.path, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    const stats = await provider.stat(args.path);
     return { stats: JSON.stringify(stats) };
   },
 
-  async glob(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async glob(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    const files = await fs.glob(args.pattern, {}, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    const globOptions = { ignoreFilter: () => false };
+    const files = provider.glob
+      ? await provider.glob(args.pattern, globOptions)
+      : await fallbackGlob(provider, args.pattern, globOptions);
     return { files };
   },
 
-  async listDirectory(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async listDirectory(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
     const files: string[] = [];
-    for await (const file of fs.getDirectoryTree(args.path, {
+    for await (const file of provider.getDirectoryTree(args.path, {
       recursive: args.recursive,
-      ignoreFilter: args.showHidden ? (path) => false : undefined
-    }, agent)) {
+      ignoreFilter: () => false
+    })) {
       files.push(file);
     }
     return { files };
   },
 
-  async writeFile(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async writeFile(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    await fs.writeFile(args.path, args.content, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    await provider.writeFile(args.path, args.content);
     return { success: true };
   },
 
-  async appendFile(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async appendFile(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    await fs.appendFile(args.path, args.content, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    await provider.appendFile(args.path, args.content);
     return { success: true };
   },
 
-  async deleteFile(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async deleteFile(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    await fs.deleteFile(args.path, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    await provider.deleteFile(args.path);
     return { success: true };
   },
 
-  async rename(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async rename(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    await fs.rename(args.oldPath, args.newPath, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    await provider.rename(args.oldPath, args.newPath);
     return { success: true };
   },
 
-  async createDirectory(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async createDirectory(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    await fs.createDirectory(args.path, {recursive: args.recursive}, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    await provider.createDirectory(args.path, { recursive: args.recursive });
     return { success: true };
   },
 
-  async copy(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+  async copy(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    await fs.copy(args.source, args.destination, {overwrite: args.overwrite}, agent);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    await provider.copy(args.source, args.destination, { overwrite: args.overwrite });
     return { success: true };
   },
 
-  async addFileToChat(args, app) {
+  async getFilesystemState(args, app: TokenRingApp) {
+    const agent = app.requireService(AgentManager).getAgent(args.agentId);
+    if (!agent) throw new Error("Agent not found");
+    const state = agent.getState(FileSystemState);
+    return {
+      provider: state.providerName ?? "",
+      workingDirectory: state.workingDirectory,
+      selectedFiles: Array.from(state.selectedFiles),
+      readFiles: Object.fromEntries(state.readFiles),
+      dirty: state.dirty,
+    };
+  },
+
+  async addFileToChat(args, app: TokenRingApp) {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
     if (!agent) throw new Error("Agent not found");
     const fs = app.requireService(FileSystemService);
@@ -107,19 +120,11 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     return { success: true };
   },
 
-  removeFileFromChat(args, app) {
+  removeFileFromChat(args, app: TokenRingApp) {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
     if (!agent) throw new Error("Agent not found");
     const fs = app.requireService(FileSystemService);
     fs.removeFileFromChat(args.file, agent);
     return { success: true };
-  },
-
-  async getSelectedFiles(args, app) {
-    const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
-    const fs = app.requireService(FileSystemService);
-    const files = fs.getFilesInChat(agent);
-    return { files: Array.from(files) };
   },
 });

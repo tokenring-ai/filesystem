@@ -5,10 +5,18 @@ export default {
   name: "Filesystem RPC",
   path: "/rpc/filesystem",
   methods: {
+    getFilesystemProviders: {
+      type: "query",
+      input: z.object({}),
+      result: z.object({
+        providers: z.array(z.string())
+      })
+    },
+
     readTextFile: {
       type: "query",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         path: z.string()
       }),
       result: z.object({
@@ -18,7 +26,7 @@ export default {
     exists: {
       type: "query",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         path: z.string()
       }),
       result: z.object({
@@ -28,7 +36,7 @@ export default {
     stat: {
       type: "query",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         path: z.string()
       }),
       result: z.object({
@@ -38,7 +46,7 @@ export default {
     glob: {
       type: "query",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         pattern: z.string()
       }),
       result: z.object({
@@ -48,7 +56,7 @@ export default {
     listDirectory: {
       type: "query",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         path: z.string(),
         showHidden: z.boolean().default(false),
         recursive: z.boolean().default(false)
@@ -60,7 +68,7 @@ export default {
     writeFile: {
       type: "mutation",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         path: z.string(),
         content: z.string()
       }),
@@ -71,7 +79,7 @@ export default {
     appendFile: {
       type: "mutation",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         path: z.string(),
         content: z.string()
       }),
@@ -82,7 +90,7 @@ export default {
     deleteFile: {
       type: "mutation",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         path: z.string()
       }),
       result: z.object({
@@ -92,7 +100,7 @@ export default {
     rename: {
       type: "mutation",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         oldPath: z.string(),
         newPath: z.string()
       }),
@@ -103,7 +111,7 @@ export default {
     createDirectory: {
       type: "mutation",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         path: z.string(),
         recursive: z.boolean().default(false)
       }),
@@ -114,13 +122,26 @@ export default {
     copy: {
       type: "mutation",
       input: z.object({
-        agentId: z.string(),
+        provider: z.string(),
         source: z.string(),
         destination: z.string(),
         overwrite: z.boolean().default(false)
       }),
       result: z.object({
         success: z.boolean()
+      })
+    },
+    getFilesystemState: {
+      type: "query",
+      input: z.object({
+        agentId: z.string()
+      }),
+      result: z.object({
+        provider: z.string(),
+        workingDirectory: z.string(),
+        selectedFiles: z.array(z.string()),
+        readFiles: z.record(z.string(), z.number()),
+        dirty: z.boolean(),
       })
     },
     addFileToChat: {
@@ -141,15 +162,6 @@ export default {
       }),
       result: z.object({
         success: z.boolean()
-      })
-    },
-    getSelectedFiles: {
-      type: "query",
-      input: z.object({
-        agentId: z.string()
-      }),
-      result: z.object({
-        files: z.array(z.string())
       })
     }
   }

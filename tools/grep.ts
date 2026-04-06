@@ -4,14 +4,11 @@ import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 
-const name = "file_search";
-const displayName = "Filesystem/search";
+const name = "grep";
+const displayName = "Filesystem/grep";
 
 async function execute(
-  {
-    filePaths,
-    searchTerms,
-  }: z.output<typeof inputSchema>,
+  {filePaths, searchTerms}: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -39,18 +36,16 @@ async function execute(
             if (retrievedFiles.has(dirFile)) break;
             const contents = await fileSystem.readTextFile(file, agent);
             if (contents) retrievedFiles.set(file, contents);
-            else agent.infoMessage(`[${name}] Couldn't read file ${file}`)
+            else agent.infoMessage(`[${name}] Couldn't read file ${file}`);
           }
         } else {
           const contents = await fileSystem.readTextFile(file, agent);
           if (contents) retrievedFiles.set(file, contents);
-          else agent.infoMessage(`[${name}] Couldn't read file ${file}`)
+          else agent.infoMessage(`[${name}] Couldn't read file ${file}`);
         }
       }
     } catch (err: any) {
-      agent.infoMessage(
-        `[${name}] Error reading file ${file}: ${err.message}`,
-      );
+      agent.infoMessage(`[${name}] Error reading file ${file}: ${err.message}`);
     }
   }
 
@@ -65,20 +60,17 @@ async function execute(
   const results = new Map<string, string>();
 
   for (const [file, fileContent] of retrievedFiles.entries()) {
-    let lines = fileContent.split("\n");
-    let lowerCaseLines = lines.map(l => l.toLowerCase());
+    const lines = fileContent.split("\n");
+    const lowerCaseLines = lines.map(l => l.toLowerCase());
 
     const matchedLines = new Set<number>();
     for (let pattern of searchPatterns) {
       if (typeof pattern === 'string') {
         for (let i = 0; i < lowerCaseLines.length; i++) {
-          if (lowerCaseLines[i].includes(pattern)) {
-            matchedLines.add(i);
-          }
+          if (lowerCaseLines[i].includes(pattern)) matchedLines.add(i);
         }
       } else {
         pattern.lastIndex = 0;
-
         let result;
         while (result = pattern.exec(fileContent)) {
           const prefix = fileContent.substring(0, result.length - 1);
@@ -88,61 +80,46 @@ async function execute(
       }
     }
 
-    // The set is copied into an array since we are going to update it
     for (const lineNumber of Array.from(matchedLines.values())) {
       for (let i = lineNumber - options.snippetLinesBefore; i < lineNumber + options.snippetLinesAfter; i++) {
-        if (i >= 0 && i < lines.length) {
-          matchedLines.add(i);
-        }
+        if (i >= 0 && i < lines.length) matchedLines.add(i);
       }
     }
 
-    // If there are no matches, skip to the next file
-    if (matchedLines.size === 0) {
-      continue;
-    }
+    if (matchedLines.size === 0) continue;
 
     if (results.size > options.maxSnippetCount) {
-      // We have already matched too many files, so we will not bother creating the snippet content,
-      // we will just add the filename to the set, since it will not be returned
       results.set(file, "");
       continue;
     }
 
-    let snippets: string[] = [];
-
+    const snippets: string[] = [];
     let isPadded = true;
     for (let i = 0; i < lines.length; i++) {
       if (matchedLines.has(i)) {
         isPadded = false;
         snippets.push(`${i}: ${lines[i]}`);
-      } else {
-        if (!isPadded) {
-          isPadded = true;
-          snippets.push("");
-        }
+      } else if (!isPadded) {
+        isPadded = true;
+        snippets.push("");
       }
     }
 
     if (snippets.length > 0) {
       const snippetString = snippets.join("\n");
-      // If there are too many snippets, send the whole file
       if (snippetString.length > fileContent.length * options.maxSnippetSizePercent) {
         results.set(file, `BEGIN FILE ATTACHMENT: ${file}\n${fileContent}\nEND FILE ATTACHMENT`);
         continue;
       }
-
       results.set(file, `BEGIN FILE GREP MATCHES: ${file} (line: match)\n${snippets.join("\n")}\nEND FILE GREP MATCHES`);
     }
   }
 
   if (results.size > options.maxSnippetCount) {
     agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
-
     const fileNames = Array.from(results.keys()).sort();
-
     return `
-The file search operation matched ${results.size} files, which is higher than the user specified limit of ${options.maxSnippetCount}.
+The grep operation matched ${results.size} files, which is higher than the user specified limit of ${options.maxSnippetCount}.
 The list of matched files will be returned as a directory listing instead.
 
 BEGIN DIRECTORY LISTING
@@ -151,16 +128,14 @@ END DIRECTORY LISTING
 `.trim();
   }
 
-
   return Array.from(results.values()).join("\n\n");
 }
 
 const description = `
-Search for text patterns in files. Supports searching across all files or within specific files.
-- The search will be run inside the root folder the user has designated for the project
+Search for text patterns within files. Supports plain string and regex patterns.
 - File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
 - Searches are OR-based across multiple patterns (any match counts).
-- The search system will automatically decide whether to return complete file contents, directory listings, or grep-style file/line snippets based on the number of matches.
+- Automatically returns complete file contents, directory listings, or grep-style snippets based on match count.
 `.trim();
 
 const inputSchema = z
@@ -168,20 +143,24 @@ const inputSchema = z
     filePaths: z
       .array(z.string())
       .describe(
-        "List of file paths or glob patterns to search within. Omit to search across all files in the project directory. Examples: \"**/*.ts\", \"path/to/file.txt\")",
+        "List of file paths or glob patterns to search within. Examples: \"**/*.ts\", \"path/to/file.txt\"",
       )
       .default(["**/*"]),
     searchTerms: z
       .array(z.string())
       .describe(
-        "List of search terms to search for. Search terms can either by plain strings, which will be matched by a fuzzy substring search, or regex, if enclosed in '/'. Examples: \"searchTerm\", \"/searchTerm.*/\""
+        "List of search terms. Plain strings use fuzzy substring match; wrap in '/' for regex. Examples: \"searchTerm\", \"/searchTerm.*/\"",
       ),
   })
   .strict();
 
+function adjustActivation(enabled: boolean, agent: Agent): boolean | Promise<boolean> {
+  const supportsGrep = agent.requireServiceByType(FileSystemService).supportsGrep(agent);
+  return enabled && supportsGrep;
+}
 
-const requiredContextHandlers= ["selected-files"];
+const requiredContextHandlers = ["selected-files"];
 
 export default {
-  name, displayName, description, inputSchema, execute, requiredContextHandlers
+  name, displayName, description, inputSchema, execute, requiredContextHandlers, adjustActivation
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

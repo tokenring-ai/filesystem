@@ -8,8 +8,9 @@ const serializationSchema = z.object({
   workingDirectory: z.string(),
   dirty: z.boolean(),
   fileRead: FileSystemConfigSchema.shape.agentDefaults.shape.fileRead,
-  fileSearch: FileSystemConfigSchema.shape.agentDefaults.shape.fileSearch,
+  fileGrep: FileSystemConfigSchema.shape.agentDefaults.shape.fileGrep,
   fileWrite: FileSystemConfigSchema.shape.agentDefaults.shape.fileWrite,
+  fileEdit: FileSystemConfigSchema.shape.agentDefaults.shape.fileEdit,
   readFiles: z.record(z.string(), z.number())
 });
 
@@ -22,7 +23,8 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
 
   fileWrite: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileWrite"];
   fileRead:  z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileRead"];
-  fileSearch: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileSearch"];
+  fileGrep: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileGrep"];
+  fileEdit: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileEdit"];
 
   constructor(readonly initialConfig: z.output<typeof FileSystemConfigSchema>["agentDefaults"]) {
     super("FileSystemState",serializationSchema);
@@ -31,7 +33,8 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     this.workingDirectory = initialConfig.workingDirectory;
     this.fileRead = initialConfig.fileRead;
     this.fileWrite = initialConfig.fileWrite;
-    this.fileSearch = initialConfig.fileSearch;
+    this.fileGrep = initialConfig.fileGrep;
+    this.fileEdit = initialConfig.fileEdit;
   }
 
   reset(): void {
@@ -49,8 +52,9 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
       workingDirectory: this.workingDirectory,
       dirty: this.dirty,
       fileRead: this.fileRead,
-      fileSearch: this.fileSearch,
+      fileGrep: this.fileGrep,
       fileWrite: this.fileWrite,
+      fileEdit: this.fileEdit,
       readFiles: Object.fromEntries(this.readFiles)
     };
   }
@@ -61,8 +65,9 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     this.workingDirectory = data.workingDirectory;
     this.dirty = data.dirty;
     this.fileRead = data.fileRead;
-    this.fileSearch = data.fileSearch;
+    this.fileGrep = data.fileGrep;
     this.fileWrite = data.fileWrite;
+    this.fileEdit = data.fileEdit;
     this.readFiles = new Map(Object.entries(data.readFiles).map(([k, v]) => [k, Number(v)]));
   }
 

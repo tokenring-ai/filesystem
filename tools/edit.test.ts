@@ -4,7 +4,7 @@ import createTestingApp from "@tokenring-ai/app/test/createTestingApp";
 import {FileSystemConfigSchema} from "../schema.ts";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
-import findReplaceTool from "./modify.ts";
+import findReplaceTool from "./edit.ts";
 
 function createMockFileSystemProvider(initialFiles: Record<string, string>) {
   const files = new Map(
@@ -66,9 +66,6 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
     async copy() {
       return true;
     },
-    async glob() {
-      return [];
-    },
     async watch() {
       return null;
     },
@@ -109,14 +106,13 @@ describe("file_findReplace", () => {
           maxFileReadCount: 10,
           maxFileSize: 128 * 1024,
         },
-        fileSearch: {
-          maxSnippetCount: 10,
-          maxSnippetSizePercent: 0.3,
-          snippetLinesBefore: 5,
-          snippetLinesAfter: 5,
-        },
+      fileSearch: {
+        maxSnippetCount: 10,
+        maxSnippetSizePercent: 0.3,
+        snippetLinesBefore: 5,
+        snippetLinesAfter: 5,
       },
-      providers: {},
+      },
     }));
 
     fileSystemService.registerFileSystemProvider("mock", provider as any);

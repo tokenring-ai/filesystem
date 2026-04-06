@@ -82,11 +82,11 @@ export default interface FileSystemProvider {
     options?: { overwrite?: boolean },
   ): Promise<boolean>;
 
-  glob(absolutePattern: string, options?: GlobOptions): Promise<string[]>;
+  glob?(absolutePattern: string, options?: GlobOptions): Promise<string[]>;
 
   watch(absoluteDir: string, options?: WatchOptions): Promise<any>;
 
-  grep(
+  grep?(
     searchString: string | string[],
     options?: GrepOptions,
   ): Promise<GrepResult[]>;

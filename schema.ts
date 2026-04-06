@@ -13,11 +13,15 @@ export const FileSystemAgentConfigSchema = z.object({
     maxFileReadCount: z.number().optional(),
     maxFileSize: z.number().optional()
   }).optional(),
-  fileSearch: z.object({
+  fileGrep: z.object({
     maxSnippetCount: z.number().optional(),
     maxSnippetSizePercent: z.number().optional(),
     snippetLinesBefore: z.number().optional(),
     snippetLinesAfter: z.number().optional(),
+  }).optional(),
+  fileEdit: z.object({
+    enabled: z.boolean().optional(),
+    disableAfterConsecutiveFailures: z.number().optional()
   }).optional(),
 }).strict().default({});
 
@@ -35,14 +39,18 @@ export const FileSystemConfigSchema = z.object({
       maxFileReadCount: z.number().default(10),
       maxFileSize: z.number().default(128 * 1024), // 128KB default
     }).prefault({}),
-    fileSearch: z.object({
+    fileGrep: z.object({
       maxSnippetCount: z.number().default(10),
       maxSnippetSizePercent: z.number().default(0.3),
       snippetLinesBefore: z.number().default(5),
       snippetLinesAfter: z.number().default(5),
     }).prefault({}),
+    fileEdit: z.object({
+      enabled: z.boolean().default(true),
+      consecutiveFailureCount: z.number().default(0),
+      disableAfterConsecutiveFailures: z.number().default(2)
+    }).prefault({})
   }),
-  providers: z.record(z.string(), z.any()),
 }).strict();
 
 export type FileSystemAgentConfig = {

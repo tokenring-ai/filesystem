@@ -1,7 +1,7 @@
 {
   "name": "@tokenring-ai/filesystem",
   "version": "0.2.0",
-  "description": "A filesystem abstraction for Token Ring",
+  "description": "Unified API for file operations including reading, writing, and smart patching.",
   "dependencies": {
     "@tokenring-ai/ai-client": "0.2.0",
     "@tokenring-ai/app": "0.2.0",

@@ -16,6 +16,7 @@ import FileSystemProvider, {
 import {FileSystemAgentConfigSchema, FileSystemConfigSchema} from "./schema.ts";
 import {FileSystemState} from "./state/fileSystemState.ts";
 import createIgnoreFilter from "./util/createIgnoreFilter.ts";
+import fallbackGlob from "./util/fallbackGlob.ts";
 
 export type FileValidator = (path: string, content: string) => Promise<string | null>;
 
@@ -36,6 +37,7 @@ export default class FileSystemService implements TokenRingService {
 
   registerFileSystemProvider = this.fileSystemProviderRegistry.register;
   requireFileSystemProviderByName = this.fileSystemProviderRegistry.requireItemByName;
+  getFilesystemProviderNames = this.fileSystemProviderRegistry.getAllItemNames;
 
   private fileValidatorRegistry = new KeyedRegistry<FileValidator>();
   registerFileValidator = this.fileValidatorRegistry.register;
@@ -226,10 +228,16 @@ export default class FileSystemService implements TokenRingService {
       exists: (filePath: string) => this.exists(filePath, agent),
       readFile: (filePath: string) => this.readFile(filePath, agent),
     });
-    return (await activeFileSystem.glob(this.resolveAbsolutePattern(pattern, agent), {
+    const globOptions = {
       ...options,
       ignoreFilter: (filePath: string) => ignoreFilter(this.relativePathForAgent(filePath, agent)),
-    } as GlobOptions))
+    } as GlobOptions;
+    const absolutePattern = this.resolveAbsolutePattern(pattern, agent);
+    const matches = activeFileSystem.glob
+      ? await activeFileSystem.glob(absolutePattern, globOptions)
+      : await fallbackGlob(activeFileSystem, absolutePattern, globOptions);
+
+    return matches
       .map((filePath) => this.relativePathForAgent(filePath, agent));
   }
 
@@ -249,7 +257,10 @@ export default class FileSystemService implements TokenRingService {
     } as WatchOptions);
   }
 
-
+  supportsGrep(agent: Agent) {
+    const activeFileSystem = this.requireActiveFileSystem(agent);
+    return !!activeFileSystem.grep;
+  }
 
   async grep(
     searchString: string | string[],
@@ -257,6 +268,10 @@ export default class FileSystemService implements TokenRingService {
     agent: Agent
   ): Promise<GrepResult[]> {
     const activeFileSystem = this.requireActiveFileSystem(agent);
+    if (! activeFileSystem.grep) {
+      throw new Error(`Grep is not supported by the active file system`);
+    }
+
     const ignoreFilter = options.ignoreFilter ?? await createIgnoreFilter({
       exists: (filePath: string) => this.exists(filePath, agent),
       readFile: (filePath: string) => this.readFile(filePath, agent),
