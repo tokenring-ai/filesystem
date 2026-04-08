@@ -3,7 +3,7 @@ import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
-const name = "glob";
+const name = "file_glob";
 const displayName = "Filesystem/glob";
 
 async function execute(

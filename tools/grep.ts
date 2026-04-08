@@ -4,7 +4,7 @@ import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 
-const name = "grep";
+const name = "file_grep";
 const displayName = "Filesystem/grep";
 
 async function execute(
