@@ -36,6 +36,7 @@ export default class FileSystemService implements TokenRingService {
     new KeyedRegistry<FileSystemProvider>();
 
   registerFileSystemProvider = this.fileSystemProviderRegistry.register;
+  unregisterFileSystemProvider = this.fileSystemProviderRegistry.unregister;
   requireFileSystemProviderByName = this.fileSystemProviderRegistry.requireItemByName;
   getFilesystemProviderNames = this.fileSystemProviderRegistry.getAllItemNames;
 
