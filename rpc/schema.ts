@@ -1,4 +1,4 @@
-import {RPCSchema} from "@tokenring-ai/rpc/types";
+import type {RPCSchema} from "@tokenring-ai/rpc/types";
 import {z} from "zod";
 
 export default {
@@ -9,49 +9,49 @@ export default {
       type: "query",
       input: z.object({}),
       result: z.object({
-        providers: z.array(z.string())
-      })
+        providers: z.array(z.string()),
+      }),
     },
 
     readTextFile: {
       type: "query",
       input: z.object({
         provider: z.string(),
-        path: z.string()
+        path: z.string(),
       }),
       result: z.object({
-        content: z.string().nullable()
-      })
+        content: z.string().nullable(),
+      }),
     },
     exists: {
       type: "query",
       input: z.object({
         provider: z.string(),
-        path: z.string()
+        path: z.string(),
       }),
       result: z.object({
-        exists: z.boolean()
-      })
+        exists: z.boolean(),
+      }),
     },
     stat: {
       type: "query",
       input: z.object({
         provider: z.string(),
-        path: z.string()
+        path: z.string(),
       }),
       result: z.object({
-        stats: z.string()
-      })
+        stats: z.string(),
+      }),
     },
     glob: {
       type: "query",
       input: z.object({
         provider: z.string(),
-        pattern: z.string()
+        pattern: z.string(),
       }),
       result: z.object({
-        files: z.array(z.string())
-      })
+        files: z.array(z.string()),
+      }),
     },
     listDirectory: {
       type: "query",
@@ -59,65 +59,65 @@ export default {
         provider: z.string(),
         path: z.string(),
         showHidden: z.boolean().default(false),
-        recursive: z.boolean().default(false)
+        recursive: z.boolean().default(false),
       }),
       result: z.object({
-        files: z.array(z.string())
-      })
+        files: z.array(z.string()),
+      }),
     },
     writeFile: {
       type: "mutation",
       input: z.object({
         provider: z.string(),
         path: z.string(),
-        content: z.string()
+        content: z.string(),
       }),
       result: z.object({
-        success: z.boolean()
-      })
+        success: z.boolean(),
+      }),
     },
     appendFile: {
       type: "mutation",
       input: z.object({
         provider: z.string(),
         path: z.string(),
-        content: z.string()
+        content: z.string(),
       }),
       result: z.object({
-        success: z.boolean()
-      })
+        success: z.boolean(),
+      }),
     },
     deleteFile: {
       type: "mutation",
       input: z.object({
         provider: z.string(),
-        path: z.string()
+        path: z.string(),
       }),
       result: z.object({
-        success: z.boolean()
-      })
+        success: z.boolean(),
+      }),
     },
     rename: {
       type: "mutation",
       input: z.object({
         provider: z.string(),
         oldPath: z.string(),
-        newPath: z.string()
+        newPath: z.string(),
       }),
       result: z.object({
-        success: z.boolean()
-      })
+        success: z.boolean(),
+      }),
     },
     createDirectory: {
       type: "mutation",
       input: z.object({
         provider: z.string(),
         path: z.string(),
-        recursive: z.boolean().default(false)
+        recursive: z.boolean().default(false),
       }),
       result: z.object({
-        success: z.boolean()
-      })
+        success: z.boolean(),
+      }),
     },
     copy: {
       type: "mutation",
@@ -125,16 +125,16 @@ export default {
         provider: z.string(),
         source: z.string(),
         destination: z.string(),
-        overwrite: z.boolean().default(false)
+        overwrite: z.boolean().default(false),
       }),
       result: z.object({
-        success: z.boolean()
-      })
+        success: z.boolean(),
+      }),
     },
     getFilesystemState: {
       type: "query",
       input: z.object({
-        agentId: z.string()
+        agentId: z.string(),
       }),
       result: z.object({
         provider: z.string(),
@@ -142,27 +142,27 @@ export default {
         selectedFiles: z.array(z.string()),
         readFiles: z.record(z.string(), z.number()),
         dirty: z.boolean(),
-      })
+      }),
     },
     addFileToChat: {
       type: "mutation",
       input: z.object({
         agentId: z.string(),
-        file: z.string()
+        file: z.string(),
       }),
       result: z.object({
-        success: z.boolean()
-      })
+        success: z.boolean(),
+      }),
     },
     removeFileFromChat: {
       type: "mutation",
       input: z.object({
         agentId: z.string(),
-        file: z.string()
+        file: z.string(),
       }),
       result: z.object({
-        success: z.boolean()
-      })
-    }
-  }
+        success: z.boolean(),
+      }),
+    },
+  },
 } satisfies RPCSchema;

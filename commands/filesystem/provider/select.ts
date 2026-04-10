@@ -1,11 +1,13 @@
 import type {TreeLeaf} from "@tokenring-ai/agent/question";
-import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand,} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../../FileSystemService.ts";
 import {FileSystemState} from "../../../state/fileSystemState.ts";
 
 const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
-async function execute({agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+async function execute({
+                         agent,
+                       }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const fileSystemService = agent.requireServiceByType(FileSystemService);
   const available = fileSystemService.getFilesystemProviderNames();
   if (available.length === 0) return "No filesystem providers are registered.";
@@ -15,7 +17,10 @@ async function execute({agent}: AgentCommandInputType<typeof inputSchema>): Prom
   }
 
   const activeProvider = agent.getState(FileSystemState).providerName;
-  const tree: TreeLeaf[] = available.map((name: string) => ({name: `${name}${name === activeProvider ? " (current)" : ""}`, value: name}));
+  const tree: TreeLeaf[] = available.map((name: string) => ({
+    name: `${name}${name === activeProvider ? " (current)" : ""}`,
+    value: name,
+  }));
   const selection = await agent.askQuestion({
     message: "Select an active filesystem provider",
     question: {

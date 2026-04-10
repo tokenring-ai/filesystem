@@ -1,4 +1,4 @@
-import {type TokenRingToolResult} from "@tokenring-ai/chat/schema";
+import type {TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import {createPatch} from "diff";
 import mime from "mime-types";
 
@@ -14,9 +14,10 @@ export default function createFileWriteResult(
 
     return {
       type: "text",
-      text: (diff.length <= maxReturnedDiffSize
-        ? `File successfully written. Changes made:\n${diff}`
-        : "File successfully overwritten.") + validationSuffix,
+      text:
+        (diff.length <= maxReturnedDiffSize
+          ? `File successfully written. Changes made:\n${diff}`
+          : "File successfully overwritten.") + validationSuffix,
       artifact: {
         name: filePath,
         encoding: "text",

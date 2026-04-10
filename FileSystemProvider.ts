@@ -1,4 +1,7 @@
-export type StatLike = {
+import type {MaybePromise} from "bun";
+
+export type StatLike =
+  | {
   path: string;
   absolutePath?: string;
   exists: true;
@@ -9,10 +12,11 @@ export type StatLike = {
   created?: Date;
   modified?: Date;
   accessed?: Date;
-} | {
+}
+  | {
   path: string;
   exists: false;
-}
+};
 
 export interface GrepResult {
   file: string;
@@ -49,45 +53,48 @@ export interface GrepOptions {
  * FileSystemProvider is an interface that provides a unified interface
  * for file operations, allowing for different implementations of file systems.
  */
-export default interface FileSystemProvider {
+export interface FileSystemProvider {
   // Directory walking
   getDirectoryTree(
     absolutePath: string,
     params?: DirectoryTreeOptions,
-  ): AsyncGenerator<string>;
+  ): AsyncGenerator<string> | Generator<string>;
 
   // file ops
-  writeFile(absolutePath: string, content: string | Buffer): Promise<boolean>;
+  writeFile(absolutePath: string, content: string | Buffer): MaybePromise<boolean>;
 
-  appendFile(absoluteFilePath: string, finalContent: string | Buffer): Promise<boolean>;
+  appendFile(
+    absoluteFilePath: string,
+    finalContent: string | Buffer,
+  ): MaybePromise<boolean>;
 
-  deleteFile(absolutePath: string): Promise<boolean>;
+  deleteFile(absolutePath: string): MaybePromise<boolean>;
 
-  readFile(absolutePath: string): Promise<Buffer|null>;
+  readFile(absolutePath: string): MaybePromise<Buffer | null>;
 
-  rename(oldAbsolutePath: string, newAbsolutePath: string): Promise<boolean>;
+  rename(oldAbsolutePath: string, newAbsolutePath: string): MaybePromise<boolean>;
 
-  exists(absolutePath: string): Promise<boolean>;
+  exists(absolutePath: string): MaybePromise<boolean>;
 
-  stat(absolutePath: string): Promise<StatLike>;
+  stat(absolutePath: string): MaybePromise<StatLike>;
 
   createDirectory(
     absolutePath: string,
     options?: { recursive?: boolean },
-  ): Promise<boolean>;
+  ): MaybePromise<boolean>;
 
   copy(
     absoluteSource: string,
     absoluteDestination: string,
     options?: { overwrite?: boolean },
-  ): Promise<boolean>;
+  ): MaybePromise<boolean>;
 
-  glob?(absolutePattern: string, options?: GlobOptions): Promise<string[]>;
+  glob?(absolutePattern: string, options?: GlobOptions): MaybePromise<string[]>;
 
-  watch(absoluteDir: string, options?: WatchOptions): Promise<any>;
+  watch?(absoluteDir: string, options?: WatchOptions): MaybePromise<any>;
 
   grep?(
     searchString: string | string[],
     options?: GrepOptions,
-  ): Promise<GrepResult[]>;
+  ): MaybePromise<GrepResult[]>;
 }

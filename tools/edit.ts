@@ -1,5 +1,5 @@
-import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition, type TokenRingToolResult} from "@tokenring-ai/chat/schema";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type {TokenRingToolDefinition, TokenRingToolResult,} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
@@ -15,7 +15,11 @@ const fuzzyMatch = {
   similarity: 0.95,
 } as const;
 
-function splitLines(content: string): {lines: string[]; lineEnding: string; hasTrailingLineEnding: boolean} {
+function splitLines(content: string): {
+  lines: string[];
+  lineEnding: string;
+  hasTrailingLineEnding: boolean;
+} {
   const hasTrailingLineEnding = /\r?\n$/.test(content);
   const lineEnding = content.includes("\r\n") ? "\r\n" : "\n";
   const lines = content.split(/\r?\n/);
@@ -27,7 +31,11 @@ function splitLines(content: string): {lines: string[]; lineEnding: string; hasT
   return {lines, lineEnding, hasTrailingLineEnding};
 }
 
-function joinLines(lines: string[], lineEnding: string, hasTrailingLineEnding: boolean): string {
+function joinLines(
+  lines: string[],
+  lineEnding: string,
+  hasTrailingLineEnding: boolean,
+): string {
   if (lines.length === 0) {
     return "";
   }
@@ -37,17 +45,15 @@ function joinLines(lines: string[], lineEnding: string, hasTrailingLineEnding: b
 }
 
 async function execute(
-  {
-    path: filePath,
-    findLines,
-    replaceLines,
-  }: z.output<typeof inputSchema>,
+  {path: filePath, findLines, replaceLines}: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<TokenRingToolResult> {
-  const { enabled } = agent.getState(FileSystemState).fileEdit;
+  const {enabled} = agent.getState(FileSystemState).fileEdit;
 
   if (!enabled) {
-    throw new Error(`[${name}] File modification is disabled for this session; use the file_write tool instead for all other file updating operations, and do not use file_edit again`);
+    throw new Error(
+      `[${name}] File modification is disabled for this session; use the file_write tool instead for all other file updating operations, and do not use file_edit again`,
+    );
   }
 
   const fileSystem = agent.requireServiceByType(FileSystemService);
@@ -57,18 +63,29 @@ async function execute(
     throw new Error(`[${name}] Failed to read file content: ${filePath}`);
   }
 
-  const {lines: originalLines, lineEnding, hasTrailingLineEnding} = splitLines(originalContent);
-  const matchResult = findContiguousLineMatch(originalLines, findLines.split("\n"), {fuzzyMatch});
+  const {
+    lines: originalLines,
+    lineEnding,
+    hasTrailingLineEnding,
+  } = splitLines(originalContent);
+  const matchResult = findContiguousLineMatch(
+    originalLines,
+    findLines.split("\n"),
+    {fuzzyMatch},
+  );
 
   if (!matchResult.match) {
     agent.mutateState(FileSystemState, (state) => {
       state.fileEdit.consecutiveFailureCount += 1;
-      const { consecutiveFailureCount, disableAfterConsecutiveFailures } = state.fileEdit;
+      const {consecutiveFailureCount, disableAfterConsecutiveFailures} =
+        state.fileEdit;
       if (consecutiveFailureCount >= disableAfterConsecutiveFailures) {
         state.fileEdit.enabled = false;
-        agent.warningMessage(`[${name}] File modification tool has been disabled due to ${disableAfterConsecutiveFailures} consecutive failures.`);
+        agent.warningMessage(
+          `[${name}] File modification tool has been disabled due to ${disableAfterConsecutiveFailures} consecutive failures.`,
+        );
       }
-    })
+    });
 
     if (matchResult.exactMatches.length > 1) {
       throw new Error(
@@ -108,7 +125,11 @@ async function execute(
     ...replaceLines.split("\n"),
     ...originalLines.slice(matchResult.match.endLineIndex + 1),
   ];
-  const updatedContent = joinLines(updatedLines, lineEnding, hasTrailingLineEnding);
+  const updatedContent = joinLines(
+    updatedLines,
+    lineEnding,
+    hasTrailingLineEnding,
+  );
   const state = agent.getState(FileSystemState);
 
   if (updatedContent !== originalContent) {
@@ -142,11 +163,13 @@ const inputSchema = z.object({
     .describe(
       "Relative path of the file to edit (e.g., 'src/main.ts' or 'docs/design.md'). Relative to the project root directory. Required.",
     ),
-  findLines: z.string()
+  findLines: z
+    .string()
     .describe(
       "Up to 5 contiguous lines to match in the file. Each line must be complete, and all matched lines must be contiguous..",
     ),
-  replaceLines: z.string()
+  replaceLines: z
+    .string()
     .describe(
       "The complete lines that will replace the matched block. Provide an empty array to delete the matched lines.",
     ),
@@ -165,5 +188,5 @@ export default {
   inputSchema,
   execute,
   requiredContextHandlers,
-  adjustActivation
+  adjustActivation,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

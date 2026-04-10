@@ -1,5 +1,5 @@
-import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
@@ -24,7 +24,7 @@ async function execute(
   }
 
   const fileNames = Array.from(matchedFiles).sort();
-  return `BEGIN DIRECTORY LISTING\n${fileNames.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`;
+  return `BEGIN DIRECTORY LISTING\n${fileNames.map((f) => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`;
 }
 
 const description = `
@@ -37,12 +37,16 @@ const inputSchema = z
     filePaths: z
       .array(z.string())
       .describe(
-        "List of glob patterns to match files. Examples: \"**/*.ts\", \"path/to/file.txt\"",
+        'List of glob patterns to match files. Examples: "**/*.ts", "path/to/file.txt"',
       )
       .default(["**/*"]),
   })
   .strict();
 
 export default {
-  name, displayName, description, inputSchema, execute,
+  name,
+  displayName,
+  description,
+  inputSchema,
+  execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

@@ -2,14 +2,17 @@
  * Create an ignore filter for files
  * @private
  */
+import type {MaybePromise} from "bun";
 import ignore from "ignore";
 
 type IgnoreFilterFileSystem = {
-  exists(path: string): Promise<boolean>;
-  readFile(path: string): Promise<Buffer | null>;
+  exists(path: string): MaybePromise<boolean>;
+  readFile(path: string): MaybePromise<Buffer | null>;
 };
 
-export default async function createIgnoreFilter(fileSystem: IgnoreFilterFileSystem): Promise<(p: string) => boolean> {
+export default async function createIgnoreFilter(
+  fileSystem: IgnoreFilterFileSystem,
+): Promise<(p: string) => boolean> {
   // Create the base ignore filter
   const ig = ignore();
   ig.add(".git"); // always ignore .git dir at root
@@ -21,7 +24,7 @@ export default async function createIgnoreFilter(fileSystem: IgnoreFilterFileSys
   if (await fileSystem.exists(gitIgnorePath)) {
     const data = await fileSystem.readFile(gitIgnorePath);
     if (data) {
-      const lines = data.toString('utf-8').split(/\r?\n/).filter(Boolean);
+      const lines = data.toString("utf-8").split(/\r?\n/).filter(Boolean);
       ig.add(lines);
     }
   }
@@ -30,7 +33,7 @@ export default async function createIgnoreFilter(fileSystem: IgnoreFilterFileSys
   if (await fileSystem.exists(aiIgnorePath)) {
     const data = await fileSystem.readFile(aiIgnorePath);
     if (data) {
-      const lines = data.toString('utf-8').split(/\r?\n/).filter(Boolean);
+      const lines = data.toString("utf-8").split(/\r?\n/).filter(Boolean);
       ig.add(lines);
     }
   }

@@ -1,6 +1,6 @@
-import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition, type TokenRingToolResult} from "@tokenring-ai/chat/schema";
-import path from "path";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type {TokenRingToolDefinition, TokenRingToolResult,} from "@tokenring-ai/chat/schema";
+import path from "node:path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
@@ -12,26 +12,28 @@ const name = "file_write";
 const displayName = "Filesystem/write";
 
 async function execute(
-  {
-    path: filePath,
-    content
-  }: z.output<typeof inputSchema>,
+  {path: filePath, content}: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
-  let curFileContents = await fileSystem.readTextFile(filePath, agent)
-  const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
+  const curFileContents = await fileSystem.readTextFile(filePath, agent);
+  const fileModificationTime = await fileSystem.getModifiedTimeNanos(
+    filePath,
+    agent,
+  );
 
   const state = agent.getState(FileSystemState);
   const previouslyReadTime = state.readFiles.get(filePath) ?? 0;
   if (curFileContents && state.fileWrite.requireReadBeforeWrite) {
     if (fileModificationTime === null) {
-      agent.infoMessage(`[${name}] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`);
+      agent.infoMessage(
+        `[${name}] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`,
+      );
     } else if (fileModificationTime > previouslyReadTime) {
       agent.mutateState(FileSystemState, (state) => {
         state.readFiles.set(filePath, fileModificationTime);
-      })
+      });
 
       return `
 Cannot write to ${filePath}: The tool policy requires that all files must be read before they can be written.
@@ -57,7 +59,9 @@ ${curFileContents}`.trim();
     state.readFiles.set(filePath, Date.now());
   });
 
-  const validationSuffix = state.fileWrite.validateWrittenFiles ? await runFileValidator(filePath, content, agent) : '';
+  const validationSuffix = state.fileWrite.validateWrittenFiles
+    ? await runFileValidator(filePath, content, agent)
+    : "";
   return createFileWriteResult(
     filePath,
     curFileContents,
@@ -67,7 +71,8 @@ ${curFileContents}`.trim();
   );
 }
 
-const description = "Writes a file to the filesystem. Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the ENTIRE content of the file";
+const description =
+  "Writes a file to the filesystem. Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the ENTIRE content of the file";
 
 const inputSchema = z.object({
   path: z
@@ -82,9 +87,13 @@ const inputSchema = z.object({
     ),
 });
 
-
-const requiredContextHandlers= ["selected-files"];
+const requiredContextHandlers = ["selected-files"];
 
 export default {
-  name, displayName, description, inputSchema, execute, requiredContextHandlers
+  name,
+  displayName,
+  description,
+  inputSchema,
+  execute,
+  requiredContextHandlers,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

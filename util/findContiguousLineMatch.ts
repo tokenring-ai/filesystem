@@ -21,15 +21,23 @@ export type FindContiguousLineMatchResult = {
   fuzzyMatches: ContiguousLineMatch[];
 };
 
-export function normalizeLineForWhitespaceInsensitiveMatch(line: string): string {
+export function normalizeLineForWhitespaceInsensitiveMatch(
+  line: string,
+): string {
   return line.replace(/\s+/g, "");
 }
 
-export function calculateLevenshteinSimilarity(left: string, right: string): number {
+export function calculateLevenshteinSimilarity(
+  left: string,
+  right: string,
+): number {
   if (left === right) return 1;
   if (left.length === 0 || right.length === 0) return 0;
 
-  const previousRow = Array.from({length: right.length + 1}, (_value, index) => index);
+  const previousRow = Array.from(
+    {length: right.length + 1},
+    (_value, index) => index,
+  );
 
   for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
     let previousDiagonal = previousRow[0];
@@ -37,7 +45,8 @@ export function calculateLevenshteinSimilarity(left: string, right: string): num
 
     for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
       const current = previousRow[rightIndex];
-      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      const substitutionCost =
+        left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
 
       previousRow[rightIndex] = Math.min(
         previousRow[rightIndex] + 1,
@@ -50,7 +59,7 @@ export function calculateLevenshteinSimilarity(left: string, right: string): num
   }
 
   const distance = previousRow[right.length];
-  return 1 - (distance / Math.max(left.length, right.length));
+  return 1 - distance / Math.max(left.length, right.length);
 }
 
 function createMatch(
@@ -87,13 +96,21 @@ export default function findContiguousLineMatch(
   const normalizedTargetLines = targetLines.map(normalizeLine);
   const exactMatches: ContiguousLineMatch[] = [];
 
-  for (let startLineIndex = 0; startLineIndex <= normalizedSourceLines.length - normalizedTargetLines.length; startLineIndex++) {
+  for (
+    let startLineIndex = 0;
+    startLineIndex <=
+    normalizedSourceLines.length - normalizedTargetLines.length;
+    startLineIndex++
+  ) {
     const isExactMatch = normalizedTargetLines.every(
-      (targetLine, offset) => normalizedSourceLines[startLineIndex + offset] === targetLine,
+      (targetLine, offset) =>
+        normalizedSourceLines[startLineIndex + offset] === targetLine,
     );
 
     if (isExactMatch) {
-      exactMatches.push(createMatch(startLineIndex, targetLines.length, 1, "exact"));
+      exactMatches.push(
+        createMatch(startLineIndex, targetLines.length, 1, "exact"),
+      );
     }
   }
 
@@ -137,12 +154,25 @@ export default function findContiguousLineMatch(
   const normalizedTargetText = normalizedTargetLines.join("\n");
   const fuzzyMatches: ContiguousLineMatch[] = [];
 
-  for (let startLineIndex = 0; startLineIndex <= normalizedSourceLines.length - normalizedTargetLines.length; startLineIndex++) {
-    const candidateLines = normalizedSourceLines.slice(startLineIndex, startLineIndex + normalizedTargetLines.length);
-    const similarity = calculateLevenshteinSimilarity(normalizedTargetText, candidateLines.join("\n"));
+  for (
+    let startLineIndex = 0;
+    startLineIndex <=
+    normalizedSourceLines.length - normalizedTargetLines.length;
+    startLineIndex++
+  ) {
+    const candidateLines = normalizedSourceLines.slice(
+      startLineIndex,
+      startLineIndex + normalizedTargetLines.length,
+    );
+    const similarity = calculateLevenshteinSimilarity(
+      normalizedTargetText,
+      candidateLines.join("\n"),
+    );
 
     if (similarity >= fuzzyMatch.similarity) {
-      fuzzyMatches.push(createMatch(startLineIndex, targetLines.length, similarity, "fuzzy"));
+      fuzzyMatches.push(
+        createMatch(startLineIndex, targetLines.length, similarity, "fuzzy"),
+      );
     }
   }
 
@@ -156,7 +186,8 @@ export default function findContiguousLineMatch(
 
   const hasUniqueBestMatch =
     fuzzyMatches.length === 1 ||
-    (fuzzyMatches.length > 1 && fuzzyMatches[0].similarity > fuzzyMatches[1].similarity);
+    (fuzzyMatches.length > 1 &&
+      fuzzyMatches[0].similarity > fuzzyMatches[1].similarity);
 
   return {
     match: hasUniqueBestMatch ? fuzzyMatches[0] : null,

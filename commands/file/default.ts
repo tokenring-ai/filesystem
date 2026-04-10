@@ -1,15 +1,20 @@
-import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand,} from "@tokenring-ai/agent/types";
 import markdownList from "@tokenring-ai/utility/string/markdownList";
 import FileSystemService from "../../FileSystemService.ts";
 import {FileSystemState} from "../../state/fileSystemState.ts";
 
 const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
-async function execute({agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+async function execute({
+                         agent,
+                       }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
-  const { initialConfig } = agent.getState(FileSystemState);
+  const {initialConfig} = agent.getState(FileSystemState);
   await filesystem.setFilesInChat(initialConfig.selectedFiles, agent);
-  return "Added default files to the chat session:\n" + markdownList(initialConfig.selectedFiles);
+  return (
+    "Added default files to the chat session:\n" +
+    markdownList(initialConfig.selectedFiles)
+  );
 }
 
 export default {

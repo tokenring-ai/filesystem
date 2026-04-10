@@ -1,13 +1,20 @@
 import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
-import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand,} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../FileSystemService.ts";
 
 const inputSchema = {
   args: {},
-  remainder: {name: "paths", description: "Space-separated file paths to add", required: true}
+  remainder: {
+    name: "paths",
+    description: "Space-separated file paths to add",
+    required: true,
+  },
 } as const satisfies AgentCommandInputSchema;
 
-async function execute({remainder, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+async function execute({
+                         remainder,
+                         agent,
+                       }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
   const filesToAdd = remainder.split(/\s+/);
   let addedCount = 0;
@@ -18,7 +25,9 @@ async function execute({remainder, agent}: AgentCommandInputType<typeof inputSch
       await filesystem.addFileToChat(file, agent);
       addedCount++;
     } catch (error) {
-      errors.push(`Failed to add file ${file}: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(
+        `Failed to add file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

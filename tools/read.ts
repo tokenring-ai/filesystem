@@ -1,5 +1,5 @@
-import Agent from "@tokenring-ai/agent/Agent";
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
 import {isBinaryData} from "@tokenring-ai/utility/buffer/isBinaryData";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
@@ -9,23 +9,26 @@ const name = "file_read";
 const displayName = "Filesystem/read";
 
 async function execute(
-  {
-    files,
-  }: z.output<typeof inputSchema>,
+  {files}: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
-  const { maxFileReadCount, maxFileSize } = agent.getState(FileSystemState).fileRead;
+  const {maxFileReadCount, maxFileSize} =
+    agent.getState(FileSystemState).fileRead;
 
-  let matchedFiles = new Set<string>();
+  const matchedFiles = new Set<string>();
 
   // Handle glob patterns in files array
   for (let filePattern of files) {
     try {
       // Paths are relative to the filesystem root
-      if (filePattern.startsWith('/')) filePattern = filePattern.substring(1);
+      if (filePattern.startsWith("/")) filePattern = filePattern.substring(1);
       if (filePattern.includes("*") || filePattern.includes("?")) {
-        for (const matchedFile of await fileSystem.glob(filePattern, { includeDirectories: true }, agent)) {
+        for (const matchedFile of await fileSystem.glob(
+          filePattern,
+          {includeDirectories: true},
+          agent,
+        )) {
           matchedFiles.add(matchedFile);
         }
       } else {
@@ -45,28 +48,40 @@ async function execute(
     return `No files were found that matched the search criteria`;
   }
 
-  const retrievedFiles = new Map<string, { contents: string, modificationTime?: number | null }>();
+  const retrievedFiles = new Map<
+    string,
+    { contents: string; modificationTime?: number | null }
+  >();
 
   async function retrieveFile(file: string) {
     const stat = await fileSystem.stat(file, agent);
-    if (! stat.exists) {
-      retrievedFiles.set(file, { contents: "[File does not exist]" });
+    if (!stat.exists) {
+      retrievedFiles.set(file, {contents: "[File does not exist]"});
     } else if (stat.isDirectory) {
-      for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
+      for await (const dirFile of fileSystem.getDirectoryTree(
+        file,
+        {},
+        agent,
+      )) {
         await retrieveFile(dirFile);
       }
     } else if (maxFileSize > 0 && stat.size && stat.size > maxFileSize) {
-      retrievedFiles.set(file, { contents: "[File is too large to retrieve]" });
+      retrievedFiles.set(file, {contents: "[File is too large to retrieve]"});
     } else {
       const contents = await fileSystem.readFile(file, agent);
       if (contents) {
         if (isBinaryData(contents)) {
-          retrievedFiles.set(file, { contents: "[File is binary and cannot be displayed]" });
+          retrievedFiles.set(file, {
+            contents: "[File is binary and cannot be displayed]",
+          });
         } else {
-          retrievedFiles.set(file,{ contents: contents.toString("utf-8"), modificationTime: stat.modified?.getTime() });
+          retrievedFiles.set(file, {
+            contents: contents.toString("utf-8"),
+            modificationTime: stat.modified?.getTime(),
+          });
         }
       } else {
-        agent.infoMessage(`[${name}] Couldn't read file ${file}`)
+        agent.infoMessage(`[${name}] Couldn't read file ${file}`);
       }
     }
   }
@@ -76,7 +91,9 @@ async function execute(
   }
 
   if (retrievedFiles.size > maxFileReadCount) {
-    agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
+    agent.infoMessage(
+      `[${name}] Too many files were matched. Returning only the names.`,
+    );
 
     const fileNames = Object.keys(retrievedFiles).sort();
 
@@ -85,13 +102,13 @@ The file read operation matched ${retrievedFiles.size} files, which is higher th
 The list of matched files will be returned as a directory listing instead. To retrieve the files, you will need to request no more than ${maxFileReadCount} files at a time
 
 >> BEGIN DIRECTORY LISTING <<
-${fileNames.map(f => `- ${f}`).join("\n")}
+${fileNames.map((f) => `- ${f}`).join("\n")}
 >> END DIRECTORY LISTING <<
 `.trim();
   }
 
   agent.mutateState(FileSystemState, (state) => {
-    for (const [fileName, { modificationTime }] of retrievedFiles.entries()) {
+    for (const [fileName, {modificationTime}] of retrievedFiles.entries()) {
       if (modificationTime) {
         state.readFiles.set(fileName, modificationTime);
       }
@@ -101,9 +118,12 @@ ${fileNames.map(f => `- ${f}`).join("\n")}
   return `
 The file read operation matched ${retrievedFiles.size} files, the file contents are provided below, between the BEGIN|END FILE ATTACHMENT block headers
   
-${Array.from(retrievedFiles.entries()).map(([file, {contents}]) => 
-    `BEGIN FILE ATTACHMENT: ${file}\n${contents}\nEND FILE ATTACHMENT`
-  ).join('\n\n')}
+${Array.from(retrievedFiles.entries())
+    .map(
+      ([file, {contents}]) =>
+        `BEGIN FILE ATTACHMENT: ${file}\n${contents}\nEND FILE ATTACHMENT`,
+    )
+    .join("\n\n")}
 `.trim();
 }
 
@@ -119,12 +139,17 @@ const inputSchema = z
       .array(z.string())
       .describe(
         "List of file paths or glob patterns (e.g., '**/*.ts', 'path/to/file.txt').",
-      )
+      ),
   })
   .strict();
 
-const requiredContextHandlers= ["selected-files"];
+const requiredContextHandlers = ["selected-files"];
 
 export default {
-  name, displayName, description, inputSchema, execute, requiredContextHandlers
+  name,
+  displayName,
+  description,
+  inputSchema,
+  execute,
+  requiredContextHandlers,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

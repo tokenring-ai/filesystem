@@ -1,13 +1,20 @@
 import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
-import {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand,} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../FileSystemService.ts";
 
 const inputSchema = {
   args: {},
-  remainder: {name: "paths", description: "Space-separated file paths to remove", required: true}
+  remainder: {
+    name: "paths",
+    description: "Space-separated file paths to remove",
+    required: true,
+  },
 } as const satisfies AgentCommandInputSchema;
 
-async function execute({remainder, agent}: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+function execute({
+                   remainder,
+                   agent,
+                 }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
   const filesToRemove = remainder.split(/\s+/);
   let removedCount = 0;
@@ -18,16 +25,18 @@ async function execute({remainder, agent}: AgentCommandInputType<typeof inputSch
       filesystem.removeFileFromChat(file, agent);
       removedCount++;
     } catch (error) {
-      errors.push(`Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(
+        `Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   if (removedCount > 0) {
     const msg = `Successfully removed ${removedCount} file(s) from the chat session.`;
-    return errors.length > 0 ? msg + "\n" + errors.join("\n") : msg;
+    return Promise.resolve(errors.length > 0 ? msg + "\n" + errors.join("\n") : msg);
   }
   if (errors.length > 0) throw new CommandFailedError(errors.join("\n"));
-  return "No files removed.";
+  return Promise.resolve("No files removed.");
 }
 
 export default {

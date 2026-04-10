@@ -1,5 +1,5 @@
 // Keep .ts extension for NodeNext/ESM compatibility in TS source
-import {Agent} from "@tokenring-ai/agent";
+import type {Agent} from "@tokenring-ai/agent";
 import FileSystemService from "./FileSystemService.ts";
 
 export interface MatchItem {
@@ -22,7 +22,11 @@ export default class FileMatchResource {
     const fileSystem = agent.requireServiceByType(FileSystemService);
 
     for (const {path, include, exclude} of this.items) {
-      for await (const relPath of fileSystem.getDirectoryTree(path, {}, agent)) {
+      for await (const relPath of fileSystem.getDirectoryTree(
+        path,
+        {},
+        agent,
+      )) {
         if (exclude?.test(relPath) || include?.test(relPath) === false)
           continue;
         yield relPath;

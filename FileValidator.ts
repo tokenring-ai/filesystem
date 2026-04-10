@@ -3,7 +3,7 @@ import type Agent from "@tokenring-ai/agent/Agent";
 export type ValidationResult = {
   valid: boolean;
   result?: string;
-}
+};
 
 /**
  * FileSystemProvider is an interface that provides a unified interface

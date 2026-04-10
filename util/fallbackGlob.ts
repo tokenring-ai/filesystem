@@ -1,15 +1,20 @@
 import path from "node:path";
-import type FileSystemProvider from "../FileSystemProvider.js";
-import type {GlobOptions} from "../FileSystemProvider.js";
+import type {FileSystemProvider, GlobOptions} from "../FileSystemProvider.js";
 
-type GlobCapableProvider = Pick<FileSystemProvider, "getDirectoryTree" | "stat">;
+type GlobCapableProvider = Pick<
+  FileSystemProvider,
+  "getDirectoryTree" | "stat"
+>;
 
 type GlobCandidate = {
   path: string;
   isDirectory: boolean;
 };
 
-function normalizeGlobPath(inputPath: string, {stripTrailingSeparator = false}: {stripTrailingSeparator?: boolean} = {}): string {
+function normalizeGlobPath(
+  inputPath: string,
+  {stripTrailingSeparator = false}: { stripTrailingSeparator?: boolean } = {},
+): string {
   const normalized = inputPath.replaceAll("\\", "/").replace(/\/+/g, "/");
   if (!stripTrailingSeparator) return normalized;
   if (normalized === "/") return normalized;
@@ -157,7 +162,9 @@ function expandBraces(pattern: string): string[] {
         const before = pattern.slice(0, start);
         const after = pattern.slice(i + 1);
         const body = pattern.slice(start + 1, i);
-        return splitBraceAlternatives(body).flatMap((part) => expandBraces(`${before}${part}${after}`));
+        return splitBraceAlternatives(body).flatMap((part) =>
+          expandBraces(`${before}${part}${after}`),
+        );
       }
     }
   }
@@ -228,9 +235,13 @@ function convertSegmentToRegex(segment: string): string {
 }
 
 function globPatternToRegExp(pattern: string): RegExp {
-  const normalizedPattern = normalizeGlobPath(pattern, {stripTrailingSeparator: true});
+  const normalizedPattern = normalizeGlobPath(pattern, {
+    stripTrailingSeparator: true,
+  });
   const isAbsolute = normalizedPattern.startsWith("/");
-  const segments = normalizedPattern.split("/").filter((segment, index) => !(segment === "" && index === 0));
+  const segments = normalizedPattern
+    .split("/")
+    .filter((segment, index) => !(segment === "" && index === 0));
 
   if (segments.length === 0) {
     return /^\/?$/;
@@ -261,16 +272,24 @@ function getTraversalRoot(pattern: string): string {
   const firstMagicIndex = findFirstMagicIndex(normalizedPattern);
 
   if (firstMagicIndex === -1) {
-    return normalizeGlobPath(path.posix.dirname(normalizedPattern), {stripTrailingSeparator: true}) || ".";
+    return (
+      normalizeGlobPath(path.posix.dirname(normalizedPattern), {
+        stripTrailingSeparator: true,
+      }) || "."
+    );
   }
 
   const prefix = normalizedPattern.slice(0, firstMagicIndex);
   if (prefix.endsWith("/")) {
-    const directRoot = normalizeGlobPath(prefix.slice(0, -1), {stripTrailingSeparator: true});
+    const directRoot = normalizeGlobPath(prefix.slice(0, -1), {
+      stripTrailingSeparator: true,
+    });
     return directRoot || (normalizedPattern.startsWith("/") ? "/" : ".");
   }
 
-  const traversalRoot = normalizeGlobPath(path.posix.dirname(prefix), {stripTrailingSeparator: true});
+  const traversalRoot = normalizeGlobPath(path.posix.dirname(prefix), {
+    stripTrailingSeparator: true,
+  });
 
   if (traversalRoot === "") {
     return normalizedPattern.startsWith("/") ? "/" : ".";
@@ -279,8 +298,14 @@ function getTraversalRoot(pattern: string): string {
   return traversalRoot;
 }
 
-function addCandidate(candidates: Map<string, GlobCandidate>, candidatePath: string, isDirectory: boolean): void {
-  const normalizedPath = normalizeGlobPath(candidatePath, {stripTrailingSeparator: true});
+function addCandidate(
+  candidates: Map<string, GlobCandidate>,
+  candidatePath: string,
+  isDirectory: boolean,
+): void {
+  const normalizedPath = normalizeGlobPath(candidatePath, {
+    stripTrailingSeparator: true,
+  });
   const existing = candidates.get(normalizedPath);
   candidates.set(normalizedPath, {
     path: normalizedPath,
@@ -288,13 +313,28 @@ function addCandidate(candidates: Map<string, GlobCandidate>, candidatePath: str
   });
 }
 
-function addAncestorDirectories(candidates: Map<string, GlobCandidate>, candidatePath: string, traversalRoot: string): void {
-  const normalizedRoot = normalizeGlobPath(traversalRoot, {stripTrailingSeparator: true});
-  let currentPath = normalizeGlobPath(path.posix.dirname(candidatePath), {stripTrailingSeparator: true});
+function addAncestorDirectories(
+  candidates: Map<string, GlobCandidate>,
+  candidatePath: string,
+  traversalRoot: string,
+): void {
+  const normalizedRoot = normalizeGlobPath(traversalRoot, {
+    stripTrailingSeparator: true,
+  });
+  let currentPath = normalizeGlobPath(path.posix.dirname(candidatePath), {
+    stripTrailingSeparator: true,
+  });
 
-  while (currentPath && currentPath !== "." && currentPath !== normalizedRoot && currentPath !== "/") {
+  while (
+    currentPath &&
+    currentPath !== "." &&
+    currentPath !== normalizedRoot &&
+    currentPath !== "/"
+    ) {
     addCandidate(candidates, currentPath, true);
-    currentPath = normalizeGlobPath(path.posix.dirname(currentPath), {stripTrailingSeparator: true});
+    currentPath = normalizeGlobPath(path.posix.dirname(currentPath), {
+      stripTrailingSeparator: true,
+    });
   }
 }
 
@@ -303,12 +343,18 @@ async function resolveExactPattern(
   pattern: string,
   {ignoreFilter, includeDirectories = false}: GlobOptions,
 ): Promise<string[]> {
-  const normalizedPattern = normalizeGlobPath(pattern, {stripTrailingSeparator: true});
+  const normalizedPattern = normalizeGlobPath(pattern, {
+    stripTrailingSeparator: true,
+  });
   const stat = await provider.stat(normalizedPattern);
   if (!stat.exists) return [];
   if (stat.isDirectory && !includeDirectories) return [];
   if (ignoreFilter(normalizedPattern)) return [];
-  return [normalizeGlobPath(stat.absolutePath ?? stat.path, {stripTrailingSeparator: true})];
+  return [
+    normalizeGlobPath(stat.absolutePath ?? stat.path, {
+      stripTrailingSeparator: true,
+    }),
+  ];
 }
 
 export default async function fallbackGlob(
@@ -317,12 +363,16 @@ export default async function fallbackGlob(
   options: GlobOptions,
 ): Promise<string[]> {
   const normalizedPattern = normalizeGlobPath(pattern);
-  const expandedPatterns = expandBraces(normalizedPattern).map((value) => normalizeGlobPath(value, {stripTrailingSeparator: true}));
+  const expandedPatterns = expandBraces(normalizedPattern).map((value) =>
+    normalizeGlobPath(value, {stripTrailingSeparator: true}),
+  );
   const hasMagic = expandedPatterns.some(hasGlobMagic);
 
   if (!hasMagic) {
     const exactMatches = await Promise.all(
-      expandedPatterns.map((expandedPattern) => resolveExactPattern(provider, expandedPattern, options)),
+      expandedPatterns.map((expandedPattern) =>
+        resolveExactPattern(provider, expandedPattern, options),
+      ),
     );
     return exactMatches.flat().sort();
   }
@@ -340,7 +390,9 @@ export default async function fallbackGlob(
       ignoreFilter: () => false,
     })) {
       const isDirectory = entry.endsWith("/") || entry.endsWith(path.sep);
-      const normalizedEntry = normalizeGlobPath(entry, {stripTrailingSeparator: true});
+      const normalizedEntry = normalizeGlobPath(entry, {
+        stripTrailingSeparator: true,
+      });
       addCandidate(candidates, normalizedEntry, isDirectory);
 
       if (options.includeDirectories) {
@@ -352,7 +404,9 @@ export default async function fallbackGlob(
   return [...candidates.values()]
     .filter((candidate) => options.includeDirectories || !candidate.isDirectory)
     .filter((candidate) => !options.ignoreFilter(candidate.path))
-    .filter((candidate) => matchers.some((matcher) => matcher.test(candidate.path)))
+    .filter((candidate) =>
+      matchers.some((matcher) => matcher.test(candidate.path)),
+    )
     .map((candidate) => candidate.path)
     .sort();
 }

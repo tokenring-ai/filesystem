@@ -1,7 +1,7 @@
-import Agent from "@tokenring-ai/agent/Agent";
-import {type ContextHandlerOptions, ContextItem, ParsedChatConfig} from "@tokenring-ai/chat/schema";
+import type Agent from "@tokenring-ai/agent/Agent";
+import type {ContextHandlerOptions, ContextItem,} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
-import {GrepResult} from "../FileSystemProvider.ts";
+import type {GrepResult} from "../FileSystemProvider.ts";
 import FileSystemService from "../FileSystemService.ts";
 
 const FileSearchContextSchema = z.object({
@@ -10,19 +10,120 @@ const FileSearchContextSchema = z.object({
 
 // Common stop words to filter out from search queries
 const STOP_WORDS = new Set([
-  'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-  'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
-  'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-  'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need',
-  'it', 'its', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she',
-  'we', 'they', 'what', 'which', 'who', 'when', 'where', 'why', 'how',
-  'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other', 'some',
-  'such', 'no', 'not', 'only', 'same', 'so', 'than', 'too', 'very',
-  'just', 'about', 'into', 'through', 'during', 'before', 'after',
-  'above', 'below', 'between', 'under', 'again', 'further', 'then',
-  'once', 'here', 'there', 'any', 'if', 'because', 'as', 'until', 'while',
-  'find', 'show', 'get', 'make', 'want', 'look', 'file', 'files', 'code',
-  'please', 'help', 'me', 'my', 'your', 'our', 'their'
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "but",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "with",
+  "by",
+  "from",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "could",
+  "should",
+  "may",
+  "might",
+  "must",
+  "shall",
+  "can",
+  "need",
+  "it",
+  "its",
+  "this",
+  "that",
+  "these",
+  "those",
+  "i",
+  "you",
+  "he",
+  "she",
+  "we",
+  "they",
+  "what",
+  "which",
+  "who",
+  "when",
+  "where",
+  "why",
+  "how",
+  "all",
+  "each",
+  "every",
+  "both",
+  "few",
+  "more",
+  "most",
+  "other",
+  "some",
+  "such",
+  "no",
+  "not",
+  "only",
+  "same",
+  "so",
+  "than",
+  "too",
+  "very",
+  "just",
+  "about",
+  "into",
+  "through",
+  "during",
+  "before",
+  "after",
+  "above",
+  "below",
+  "between",
+  "under",
+  "again",
+  "further",
+  "then",
+  "once",
+  "here",
+  "there",
+  "any",
+  "if",
+  "because",
+  "as",
+  "until",
+  "while",
+  "find",
+  "show",
+  "get",
+  "make",
+  "want",
+  "look",
+  "file",
+  "files",
+  "code",
+  "please",
+  "help",
+  "me",
+  "my",
+  "your",
+  "our",
+  "their",
 ]);
 
 // Common file extensions to detect
@@ -31,7 +132,7 @@ const FILE_EXTENSION_PATTERN = /\.[a-zA-Z0-9]{1,10}$/;
 interface FileMatch {
   filePath: string;
   score: number;
-  matchType: 'filename' | 'content' | 'both';
+  matchType: "filename" | "content" | "both";
   lineMatches: Array<{ line: number; content: string }>;
 }
 
@@ -45,19 +146,19 @@ function extractKeywords(input: string): string[] {
   const quotedPhrases = input.match(/"([^"]+)"|'([^']+)'/g);
   if (quotedPhrases) {
     for (const phrase of quotedPhrases) {
-      keywords.push(phrase.replace(/["']/g, ''));
+      keywords.push(phrase.replace(/["']/g, ""));
     }
   }
 
   // Remove quoted phrases from input for further processing
-  let remaining = input.replace(/"([^"]+)"|'([^']+)'/g, ' ');
+  let remaining = input.replace(/"([^"]+)"|'([^']+)'/g, " ");
 
   // Extract potential file paths (containing / or \)
-  const pathMatches = remaining.match(/[\w./\\-]+[/\\][\w./\\-]+/g);
+  const pathMatches = remaining.match(/[\w./-]+[/\\][\w./-]+/g);
   if (pathMatches) {
     keywords.push(...pathMatches);
     for (const match of pathMatches) {
-      remaining = remaining.replace(match, ' ');
+      remaining = remaining.replace(match, " ");
     }
   }
 
@@ -66,7 +167,7 @@ function extractKeywords(input: string): string[] {
   if (fileNameMatches) {
     keywords.push(...fileNameMatches);
     for (const match of fileNameMatches) {
-      remaining = remaining.replace(match, ' ');
+      remaining = remaining.replace(match, " ");
     }
   }
 
@@ -74,10 +175,10 @@ function extractKeywords(input: string): string[] {
   const splitIdentifier = (str: string): string[] => {
     const parts: string[] = [];
     // Split camelCase
-    const camelParts = str.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ');
+    const camelParts = str.replace(/([a-z])([A-Z])/g, "$1 $2").split(" ");
     for (const part of camelParts) {
       // Split snake_case
-      parts.push(...part.split('_').filter(Boolean));
+      parts.push(...part.split("_").filter(Boolean));
     }
     return parts;
   };
@@ -85,9 +186,9 @@ function extractKeywords(input: string): string[] {
   // Tokenize remaining text
   const tokens = remaining
     .toLowerCase()
-    .replace(/[^\w\s.-]/g, ' ')
+    .replace(/[^\w\s.-]/g, " ")
     .split(/\s+/)
-    .filter(token => token.length > 1);
+    .filter((token) => token.length > 1);
 
   for (const token of tokens) {
     // Skip stop words
@@ -97,13 +198,13 @@ function extractKeywords(input: string): string[] {
     keywords.push(token);
 
     // If it looks like an identifier, split it
-    if (token.includes('_') || /[a-z][A-Z]/.test(token)) {
+    if (token.includes("_") || /[a-z][A-Z]/.test(token)) {
       keywords.push(...splitIdentifier(token));
     }
   }
 
   // Deduplicate while preserving order
-  return [...new Set(keywords)].filter(k => k.length > 1);
+  return [...new Set(keywords)].filter((k) => k.length > 1);
 }
 
 /**
@@ -120,22 +221,22 @@ function extractFileExtensions(input: string): string[] {
 
   // Pattern like "typescript files" or "json files"
   const langToExt: Record<string, string> = {
-    'typescript': '.ts',
-    'javascript': '.js',
-    'python': '.py',
-    'java': '.java',
-    'rust': '.rs',
-    'go': '.go',
-    'ruby': '.rb',
-    'css': '.css',
-    'html': '.html',
-    'json': '.json',
-    'yaml': '.yaml',
-    'yml': '.yml',
-    'markdown': '.md',
-    'react': '.tsx',
-    'vue': '.vue',
-    'svelte': '.svelte',
+    typescript: ".ts",
+    javascript: ".js",
+    python: ".py",
+    java: ".java",
+    rust: ".rs",
+    go: ".go",
+    ruby: ".rb",
+    css: ".css",
+    html: ".html",
+    json: ".json",
+    yaml: ".yaml",
+    yml: ".yml",
+    markdown: ".md",
+    react: ".tsx",
+    vue: ".vue",
+    svelte: ".svelte",
   };
 
   const lowerInput = input.toLowerCase();
@@ -161,7 +262,7 @@ function fuzzyScore(needle: string, haystack: string): number {
   // Contains match
   if (lowerHaystack.includes(lowerNeedle)) {
     // Score based on how much of the haystack the needle covers
-    return 0.7 + (0.2 * (lowerNeedle.length / lowerHaystack.length));
+    return 0.7 + 0.2 * (lowerNeedle.length / lowerHaystack.length);
   }
 
   // Check if all characters appear in order (subsequence match)
@@ -170,7 +271,11 @@ function fuzzyScore(needle: string, haystack: string): number {
   let maxConsecutive = 0;
   let lastMatchIdx = -2;
 
-  for (let i = 0; i < lowerHaystack.length && needleIdx < lowerNeedle.length; i++) {
+  for (
+    let i = 0;
+    i < lowerHaystack.length && needleIdx < lowerNeedle.length;
+    i++
+  ) {
     if (lowerHaystack[i] === lowerNeedle[needleIdx]) {
       if (i === lastMatchIdx + 1) {
         consecutiveMatches++;
@@ -187,7 +292,7 @@ function fuzzyScore(needle: string, haystack: string): number {
     // All characters found in order
     const coverage = lowerNeedle.length / lowerHaystack.length;
     const consecutiveBonus = maxConsecutive / lowerNeedle.length;
-    return 0.3 + (0.2 * coverage) + (0.2 * consecutiveBonus);
+    return 0.3 + 0.2 * coverage + 0.2 * consecutiveBonus;
   }
 
   return 0;
@@ -199,12 +304,12 @@ function fuzzyScore(needle: string, haystack: string): number {
 function scoreFilePath(
   filePath: string,
   keywords: string[],
-  extensions: string[]
+  extensions: string[],
 ): number {
   let score = 0;
-  const fileName = filePath.split('/').pop() || '';
-  const fileNameWithoutExt = fileName.replace(FILE_EXTENSION_PATTERN, '');
-  const fileExt = fileName.match(FILE_EXTENSION_PATTERN)?.[0] || '';
+  const fileName = filePath.split("/").pop() || "";
+  const fileNameWithoutExt = fileName.replace(FILE_EXTENSION_PATTERN, "");
+  const fileExt = fileName.match(FILE_EXTENSION_PATTERN)?.[0] || "";
 
   // Check extension match
   if (extensions.length > 0 && extensions.includes(fileExt)) {
@@ -239,7 +344,7 @@ function scoreFilePath(
   }
 
   // Penalize deeply nested files slightly
-  const depth = filePath.split('/').length;
+  const depth = filePath.split("/").length;
   score -= depth * 0.05;
 
   return score;
@@ -249,17 +354,20 @@ function scoreFilePath(
  * Aggregate grep results by file
  */
 function aggregateGrepResults(
-  grepResults: GrepResult[]
+  grepResults: GrepResult[],
 ): Map<string, Array<{ line: number; content: string }>> {
-  const fileMatches = new Map<string, Array<{ line: number; content: string }>>();
+  const fileMatches = new Map<
+    string,
+    Array<{ line: number; content: string }>
+  >();
 
   for (const result of grepResults) {
     const existing = fileMatches.get(result.file);
-    const lineMatch = { line: result.line, content: result.match };
+    const lineMatch = {line: result.line, content: result.match};
 
     if (existing) {
       // Avoid duplicate lines
-      if (!existing.some(m => m.line === result.line)) {
+      if (!existing.some((m) => m.line === result.line)) {
         existing.push(lineMatch);
       }
     } else {
@@ -283,12 +391,12 @@ async function searchFiles(
   keywords: string[],
   extensions: string[],
   maxResults: number,
-  agent: Agent
+  agent: Agent,
 ): Promise<FileMatch[]> {
   const results: Map<string, FileMatch> = new Map();
 
   // Strategy 1: Filename/path matching via glob
-  const allFiles = await fileSystemService.glob('**/*', {}, agent);
+  const allFiles = await fileSystemService.glob("**/*", {}, agent);
 
   for (const filePath of allFiles) {
     const score = scoreFilePath(filePath, keywords, extensions);
@@ -297,17 +405,18 @@ async function searchFiles(
       results.set(filePath, {
         filePath,
         score,
-        matchType: 'filename',
+        matchType: "filename",
         lineMatches: [],
       });
     }
   }
 
   // Strategy 2: Content search via grep for high-value keywords
-  const grepKeywords = keywords.filter(k =>
-    k.length > 3 &&
-    !STOP_WORDS.has(k.toLowerCase()) &&
-    /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)
+  const grepKeywords = keywords.filter(
+    (k) =>
+      k.length > 3 &&
+      !STOP_WORDS.has(k.toLowerCase()) &&
+      /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k),
   );
 
   if (grepKeywords.length > 0) {
@@ -322,19 +431,19 @@ async function searchFiles(
 
         if (existing) {
           existing.score += contentScore;
-          existing.matchType = 'both';
+          existing.matchType = "both";
           existing.lineMatches = lineMatches;
         } else {
           results.set(file, {
             filePath: file,
             score: contentScore,
-            matchType: 'content',
+            matchType: "content",
             lineMatches,
           });
         }
       }
     } catch (error) {
-      console.warn('Grep search failed:', error);
+      console.warn("Grep search failed:", error);
     }
   }
 
@@ -348,27 +457,29 @@ async function searchFiles(
  */
 function formatResults(results: FileMatch[], keywords: string[]): string {
   if (results.length === 0) {
-    return `No files found matching keywords: ${keywords.join(', ')}`;
+    return `No files found matching keywords: ${keywords.join(", ")}`;
   }
 
   const lines: string[] = [
-    `Found ${results.length} file(s) matching keywords: ${keywords.join(', ')}`,
-    '',
+    `Found ${results.length} file(s) matching keywords: ${keywords.join(", ")}`,
+    "",
   ];
 
   for (const result of results) {
-    const matchTypeLabel = result.matchType === 'both'
-      ? '(filename + content)'
-      : result.matchType === 'content'
-        ? '(content)'
-        : '(filename)';
+    const matchTypeLabel =
+      result.matchType === "both"
+        ? "(filename + content)"
+        : result.matchType === "content"
+          ? "(content)"
+          : "(filename)";
 
     lines.push(`## ${result.filePath} ${matchTypeLabel}`);
 
     if (result.lineMatches.length > 0) {
-      lines.push('');
-      lines.push('Matching lines:');
-      for (const match of result.lineMatches.slice(0, 5)) { // Limit to 5 lines per file
+      lines.push("");
+      lines.push("Matching lines:");
+      for (const match of result.lineMatches.slice(0, 5)) {
+        // Limit to 5 lines per file
         const trimmedContent = match.content.trim();
         lines.push(`  Line ${match.line}: ${trimmedContent}`);
       }
@@ -377,17 +488,21 @@ function formatResults(results: FileMatch[], keywords: string[]): string {
       }
     }
 
-    lines.push('');
+    lines.push("");
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 /**
  * Main context provider function
  */
-export default async function* getContextItems({input, attachments, chatConfig, sourceConfig, agent}: ContextHandlerOptions): AsyncGenerator<ContextItem> {
-  const { maxResults } = FileSearchContextSchema.parse(sourceConfig);
+export default async function* getContextItems({
+                                                 input,
+                                                 sourceConfig,
+                                                 agent,
+                                               }: ContextHandlerOptions): AsyncGenerator<ContextItem> {
+  const {maxResults} = FileSearchContextSchema.parse(sourceConfig);
 
   const fileSystemService = agent.requireServiceByType(FileSystemService);
 
@@ -403,24 +518,24 @@ export default async function* getContextItems({input, attachments, chatConfig, 
     keywords,
     extensions,
     maxResults,
-    agent
+    agent,
   );
 
   const formattedContent = formatResults(searchResults, keywords);
 
   yield {
-    role: 'user',
+    role: "user",
     content: formattedContent,
   };
 }
 
 // Export utilities for testing
 export {
-  extractKeywords,
+  aggregateGrepResults,
   extractFileExtensions,
+  extractKeywords,
+  formatResults,
   fuzzyScore,
   scoreFilePath,
   searchFiles,
-  aggregateGrepResults,
-  formatResults,
 };
