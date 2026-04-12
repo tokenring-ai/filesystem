@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {ContextHandlerOptions, ContextItem,} from "@tokenring-ai/chat/schema";
+import type {ContextHandlerOptions, ContextItem} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import type {GrepResult} from "../FileSystemProvider.ts";
 import FileSystemService from "../FileSystemService.ts";
@@ -443,7 +443,7 @@ async function searchFiles(
         }
       }
     } catch (error) {
-      console.warn("Grep search failed:", error);
+      agent.errorMessage("Grep search failed:", error as Error);
     }
   }
 

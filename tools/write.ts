@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, TokenRingToolResult,} from "@tokenring-ai/chat/schema";
+import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import path from "node:path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
@@ -61,13 +61,14 @@ ${curFileContents}`.trim();
 
   const validationSuffix = state.fileWrite.validateWrittenFiles
     ? await runFileValidator(filePath, content, agent)
-    : "";
+    : null;
+
   return createFileWriteResult(
-    filePath,
-    curFileContents,
-    content,
-    state.fileWrite.maxReturnedDiffSize,
-    validationSuffix,
+      filePath,
+      curFileContents,
+      content,
+      state.fileWrite.maxReturnedDiffSize,
+      validationSuffix,
   );
 }
 

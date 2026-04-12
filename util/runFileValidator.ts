@@ -13,6 +13,6 @@ export default async function runFileValidator(
     .getFileValidatorForExtension(ext);
 
   if (!validator) return "";
-  const result = await validator(filePath, content);
+  const result = await validator.validateFile(filePath, content);
   return result ? `\n\nValidation (${ext}):\n${result}` : "";
 }

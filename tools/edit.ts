@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, TokenRingToolResult,} from "@tokenring-ai/chat/schema";
+import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
@@ -9,11 +9,6 @@ import runFileValidator from "../util/runFileValidator.ts";
 
 const name = "file_edit";
 const displayName = "Filesystem/edit";
-
-const fuzzyMatch = {
-  minimumCharacters: 15,
-  similarity: 0.95,
-} as const;
 
 function splitLines(content: string): {
   lines: string[];
@@ -48,7 +43,7 @@ async function execute(
   {path: filePath, findLines, replaceLines}: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<TokenRingToolResult> {
-  const {enabled} = agent.getState(FileSystemState).fileEdit;
+  const {enabled, fuzzyMatchSimilarity, minimumMatchedCharacters} = agent.getState(FileSystemState).fileEdit;
 
   if (!enabled) {
     throw new Error(
@@ -71,7 +66,12 @@ async function execute(
   const matchResult = findContiguousLineMatch(
     originalLines,
     findLines.split("\n"),
-    {fuzzyMatch},
+    {
+      fuzzyMatch: {
+        minimumCharacters: minimumMatchedCharacters,
+        similarity: fuzzyMatchSimilarity
+      }
+    },
   );
 
   if (!matchResult.match) {
@@ -138,14 +138,14 @@ async function execute(
 
   const validationSuffix = state.fileWrite.validateWrittenFiles
     ? await runFileValidator(filePath, updatedContent, agent)
-    : "";
+    : null;
 
   return createFileWriteResult(
-    filePath,
-    originalContent,
-    updatedContent,
-    state.fileWrite.maxReturnedDiffSize,
-    validationSuffix,
+      filePath,
+      originalContent,
+      updatedContent,
+      state.fileWrite.maxReturnedDiffSize,
+      validationSuffix,
   );
 }
 
@@ -166,7 +166,7 @@ const inputSchema = z.object({
   findLines: z
     .string()
     .describe(
-      "Up to 5 contiguous lines to match in the file. Each line must be complete, and all matched lines must be contiguous..",
+      "Up to 3 contiguous lines to match in the file. Each line must be complete, and all matched lines must be contiguous.",
     ),
   replaceLines: z
     .string()

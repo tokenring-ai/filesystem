@@ -29,7 +29,10 @@ export const FileSystemAgentConfigSchema = z
     fileEdit: z
       .object({
         enabled: z.boolean().optional(),
-        disableAfterConsecutiveFailures: z.number().optional(),
+        fuzzyMatchSimilarity: z.number().min(0.7).max(1).optional(),
+        minimumMatchedCharacters: z.number().optional(),
+        consecutiveFailureCount: z.number().optional(),
+        disableAfterConsecutiveFailures: z.number().optional()
       })
       .optional(),
   })
@@ -66,6 +69,8 @@ export const FileSystemConfigSchema = z
       fileEdit: z
         .object({
           enabled: z.boolean().default(true),
+          fuzzyMatchSimilarity: z.number().min(0.7).max(1).default(0.85),
+          minimumMatchedCharacters: z.number().default(15),
           consecutiveFailureCount: z.number().default(0),
           disableAfterConsecutiveFailures: z.number().default(2),
         })

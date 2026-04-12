@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, TokenRingToolResult,} from "@tokenring-ai/chat/schema";
+import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
 import path from "node:path";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
@@ -72,18 +72,18 @@ ${curFileContents}`.trim();
     state.readFiles.set(filePath, Date.now());
   });
 
-  const validationSuffix = await runFileValidator(
-    filePath,
-    newFileContents,
-    agent,
-  );
+  const validationSuffix = state.fileWrite.validateWrittenFiles
+    ? await runFileValidator(filePath, newFileContents, agent)
+    : null;
+
+
   return createFileWriteResult(
-    filePath,
-    curFileContents,
-    newFileContents,
-    state.fileWrite.maxReturnedDiffSize,
-    validationSuffix,
-  );
+      filePath,
+      curFileContents,
+      newFileContents,
+      state.fileWrite.maxReturnedDiffSize,
+      validationSuffix,
+    );
 }
 
 const description =

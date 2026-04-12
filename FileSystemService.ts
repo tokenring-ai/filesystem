@@ -6,16 +6,15 @@ import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import type {MaybePromise} from "bun";
 import path from "node:path";
 import type {z} from "zod";
-import type {DirectoryTreeOptions, FileSystemProvider, GlobOptions, GrepOptions, GrepResult, StatLike, WatchOptions,} from "./FileSystemProvider.js";
-import {FileSystemAgentConfigSchema, type FileSystemConfigSchema,} from "./schema.ts";
+import type {DirectoryTreeOptions, FileSystemProvider, GlobOptions, GrepOptions, GrepResult, StatLike, WatchOptions} from "./FileSystemProvider.js";
+import {FileSystemAgentConfigSchema, type FileSystemConfigSchema} from "./schema.ts";
 import {FileSystemState} from "./state/fileSystemState.ts";
 import createIgnoreFilter from "./util/createIgnoreFilter.ts";
 import fallbackGlob from "./util/fallbackGlob.ts";
 
-export type FileValidator = (
-  path: string,
-  content: string,
-) => MaybePromise<string | null>;
+export type FileValidator = {
+  readonly validateFile: (path: string, content: string) => MaybePromise<string | null>
+};
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 

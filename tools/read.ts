@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import type {TokenRingToolDefinition, } from "@tokenring-ai/chat/schema";
 import {isBinaryData} from "@tokenring-ai/utility/buffer/isBinaryData";
 import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";

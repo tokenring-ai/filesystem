@@ -1,4 +1,5 @@
-import type {TokenRingToolResult} from "@tokenring-ai/chat/schema";
+import {BaseAttachmentSchema} from "@tokenring-ai/agent/AgentEvents";
+import type {TokenRingFullToolResult} from "@tokenring-ai/chat/schema";
 import {createPatch} from "diff";
 import mime from "mime-types";
 
@@ -7,25 +8,52 @@ export default function createFileWriteResult(
   previousContent: string | null,
   nextContent: string,
   maxReturnedDiffSize: number,
-  validationSuffix = "",
-): TokenRingToolResult {
+  validationSuffix: string | null,
+): TokenRingFullToolResult {
+  const attachments: TokenRingFullToolResult["attachments"] = [];
+
+  if (previousContent) {
+    const mimeType = BaseAttachmentSchema.shape.mimeType.safeParse(mime.lookup(filePath));
+    if (mimeType.success) {
+      attachments.push({
+        sendToLLM: false,
+        name: filePath,
+        description: `Original content of ${filePath}`,
+        encoding: "text",
+        mimeType: mimeType.data,
+        body: previousContent,
+      });
+    }
+  }
+
   if (previousContent !== null) {
     const diff = createPatch(filePath, previousContent, nextContent);
 
-    return {
-      type: "text",
-      text:
-        (diff.length <= maxReturnedDiffSize
-          ? `File successfully written. Changes made:\n${diff}`
-          : "File successfully overwritten.") + validationSuffix,
-      artifact: {
-        name: filePath,
+    if (diff.length <= maxReturnedDiffSize) {
+      attachments.push({
+        name: `${filePath}.diff`,
         encoding: "text",
         mimeType: "text/x-diff",
         body: diff,
-      },
-    };
+      });
+    }
   }
+
+  if (validationSuffix) {
+    attachments.push({
+      name: `${filePath}.validation.txt`,
+      encoding: "text",
+      mimeType: "text/plain",
+      body: validationSuffix
+    });
+  }
+  return {
+    result: `[${filePath}] File successfully ${previousContent ? 'overwritten' : 'created'}.`,
+    attachments
+  };
+}
+
+/*
 
   return {
     type: "text",
@@ -37,4 +65,4 @@ export default function createFileWriteResult(
       body: nextContent,
     },
   };
-}
+}*/

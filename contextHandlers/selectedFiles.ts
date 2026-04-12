@@ -1,4 +1,4 @@
-import type {ContextHandlerOptions, ContextItem,} from "@tokenring-ai/chat/schema";
+import type {ContextHandlerOptions, ContextItem} from "@tokenring-ai/chat/schema";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 

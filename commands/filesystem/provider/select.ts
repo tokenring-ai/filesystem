@@ -1,5 +1,5 @@
 import type {TreeLeaf} from "@tokenring-ai/agent/question";
-import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand,} from "@tokenring-ai/agent/types";
+import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
 import FileSystemService from "../../../FileSystemService.ts";
 import {FileSystemState} from "../../../state/fileSystemState.ts";
 
