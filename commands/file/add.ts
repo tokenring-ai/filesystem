@@ -24,7 +24,7 @@ async function execute({
     try {
       await filesystem.addFileToChat(file, agent);
       addedCount++;
-    } catch (error) {
+    } catch (error: unknown) {
       errors.push(
         `Failed to add file ${file}: ${error instanceof Error ? error.message : String(error)}`,
       );

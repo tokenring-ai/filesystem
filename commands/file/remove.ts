@@ -24,7 +24,7 @@ function execute({
     try {
       filesystem.removeFileFromChat(file, agent);
       removedCount++;
-    } catch (error) {
+    } catch (error: unknown) {
       errors.push(
         `Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`,
       );

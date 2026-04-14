@@ -16,7 +16,6 @@ export default function createFileWriteResult(
     const mimeType = BaseAttachmentSchema.shape.mimeType.safeParse(mime.lookup(filePath));
     if (mimeType.success) {
       attachments.push({
-        sendToLLM: false,
         name: filePath,
         description: `Original content of ${filePath}`,
         encoding: "text",
@@ -25,6 +24,9 @@ export default function createFileWriteResult(
       });
     }
   }
+  const results = [
+    `[${filePath}] Success.`,
+  ]
 
   if (previousContent !== null) {
     const diff = createPatch(filePath, previousContent, nextContent);
@@ -36,6 +38,7 @@ export default function createFileWriteResult(
         mimeType: "text/x-diff",
         body: diff,
       });
+      results.push(`[${filePath}] File Diff:`, diff);
     }
   }
 
@@ -46,9 +49,10 @@ export default function createFileWriteResult(
       mimeType: "text/plain",
       body: validationSuffix
     });
+    results.push(`[${filePath}] File Validation Results:`, validationSuffix);
   }
   return {
-    result: `[${filePath}] File successfully ${previousContent ? 'overwritten' : 'created'}.`,
+    result: results.join("\n"),
     attachments
   };
 }

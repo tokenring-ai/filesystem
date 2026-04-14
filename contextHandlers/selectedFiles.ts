@@ -31,7 +31,7 @@ export default async function* getContextItems({
       }
     } else {
       try {
-        const directoryListing = await fileSystem.getDirectoryTree(
+        const directoryListing = fileSystem.getDirectoryTree(
           filePath,
           {},
           agent,

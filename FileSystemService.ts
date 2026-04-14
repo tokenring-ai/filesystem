@@ -192,7 +192,7 @@ export default class FileSystemService implements TokenRingService {
       return await this.requireActiveFileSystem(agent).exists(
         this.resolveAbsolutePath(path, agent),
       );
-    } catch (_error) {
+    } catch {
       return false;
     }
   }

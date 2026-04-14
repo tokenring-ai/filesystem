@@ -442,7 +442,7 @@ async function searchFiles(
           });
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       agent.errorMessage("Grep search failed:", error as Error);
     }
   }
