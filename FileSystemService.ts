@@ -30,15 +30,15 @@ export default class FileSystemService implements TokenRingService {
 
   private fileSystemProviderRegistry = new KeyedRegistry<FileSystemProvider>();
 
-  registerFileSystemProvider = this.fileSystemProviderRegistry.register;
+  registerFileSystemProvider = this.fileSystemProviderRegistry.set;
   unregisterFileSystemProvider = this.fileSystemProviderRegistry.unregister;
   requireFileSystemProviderByName =
-    this.fileSystemProviderRegistry.requireItemByName;
-  getFilesystemProviderNames = this.fileSystemProviderRegistry.getAllItemNames;
+    this.fileSystemProviderRegistry.require;
+  getFilesystemProviderNames = this.fileSystemProviderRegistry.keysArray;
 
   private fileValidatorRegistry = new KeyedRegistry<FileValidator>();
-  registerFileValidator = this.fileValidatorRegistry.register;
-  getFileValidatorForExtension = this.fileValidatorRegistry.getItemByName;
+  registerFileValidator = this.fileValidatorRegistry.set;
+  getFileValidatorForExtension = this.fileValidatorRegistry.get;
 
   /**
    * Creates an instance of FileSystem
@@ -48,7 +48,7 @@ export default class FileSystemService implements TokenRingService {
 
   start(): void {
     // Throws an error if the default provider is not registered, since this is most likely a mistake
-    this.defaultProvider = this.fileSystemProviderRegistry.requireItemByName(
+    this.defaultProvider = this.fileSystemProviderRegistry.require(
       this.options.agentDefaults.provider,
     );
   }
@@ -73,11 +73,11 @@ export default class FileSystemService implements TokenRingService {
     const {providerName} = agent.getState(FileSystemState);
     if (!providerName)
       throw new Error("No file system provider configured for agent");
-    return this.fileSystemProviderRegistry.requireItemByName(providerName);
+    return this.fileSystemProviderRegistry.require(providerName);
   }
 
   setActiveFileSystem(providerName: string, agent: Agent): void {
-    this.fileSystemProviderRegistry.requireItemByName(providerName);
+    this.fileSystemProviderRegistry.require(providerName);
     agent.mutateState(FileSystemState, (state: FileSystemState) => {
       state.providerName = providerName;
     });

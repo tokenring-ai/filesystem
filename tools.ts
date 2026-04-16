@@ -4,11 +4,11 @@ import grep from "./tools/grep.ts";
 import read from "./tools/read.ts";
 import write from "./tools/write.ts";
 
-export default {
+export default [
   edit,
   write,
   read,
   //append,
   glob,
   grep,
-};
+];

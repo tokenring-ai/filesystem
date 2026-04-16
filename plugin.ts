@@ -84,7 +84,7 @@ export default {
         },
       );
       app.waitForService(ChatService, (chatService) => {
-        chatService.addTools(tools);
+        chatService.addTools(...tools);
         chatService.registerContextHandlers(contextHandlers);
       });
 
