@@ -128,45 +128,62 @@ describe("file_findReplace", () => {
     app.shutdown();
   });
 
-  it("updates the file through a fuzzy whole-line match without changing the tracked read timestamp", async () => {
+  it("replaces a word-based match while ignoring whitespace differences", async () => {
     agent.mutateState(FileSystemState, (state) => {
       state.readFiles.set("src/example.ts", 12345);
     });
-    const infoSpy = vi.spyOn(agent, "infoMessage");
 
     const result = await findReplaceTool.execute({
       path: "src/example.ts",
-      findLines: [
-        'const message = "The quick brown fox jumps over the lazy dox";',
-      ],
-      replaceLines: [
-        '  const message = "The quick brown fox jumps over the lazy cat";',
-      ],
+      find: 'lazy   dog";',
+      replace: 'lazy cat";',
+      multiple: false,
     }, agent);
 
     expect(provider.files.get("/repo/src/example.ts")?.toString("utf-8")).toContain("lazy cat");
     expect(agent.getState(FileSystemState).readFiles.get("src/example.ts")).toBe(12345);
     expect(fileSystemService.isDirty(agent)).toBe(true);
-    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining("Applying fuzzy match"));
-    expect(result.type).toBe("text");
-    expect((result as any).text).toContain("File successfully written. Changes made:");
-    expect((result as any).artifact.mimeType).toBe("text/x-diff");
-    expect((result as any).artifact.body).toContain('+  const message = "The quick brown fox jumps over the lazy cat";');
+    expect(typeof result).not.toBe("string");
+    expect((result as any).result).toContain("Success");
   });
 
-  it("throws when the requested block matches multiple locations exactly", async () => {
+  it("returns the match list when multiple matches are found and multiple=false", async () => {
     provider.files.set("/repo/src/example.ts", Buffer.from([
-      "alpha",
-      "beta",
-      "alpha",
-      "beta",
+      "alpha beta",
+      "something",
+      "alpha beta",
       "",
     ].join("\n")));
 
-    await expect(findReplaceTool.execute({
+    const result = await findReplaceTool.execute({
       path: "src/example.ts",
-      findLines: "alpha\nbeta",
-      replaceLines: "gamma",
-    }, agent)).rejects.toThrow("Expected exactly one match");
+      find: "alpha beta",
+      replace: "gamma",
+      multiple: false,
+    }, agent);
+
+    expect(typeof result).toBe("string");
+    expect(result as string).toContain("Found 2 matches");
+    expect(provider.files.get("/repo/src/example.ts")?.toString("utf-8")).toContain("alpha beta");
+  });
+
+  it("replaces every match when multiple=true", async () => {
+    provider.files.set("/repo/src/example.ts", Buffer.from([
+      "alpha beta",
+      "something",
+      "alpha\tbeta",
+      "",
+    ].join("\n")));
+
+    await findReplaceTool.execute({
+      path: "src/example.ts",
+      find: "alpha beta",
+      replace: "gamma",
+      multiple: true,
+    }, agent);
+
+    const content = provider.files.get("/repo/src/example.ts")!.toString("utf-8");
+    expect(content).not.toContain("alpha");
+    expect(content.match(/gamma/g)?.length).toBe(2);
   });
 });

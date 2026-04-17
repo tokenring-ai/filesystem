@@ -4,46 +4,29 @@ import {z} from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import {FileSystemState} from "../state/fileSystemState.ts";
 import createFileWriteResult from "../util/createFileWriteResult.ts";
-import findContiguousLineMatch from "../util/findContiguousLineMatch.ts";
+import findWordMatches, {type WordMatch} from "../util/findWordMatches.ts";
 import runFileValidator from "../util/runFileValidator.ts";
 
 const name = "file_edit";
 const displayName = "Filesystem/edit";
 
-function splitLines(content: string): {
-  lines: string[];
-  lineEnding: string;
-  hasTrailingLineEnding: boolean;
-} {
-  const hasTrailingLineEnding = /\r?\n$/.test(content);
-  const lineEnding = content.includes("\r\n") ? "\r\n" : "\n";
-  const lines = content.split(/\r?\n/);
+const CONTEXT_CHARS = 40;
 
-  if (hasTrailingLineEnding) {
-    lines.pop();
-  }
-
-  return {lines, lineEnding, hasTrailingLineEnding};
-}
-
-function joinLines(
-  lines: string[],
-  lineEnding: string,
-  hasTrailingLineEnding: boolean,
-): string {
-  if (lines.length === 0) {
-    return "";
-  }
-
-  const content = lines.join(lineEnding);
-  return hasTrailingLineEnding ? `${content}${lineEnding}` : content;
+function describeMatch(content: string, match: WordMatch, index: number): string {
+  const line = content.slice(0, match.start).split("\n").length;
+  const lineStart = content.lastIndexOf("\n", match.start - 1) + 1;
+  const column = match.start - lineStart + 1;
+  const before = content.slice(Math.max(0, match.start - CONTEXT_CHARS), match.start);
+  const matched = content.slice(match.start, match.end);
+  const after = content.slice(match.end, Math.min(content.length, match.end + CONTEXT_CHARS));
+  return `Match ${index + 1} at line ${line}, column ${column} (chars ${match.start}-${match.end}):\n…${before}》${matched}《${after}…`;
 }
 
 async function execute(
-  {path: filePath, findLines, replaceLines}: z.output<typeof inputSchema>,
+  {path: filePath, find, replace, multiple}: z.output<typeof inputSchema>,
   agent: Agent,
 ): Promise<TokenRingToolResult> {
-  const {enabled, fuzzyMatchSimilarity, minimumMatchedCharacters} = agent.getState(FileSystemState).fileEdit;
+  const {enabled} = agent.getState(FileSystemState).fileEdit;
 
   if (!enabled) {
     throw new Error(
@@ -58,23 +41,9 @@ async function execute(
     throw new Error(`[${name}] Failed to read file content: ${filePath}`);
   }
 
-  const {
-    lines: originalLines,
-    lineEnding,
-    hasTrailingLineEnding,
-  } = splitLines(originalContent);
-  const matchResult = findContiguousLineMatch(
-    originalLines,
-    findLines.split("\n"),
-    {
-      fuzzyMatch: {
-        minimumCharacters: minimumMatchedCharacters,
-        similarity: fuzzyMatchSimilarity
-      }
-    },
-  );
+  const matches = findWordMatches(originalContent, find);
 
-  if (!matchResult.match) {
+  if (matches.length === 0) {
     agent.mutateState(FileSystemState, (state) => {
       state.fileEdit.consecutiveFailureCount += 1;
       const {consecutiveFailureCount, disableAfterConsecutiveFailures} =
@@ -86,27 +55,22 @@ async function execute(
         );
       }
     });
-
-    if (matchResult.exactMatches.length > 1) {
-      throw new Error(
-        `[${name}] Found ${matchResult.exactMatches.length} exact matches for the requested line block in file ${filePath}. Expected exactly one match.`,
-      );
-    }
-
-    if (matchResult.fuzzyMatches.length > 1) {
-      throw new Error(
-        `[${name}] Found multiple fuzzy matches for the requested line block in file ${filePath}. Refine the search block so it identifies a single location.`,
-      );
-    }
-
-    if (matchResult.fuzzyMatches.length === 1) {
-      throw new Error(
-        `[${name}] Fuzzy matched a candidate in file ${filePath}, but it was not unique enough to apply safely.`,
-      );
-    }
-
     throw new Error(
-      `[${name}] Could not find the requested line block in file ${filePath}. Matching ignores whitespace and only considers whole-line contiguous blocks.`,
+      `[${name}] Could not find the requested text in file ${filePath}. Matching is word-based: the first word must appear verbatim, and remaining words must follow in order, separated by any whitespace.`,
+    );
+  }
+
+  if (matches.length > 1 && !multiple) {
+    agent.mutateState(FileSystemState, (state) => {
+      state.fileEdit.consecutiveFailureCount = 0;
+    });
+    const summary = matches
+      .map((match, index) => describeMatch(originalContent, match, index))
+      .join("\n\n");
+    return (
+      `[${name}] Found ${matches.length} matches for the requested text in ${filePath}. ` +
+      `Pass multiple=true to replace all, or refine the find string to match a single location.\n\n` +
+      summary
     );
   }
 
@@ -114,22 +78,14 @@ async function execute(
     state.fileEdit.consecutiveFailureCount = 0;
   });
 
-  if (matchResult.match.matchType === "fuzzy") {
-    agent.infoMessage(
-      `[${name}] Applying fuzzy match to ${filePath} with similarity ${matchResult.match.similarity.toFixed(3)}`,
-    );
+  let updatedContent = "";
+  let cursor = 0;
+  for (const match of matches) {
+    updatedContent += originalContent.slice(cursor, match.start) + replace;
+    cursor = match.end;
   }
+  updatedContent += originalContent.slice(cursor);
 
-  const updatedLines = [
-    ...originalLines.slice(0, matchResult.match.startLineIndex),
-    ...replaceLines.split("\n"),
-    ...originalLines.slice(matchResult.match.endLineIndex + 1),
-  ];
-  const updatedContent = joinLines(
-    updatedLines,
-    lineEnding,
-    hasTrailingLineEnding,
-  );
   const state = agent.getState(FileSystemState);
 
   if (updatedContent !== originalContent) {
@@ -141,37 +97,43 @@ async function execute(
     : null;
 
   return createFileWriteResult(
-      filePath,
-      originalContent,
-      updatedContent,
-      state.fileWrite.maxReturnedDiffSize,
-      validationSuffix,
+    filePath,
+    originalContent,
+    updatedContent,
+    state.fileWrite.maxReturnedDiffSize,
+    validationSuffix,
   );
 }
 
 const description = `
-Modifies an existing file.
-- Finds a contiguous block of complete lines in an existing file
-- Replaces those lines with new lines.
-- Matches must be exact, complete lines, with the exact prior content of the line
-- Partial-line matches are never allowed.
+Modifies an existing file by finding a string and replacing it.
+- The find string is trimmed; its first word must appear verbatim in the file.
+- Remaining words in the find string must follow in order, separated by any amount of whitespace (the whitespace in the find string is not significant).
+- The entire matched region (from the start of the first word through the end of the last word) is replaced with the replace string.
+- If multiple matches are found and \`multiple\` is false (default), the matches are returned so you can refine the find string. Set \`multiple\` to true to replace all matches.
 `.trim();
 
 const inputSchema = z.object({
   path: z
     .string()
     .describe(
-      "Relative path of the file to edit (e.g., 'src/main.ts' or 'docs/design.md'). Relative to the project root directory. Required.",
+      "Relative path of the file to edit (e.g., 'src/main.ts'). Relative to the project root directory.",
     ),
-  findLines: z
+  find: z
     .string()
     .describe(
-      "Up to 3 contiguous lines to match in the file. Each line must be complete, and all matched lines must be contiguous.",
+      "Text to find. Will be trimmed; whitespace between words is not significant but word order and exact word content are.",
     ),
-  replaceLines: z
+  replace: z
     .string()
     .describe(
-      "The complete lines that will replace the matched block. Provide an empty array to delete the matched lines.",
+      "Replacement text. Replaces the matched region verbatim. Use an empty string to delete the match.",
+    ),
+  multiple: z
+    .boolean()
+    .default(false)
+    .describe(
+      "If true, replace every match. If false and more than one match is found, the matches are returned without modifying the file.",
     ),
 });
 
