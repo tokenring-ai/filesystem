@@ -103,9 +103,12 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
 
   getFilesystemState(args, app: TokenRingApp) {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+    if (!agent) {
+      return {status: 'agentNotFound'};
+    }
     const state = agent.getState(FileSystemState);
     return Promise.resolve({
+      status: 'success',
       provider: state.providerName ?? "",
       workingDirectory: state.workingDirectory,
       selectedFiles: Array.from(state.selectedFiles),
@@ -116,17 +119,21 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
 
   async addFileToChat(args, app: TokenRingApp) {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+    if (!agent) {
+      return {status: 'agentNotFound'};
+    }
     const fs = app.requireService(FileSystemService);
     await fs.addFileToChat(args.file, agent);
-    return {success: true};
+    return {status: 'success', success: true};
   },
 
   removeFileFromChat(args, app: TokenRingApp) {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);
-    if (!agent) throw new Error("Agent not found");
+    if (!agent) {
+      return {status: 'agentNotFound'};
+    }
     const fs = app.requireService(FileSystemService);
     fs.removeFileFromChat(args.file, agent);
-    return {success: true};
+    return {status: 'success', success: true};
   },
 });
