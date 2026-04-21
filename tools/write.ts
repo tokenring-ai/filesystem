@@ -47,8 +47,9 @@ ${curFileContents}`.trim();
 
   await fileSystem.writeFile(filePath, content, agent);
 
+  const updatedFileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
   agent.mutateState(FileSystemState, (state: FileSystemState) => {
-    state.readFiles.set(filePath, Date.now());
+    state.readFiles.set(filePath, updatedFileModificationTime || Date.now());
   });
 
   const validationSuffix = state.fileWrite.validateWrittenFiles ? await runFileValidator(filePath, content, agent) : null;
