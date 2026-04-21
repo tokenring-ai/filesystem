@@ -2,7 +2,7 @@ import type Agent from "@tokenring-ai/agent/Agent";
 
 export type ValidationResult = {
   valid: boolean;
-  result?: string;
+  result?: string | undefined;
 };
 
 /**

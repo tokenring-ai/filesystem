@@ -1,6 +1,6 @@
-import type {RPCSchema} from "@tokenring-ai/rpc/types";
-import {z} from "zod";
-import {AgentNotFoundSchema} from "@tokenring-ai/agent/schema";
+import { AgentNotFoundSchema } from "@tokenring-ai/agent/schema";
+import type { RPCSchema } from "@tokenring-ai/rpc/types";
+import { z } from "zod";
 
 export default {
   name: "Filesystem RPC",
@@ -139,14 +139,14 @@ export default {
       }),
       result: z.discriminatedUnion("status", [
         z.object({
-          status: z.literal('success'),
+          status: z.literal("success"),
           provider: z.string(),
           workingDirectory: z.string(),
           selectedFiles: z.array(z.string()),
           readFiles: z.record(z.string(), z.number()),
           dirty: z.boolean(),
         }),
-        AgentNotFoundSchema
+        AgentNotFoundSchema,
       ]),
     },
     addFileToChat: {
@@ -157,10 +157,10 @@ export default {
       }),
       result: z.discriminatedUnion("status", [
         z.object({
-          status: z.literal('success'),
+          status: z.literal("success"),
           success: z.boolean(),
         }),
-        AgentNotFoundSchema
+        AgentNotFoundSchema,
       ]),
     },
     removeFileFromChat: {
@@ -171,10 +171,10 @@ export default {
       }),
       result: z.discriminatedUnion("status", [
         z.object({
-          status: z.literal('success'),
+          status: z.literal("success"),
           success: z.boolean(),
         }),
-        AgentNotFoundSchema
+        AgentNotFoundSchema,
       ]),
     },
   },

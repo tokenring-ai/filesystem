@@ -1,5 +1,5 @@
 // Keep .ts extension for NodeNext/ESM compatibility in TS source
-import type {Agent} from "@tokenring-ai/agent";
+import type { Agent } from "@tokenring-ai/agent";
 import FileSystemService from "./FileSystemService.ts";
 
 export interface MatchItem {
@@ -12,23 +12,17 @@ export interface MatchItem {
  * Class representing a file tree context extending DirectoryService.
  */
 export default class FileMatchResource {
-  constructor(private readonly items: MatchItem[]) {
-  }
+  constructor(private readonly items: MatchItem[]) {}
 
   /**
    * Asynchronously gets matched files
    */
-  async* getMatchedFiles(agent: Agent): AsyncGenerator<string> {
+  async *getMatchedFiles(agent: Agent): AsyncGenerator<string> {
     const fileSystem = agent.requireServiceByType(FileSystemService);
 
-    for (const {path, include, exclude} of this.items) {
-      for await (const relPath of fileSystem.getDirectoryTree(
-        path,
-        {},
-        agent,
-      )) {
-        if (exclude?.test(relPath) || include?.test(relPath) === false)
-          continue;
+    for (const { path, include, exclude } of this.items) {
+      for await (const relPath of fileSystem.getDirectoryTree(path, {}, agent)) {
+        if (exclude?.test(relPath) || include?.test(relPath) === false) continue;
         yield relPath;
       }
     }

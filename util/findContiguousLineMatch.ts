@@ -21,23 +21,15 @@ export type FindContiguousLineMatchResult = {
   fuzzyMatches: ContiguousLineMatch[];
 };
 
-export function normalizeLineForWhitespaceInsensitiveMatch(
-  line: string,
-): string {
+export function normalizeLineForWhitespaceInsensitiveMatch(line: string): string {
   return line.replace(/\s+/g, "");
 }
 
-export function calculateLevenshteinSimilarity(
-  left: string,
-  right: string,
-): number {
+export function calculateLevenshteinSimilarity(left: string, right: string): number {
   if (left === right) return 1;
   if (left.length === 0 || right.length === 0) return 0;
 
-  const previousRow = Array.from(
-    {length: right.length + 1},
-    (_value, index) => index,
-  );
+  const previousRow = Array.from({ length: right.length + 1 }, (_value, index) => index);
 
   for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
     let previousDiagonal = previousRow[0];
@@ -45,14 +37,9 @@ export function calculateLevenshteinSimilarity(
 
     for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
       const current = previousRow[rightIndex];
-      const substitutionCost =
-        left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
 
-      previousRow[rightIndex] = Math.min(
-        previousRow[rightIndex] + 1,
-        previousRow[rightIndex - 1] + 1,
-        previousDiagonal + substitutionCost,
-      );
+      previousRow[rightIndex] = Math.min(previousRow[rightIndex] + 1, previousRow[rightIndex - 1] + 1, previousDiagonal + substitutionCost);
 
       previousDiagonal = current;
     }
@@ -62,12 +49,7 @@ export function calculateLevenshteinSimilarity(
   return 1 - distance / Math.max(left.length, right.length);
 }
 
-function createMatch(
-  startLineIndex: number,
-  lineCount: number,
-  similarity: number,
-  matchType: ContiguousLineMatch["matchType"],
-): ContiguousLineMatch {
+function createMatch(startLineIndex: number, lineCount: number, similarity: number, matchType: ContiguousLineMatch["matchType"]): ContiguousLineMatch {
   return {
     startLineIndex,
     endLineIndex: startLineIndex + lineCount - 1,
@@ -79,10 +61,7 @@ function createMatch(
 export default function findContiguousLineMatch(
   sourceLines: string[],
   targetLines: string[],
-  {
-    normalizeLine = normalizeLineForWhitespaceInsensitiveMatch,
-    fuzzyMatch,
-  }: FindContiguousLineMatchOptions = {},
+  { normalizeLine = normalizeLineForWhitespaceInsensitiveMatch, fuzzyMatch }: FindContiguousLineMatchOptions = {},
 ): FindContiguousLineMatchResult {
   if (targetLines.length === 0 || sourceLines.length < targetLines.length) {
     return {
@@ -96,21 +75,11 @@ export default function findContiguousLineMatch(
   const normalizedTargetLines = targetLines.map(normalizeLine);
   const exactMatches: ContiguousLineMatch[] = [];
 
-  for (
-    let startLineIndex = 0;
-    startLineIndex <=
-    normalizedSourceLines.length - normalizedTargetLines.length;
-    startLineIndex++
-  ) {
-    const isExactMatch = normalizedTargetLines.every(
-      (targetLine, offset) =>
-        normalizedSourceLines[startLineIndex + offset] === targetLine,
-    );
+  for (let startLineIndex = 0; startLineIndex <= normalizedSourceLines.length - normalizedTargetLines.length; startLineIndex++) {
+    const isExactMatch = normalizedTargetLines.every((targetLine, offset) => normalizedSourceLines[startLineIndex + offset] === targetLine);
 
     if (isExactMatch) {
-      exactMatches.push(
-        createMatch(startLineIndex, targetLines.length, 1, "exact"),
-      );
+      exactMatches.push(createMatch(startLineIndex, targetLines.length, 1, "exact"));
     }
   }
 
@@ -138,10 +107,7 @@ export default function findContiguousLineMatch(
     };
   }
 
-  const normalizedCharacterCount = normalizedTargetLines.reduce(
-    (count, line) => count + line.length,
-    0,
-  );
+  const normalizedCharacterCount = normalizedTargetLines.reduce((count, line) => count + line.length, 0);
 
   if (normalizedCharacterCount < fuzzyMatch.minimumCharacters) {
     return {
@@ -154,25 +120,12 @@ export default function findContiguousLineMatch(
   const normalizedTargetText = normalizedTargetLines.join("\n");
   const fuzzyMatches: ContiguousLineMatch[] = [];
 
-  for (
-    let startLineIndex = 0;
-    startLineIndex <=
-    normalizedSourceLines.length - normalizedTargetLines.length;
-    startLineIndex++
-  ) {
-    const candidateLines = normalizedSourceLines.slice(
-      startLineIndex,
-      startLineIndex + normalizedTargetLines.length,
-    );
-    const similarity = calculateLevenshteinSimilarity(
-      normalizedTargetText,
-      candidateLines.join("\n"),
-    );
+  for (let startLineIndex = 0; startLineIndex <= normalizedSourceLines.length - normalizedTargetLines.length; startLineIndex++) {
+    const candidateLines = normalizedSourceLines.slice(startLineIndex, startLineIndex + normalizedTargetLines.length);
+    const similarity = calculateLevenshteinSimilarity(normalizedTargetText, candidateLines.join("\n"));
 
     if (similarity >= fuzzyMatch.similarity) {
-      fuzzyMatches.push(
-        createMatch(startLineIndex, targetLines.length, similarity, "fuzzy"),
-      );
+      fuzzyMatches.push(createMatch(startLineIndex, targetLines.length, similarity, "fuzzy"));
     }
   }
 
@@ -184,10 +137,7 @@ export default function findContiguousLineMatch(
     return left.startLineIndex - right.startLineIndex;
   });
 
-  const hasUniqueBestMatch =
-    fuzzyMatches.length === 1 ||
-    (fuzzyMatches.length > 1 &&
-      fuzzyMatches[0].similarity > fuzzyMatches[1].similarity);
+  const hasUniqueBestMatch = fuzzyMatches.length === 1 || (fuzzyMatches.length > 1 && fuzzyMatches[0].similarity > fuzzyMatches[1].similarity);
 
   return {
     match: hasUniqueBestMatch ? fuzzyMatches[0] : null,

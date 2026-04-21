@@ -1,10 +1,10 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, TokenRingToolResult} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
+import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
-import {FileSystemState} from "../state/fileSystemState.ts";
+import { FileSystemState } from "../state/fileSystemState.ts";
 import createFileWriteResult from "../util/createFileWriteResult.ts";
-import findWordMatches, {type WordMatch} from "../util/findWordMatches.ts";
+import findWordMatches, { type WordMatch } from "../util/findWordMatches.ts";
 import runFileValidator from "../util/runFileValidator.ts";
 
 const name = "file_edit";
@@ -22,11 +22,8 @@ function describeMatch(content: string, match: WordMatch, index: number): string
   return `Match ${index + 1} at line ${line}, column ${column} (chars ${match.start}-${match.end}):\n…${before}》${matched}《${after}…`;
 }
 
-async function execute(
-  {path: filePath, find, replace, multiple}: z.output<typeof inputSchema>,
-  agent: Agent,
-): Promise<TokenRingToolResult> {
-  const {enabled} = agent.getState(FileSystemState).fileEdit;
+async function execute({ path: filePath, find, replace, multiple }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+  const { enabled } = agent.getState(FileSystemState).fileEdit;
 
   if (!enabled) {
     throw new Error(
@@ -44,15 +41,12 @@ async function execute(
   const matches = findWordMatches(originalContent, find);
 
   if (matches.length === 0) {
-    agent.mutateState(FileSystemState, (state) => {
+    agent.mutateState(FileSystemState, state => {
       state.fileEdit.consecutiveFailureCount += 1;
-      const {consecutiveFailureCount, disableAfterConsecutiveFailures} =
-        state.fileEdit;
+      const { consecutiveFailureCount, disableAfterConsecutiveFailures } = state.fileEdit;
       if (consecutiveFailureCount >= disableAfterConsecutiveFailures) {
         state.fileEdit.enabled = false;
-        agent.warningMessage(
-          `[${name}] File modification tool has been disabled due to ${disableAfterConsecutiveFailures} consecutive failures.`,
-        );
+        agent.warningMessage(`[${name}] File modification tool has been disabled due to ${disableAfterConsecutiveFailures} consecutive failures.`);
       }
     });
     throw new Error(
@@ -61,12 +55,10 @@ async function execute(
   }
 
   if (matches.length > 1 && !multiple) {
-    agent.mutateState(FileSystemState, (state) => {
+    agent.mutateState(FileSystemState, state => {
       state.fileEdit.consecutiveFailureCount = 0;
     });
-    const summary = matches
-      .map((match, index) => describeMatch(originalContent, match, index))
-      .join("\n\n");
+    const summary = matches.map((match, index) => describeMatch(originalContent, match, index)).join("\n\n");
     return (
       `[${name}] Found ${matches.length} matches for the requested text in ${filePath}. ` +
       `Pass multiple=true to replace all, or refine the find string to match a single location.\n\n` +
@@ -74,7 +66,7 @@ async function execute(
     );
   }
 
-  agent.mutateState(FileSystemState, (state) => {
+  agent.mutateState(FileSystemState, state => {
     state.fileEdit.consecutiveFailureCount = 0;
   });
 
@@ -92,17 +84,9 @@ async function execute(
     await fileSystem.writeFile(filePath, updatedContent, agent);
   }
 
-  const validationSuffix = state.fileWrite.validateWrittenFiles
-    ? await runFileValidator(filePath, updatedContent, agent)
-    : null;
+  const validationSuffix = state.fileWrite.validateWrittenFiles ? await runFileValidator(filePath, updatedContent, agent) : null;
 
-  return createFileWriteResult(
-    filePath,
-    originalContent,
-    updatedContent,
-    state.fileWrite.maxReturnedDiffSize,
-    validationSuffix,
-  );
+  return createFileWriteResult(filePath, originalContent, updatedContent, state.fileWrite.maxReturnedDiffSize, validationSuffix);
 }
 
 const description = `
@@ -114,27 +98,13 @@ Modifies an existing file by finding a string and replacing it.
 `.trim();
 
 const inputSchema = z.object({
-  path: z
-    .string()
-    .describe(
-      "Relative path of the file to edit (e.g., 'src/main.ts'). Relative to the project root directory.",
-    ),
-  find: z
-    .string()
-    .describe(
-      "Text to find. Will be trimmed; whitespace between words is not significant but word order and exact word content are.",
-    ),
-  replace: z
-    .string()
-    .describe(
-      "Replacement text. Replaces the matched region verbatim. Use an empty string to delete the match.",
-    ),
+  path: z.string().describe("Relative path of the file to edit (e.g., 'src/main.ts'). Relative to the project root directory."),
+  find: z.string().describe("Text to find. Will be trimmed; whitespace between words is not significant but word order and exact word content are."),
+  replace: z.string().describe("Replacement text. Replaces the matched region verbatim. Use an empty string to delete the match."),
   multiple: z
     .boolean()
     .default(false)
-    .describe(
-      "If true, replace every match. If false and more than one match is found, the matches are returned without modifying the file.",
-    ),
+    .describe("If true, replace every match. If false and more than one match is found, the matches are returned without modifying the file."),
 });
 
 function adjustActivation(enabled: boolean, agent: Agent) {

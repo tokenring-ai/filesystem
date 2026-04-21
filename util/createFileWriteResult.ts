@@ -1,6 +1,6 @@
-import {BaseAttachmentSchema} from "@tokenring-ai/agent/AgentEvents";
-import type {TokenRingFullToolResult} from "@tokenring-ai/chat/schema";
-import {createPatch} from "diff";
+import { BaseAttachmentSchema } from "@tokenring-ai/agent/AgentEvents";
+import type { TokenRingFullToolResult } from "@tokenring-ai/chat/schema";
+import { createPatch } from "diff";
 import mime from "mime-types";
 
 export default function createFileWriteResult(
@@ -24,9 +24,7 @@ export default function createFileWriteResult(
       });
     }
   }
-  const results = [
-    `[${filePath}] Success.`,
-  ]
+  const results = [`[${filePath}] Success.`];
 
   if (previousContent !== null) {
     const diff = createPatch(filePath, previousContent, nextContent);
@@ -47,13 +45,13 @@ export default function createFileWriteResult(
       name: `${filePath}.validation.txt`,
       encoding: "text",
       mimeType: "text/plain",
-      body: validationSuffix
+      body: validationSuffix,
     });
     results.push(`[${filePath}] File Validation Results:`, validationSuffix);
   }
   return {
     result: results.join("\n"),
-    attachments
+    attachments,
   };
 }
 

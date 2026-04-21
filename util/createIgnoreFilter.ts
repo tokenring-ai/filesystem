@@ -2,7 +2,7 @@
  * Create an ignore filter for files
  * @private
  */
-import type {MaybePromise} from "bun";
+import type { MaybePromise } from "bun";
 import ignore from "ignore";
 
 type IgnoreFilterFileSystem = {
@@ -10,9 +10,7 @@ type IgnoreFilterFileSystem = {
   readFile(path: string): MaybePromise<Buffer | null>;
 };
 
-export default async function createIgnoreFilter(
-  fileSystem: IgnoreFilterFileSystem,
-): Promise<(p: string) => boolean> {
+export default async function createIgnoreFilter(fileSystem: IgnoreFilterFileSystem): Promise<(p: string) => boolean> {
   // Create the base ignore filter
   const ig = ignore();
   ig.add(".git"); // always ignore .git dir at root

@@ -1,16 +1,13 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, } from "@tokenring-ai/chat/schema";
-import {z} from "zod";
+import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
+import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
-import {FileSystemState} from "../state/fileSystemState.ts";
+import { FileSystemState } from "../state/fileSystemState.ts";
 
 const name = "file_grep";
 const displayName = "Filesystem/grep";
 
-async function execute(
-  {filePaths, searchTerms}: z.output<typeof inputSchema>,
-  agent: Agent,
-): Promise<string> {
+async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>, agent: Agent): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   const matchedFiles = new Set<string>();
@@ -32,11 +29,7 @@ async function execute(
       const stat = await fileSystem.stat(file, agent);
       if (stat.exists) {
         if (stat.isDirectory) {
-          for await (const dirFile of fileSystem.getDirectoryTree(
-            file,
-            {},
-            agent,
-          )) {
+          for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
             if (retrievedFiles.has(dirFile)) break;
             const contents = await fileSystem.readTextFile(file, agent);
             if (contents) retrievedFiles.set(file, contents);
@@ -53,7 +46,7 @@ async function execute(
     }
   }
 
-  const searchPatterns = searchTerms.map((s) => {
+  const searchPatterns = searchTerms.map(s => {
     if (s.startsWith("/") && s.endsWith("/")) {
       return new RegExp(s.slice(1, -1), "si");
     } else {
@@ -65,7 +58,7 @@ async function execute(
 
   for (const [file, fileContent] of retrievedFiles.entries()) {
     const lines = fileContent.split("\n");
-    const lowerCaseLines = lines.map((l) => l.toLowerCase());
+    const lowerCaseLines = lines.map(l => l.toLowerCase());
 
     const matchedLines = new Set<number>();
     for (const pattern of searchPatterns) {
@@ -85,11 +78,7 @@ async function execute(
     }
 
     for (const lineNumber of Array.from(matchedLines.values())) {
-      for (
-        let i = lineNumber - options.snippetLinesBefore;
-        i < lineNumber + options.snippetLinesAfter;
-        i++
-      ) {
+      for (let i = lineNumber - options.snippetLinesBefore; i < lineNumber + options.snippetLinesAfter; i++) {
         if (i >= 0 && i < lines.length) matchedLines.add(i);
       }
     }
@@ -115,34 +104,23 @@ async function execute(
 
     if (snippets.length > 0) {
       const snippetString = snippets.join("\n");
-      if (
-        snippetString.length >
-        fileContent.length * options.maxSnippetSizePercent
-      ) {
-        results.set(
-          file,
-          `BEGIN FILE ATTACHMENT: ${file}\n${fileContent}\nEND FILE ATTACHMENT`,
-        );
+      if (snippetString.length > fileContent.length * options.maxSnippetSizePercent) {
+        results.set(file, `BEGIN FILE ATTACHMENT: ${file}\n${fileContent}\nEND FILE ATTACHMENT`);
         continue;
       }
-      results.set(
-        file,
-        `BEGIN FILE GREP MATCHES: ${file} (line: match)\n${snippets.join("\n")}\nEND FILE GREP MATCHES`,
-      );
+      results.set(file, `BEGIN FILE GREP MATCHES: ${file} (line: match)\n${snippets.join("\n")}\nEND FILE GREP MATCHES`);
     }
   }
 
   if (results.size > options.maxSnippetCount) {
-    agent.infoMessage(
-      `[${name}] Too many files were matched. Returning only the names.`,
-    );
+    agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
     const fileNames = Array.from(results.keys()).sort();
     return `
 The grep operation matched ${results.size} files, which is higher than the user specified limit of ${options.maxSnippetCount}.
 The list of matched files will be returned as a directory listing instead.
 
 BEGIN DIRECTORY LISTING
-${fileNames.map((f) => `- ${f}`).join("\n")}
+${fileNames.map(f => `- ${f}`).join("\n")}
 END DIRECTORY LISTING
 `.trim();
   }
@@ -159,27 +137,15 @@ Search for text patterns within files. Supports plain string and regex patterns.
 
 const inputSchema = z
   .object({
-    filePaths: z
-      .array(z.string())
-      .describe(
-        'List of file paths or glob patterns to search within. Examples: "**/*.ts", "path/to/file.txt"',
-      )
-      .default(["**/*"]),
+    filePaths: z.array(z.string()).describe('List of file paths or glob patterns to search within. Examples: "**/*.ts", "path/to/file.txt"').default(["**/*"]),
     searchTerms: z
       .array(z.string())
-      .describe(
-        'List of search terms. Plain strings use fuzzy substring match; wrap in \'/\' for regex. Examples: "searchTerm", "/searchTerm.*/"',
-      ),
+      .describe('List of search terms. Plain strings use fuzzy substring match; wrap in \'/\' for regex. Examples: "searchTerm", "/searchTerm.*/"'),
   })
   .strict();
 
-function adjustActivation(
-  enabled: boolean,
-  agent: Agent,
-): boolean | Promise<boolean> {
-  const supportsGrep = agent
-    .requireServiceByType(FileSystemService)
-    .supportsGrep(agent);
+function adjustActivation(enabled: boolean, agent: Agent): boolean | Promise<boolean> {
+  const supportsGrep = agent.requireServiceByType(FileSystemService).supportsGrep(agent);
   return enabled && supportsGrep;
 }
 

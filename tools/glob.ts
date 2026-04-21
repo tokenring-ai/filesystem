@@ -1,15 +1,12 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {TokenRingToolDefinition, } from "@tokenring-ai/chat/schema";
-import {z} from "zod";
+import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
+import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 
 const name = "file_glob";
 const displayName = "Filesystem/glob";
 
-async function execute(
-  {filePaths}: z.output<typeof inputSchema>,
-  agent: Agent,
-): Promise<string> {
+async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   const matchedFiles = new Set<string>();
@@ -24,7 +21,7 @@ async function execute(
   }
 
   const fileNames = Array.from(matchedFiles).sort();
-  return `BEGIN DIRECTORY LISTING\n${fileNames.map((f) => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`;
+  return `BEGIN DIRECTORY LISTING\n${fileNames.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`;
 }
 
 const description = `
@@ -34,12 +31,7 @@ List files matching glob patterns relative to the project root folder.
 
 const inputSchema = z
   .object({
-    filePaths: z
-      .array(z.string())
-      .describe(
-        'List of glob patterns to match files. Examples: "**/*.ts", "path/to/file.txt"',
-      )
-      .default(["**/*"]),
+    filePaths: z.array(z.string()).describe('List of glob patterns to match files. Examples: "**/*.ts", "path/to/file.txt"').default(["**/*"]),
   })
   .strict();
 

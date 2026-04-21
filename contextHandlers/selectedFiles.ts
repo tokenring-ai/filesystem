@@ -1,47 +1,32 @@
-import type {ContextHandlerOptions, ContextItem} from "@tokenring-ai/chat/schema";
+import type { ContextHandlerOptions, ContextItem } from "@tokenring-ai/chat/schema";
 import FileSystemService from "../FileSystemService.ts";
-import {FileSystemState} from "../state/fileSystemState.ts";
+import { FileSystemState } from "../state/fileSystemState.ts";
 
-export default async function* getContextItems({
-                                                 agent,
-                                               }: ContextHandlerOptions): AsyncGenerator<ContextItem> {
+export default async function* getContextItems({ agent }: ContextHandlerOptions): AsyncGenerator<ContextItem> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   const fileContents: string[] = [];
   const directoryContents: string[] = [];
   for (const filePath of agent.getState(FileSystemState).selectedFiles) {
-    const fileModificationTime = await fileSystem.getModifiedTimeNanos(
-      filePath,
-      agent,
-    );
+    const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
 
     const content = await fileSystem.readTextFile(filePath, agent);
     if (content) {
-      fileContents.push(
-        `BEGIN FILE ATTACHMENT: ${filePath}\n${content}\nEND FILE ATTACHMENT`,
-      );
+      fileContents.push(`BEGIN FILE ATTACHMENT: ${filePath}\n${content}\nEND FILE ATTACHMENT`);
       if (fileModificationTime === null) {
-        agent.infoMessage(
-          `[FileSystemService] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`,
-        );
+        agent.infoMessage(`[FileSystemService] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`);
       } else {
-        agent.mutateState(FileSystemState, (state) => {
+        agent.mutateState(FileSystemState, state => {
           state.readFiles.set(filePath, fileModificationTime);
         });
       }
     } else {
       try {
-        const directoryListing = fileSystem.getDirectoryTree(
-          filePath,
-          {},
-          agent,
-        );
+        const directoryListing = fileSystem.getDirectoryTree(filePath, {}, agent);
 
         const files = await Array.fromAsync(directoryListing);
 
-        directoryContents.push(
-          `BEGIN DIRECTORY LISTING:\n${filePath}\n${files.map((f) => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`,
-        );
+        directoryContents.push(`BEGIN DIRECTORY LISTING:\n${filePath}\n${files.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`);
       } catch {
         // The file does not exist, or is not a directory
       }

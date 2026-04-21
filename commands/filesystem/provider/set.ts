@@ -1,5 +1,5 @@
-import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
-import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import { CommandFailedError } from "@tokenring-ai/agent/AgentError";
+import type { AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand } from "@tokenring-ai/agent/types";
 import FileSystemService from "../../../FileSystemService.ts";
 
 const inputSchema = {
@@ -13,14 +13,10 @@ const inputSchema = {
   ],
 } as const satisfies AgentCommandInputSchema;
 
-function execute({
-                   positionals,
-                   agent,
-                 }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+function execute({ positionals, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const fileSystemService = agent.requireServiceByType(FileSystemService);
   const providerName = positionals.name.trim();
-  if (!providerName)
-    throw new CommandFailedError("Usage: /filesystem provider set <name>");
+  if (!providerName) throw new CommandFailedError("Usage: /filesystem provider set <name>");
   const available = fileSystemService.getFilesystemProviderNames();
   if (available.includes(providerName)) {
     fileSystemService.setActiveFileSystem(providerName, agent);

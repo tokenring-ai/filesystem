@@ -1,4 +1,4 @@
-import type {ContextHandler} from "@tokenring-ai/chat/schema";
+import type { ContextHandler } from "@tokenring-ai/chat/schema";
 import searchFiles from "./contextHandlers/searchFiles.ts";
 import selectedFiles from "./contextHandlers/selectedFiles.ts";
 

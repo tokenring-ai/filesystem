@@ -1,7 +1,7 @@
-import {AgentStateSlice} from "@tokenring-ai/agent/types";
+import { AgentStateSlice } from "@tokenring-ai/agent/types";
 import markdownList from "@tokenring-ai/utility/string/markdownList";
-import {z} from "zod";
-import {FileSystemConfigSchema} from "../schema.ts";
+import { z } from "zod";
+import { FileSystemConfigSchema } from "../schema.ts";
 
 const serializationSchema = z.object({
   selectedFiles: z.array(z.string()),
@@ -15,33 +15,19 @@ const serializationSchema = z.object({
   readFiles: z.record(z.string(), z.number()),
 });
 
-export class FileSystemState extends AgentStateSlice<
-  typeof serializationSchema
-> {
+export class FileSystemState extends AgentStateSlice<typeof serializationSchema> {
   selectedFiles: Set<string>;
   providerName: string | null;
   workingDirectory: string;
   dirty: boolean = false;
   readFiles: Map<string, number> = new Map();
 
-  fileWrite: z.output<
-    typeof FileSystemConfigSchema
-  >["agentDefaults"]["fileWrite"];
-  fileRead: z.output<
-    typeof FileSystemConfigSchema
-  >["agentDefaults"]["fileRead"];
-  fileGrep: z.output<
-    typeof FileSystemConfigSchema
-  >["agentDefaults"]["fileGrep"];
-  fileEdit: z.output<
-    typeof FileSystemConfigSchema
-  >["agentDefaults"]["fileEdit"];
+  fileWrite: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileWrite"];
+  fileRead: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileRead"];
+  fileGrep: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileGrep"];
+  fileEdit: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileEdit"];
 
-  constructor(
-    readonly initialConfig: z.output<
-      typeof FileSystemConfigSchema
-    >["agentDefaults"],
-  ) {
+  constructor(readonly initialConfig: z.output<typeof FileSystemConfigSchema>["agentDefaults"]) {
     super("FileSystemState", serializationSchema);
     this.selectedFiles = new Set(initialConfig.selectedFiles);
     this.providerName = initialConfig.provider ?? null;
@@ -83,9 +69,7 @@ export class FileSystemState extends AgentStateSlice<
     this.fileGrep = data.fileGrep;
     this.fileWrite = data.fileWrite;
     this.fileEdit = data.fileEdit;
-    this.readFiles = new Map(
-      Object.entries(data.readFiles).map(([k, v]) => [k, Number(v)]),
-    );
+    this.readFiles = new Map(Object.entries(data.readFiles).map(([k, v]) => [k, Number(v)]));
   }
 
   show(): string {
@@ -94,8 +78,6 @@ Working Directory: ${this.workingDirectory}
 Dirty: ${this.dirty}
 Selected Files and Directories: ${this.selectedFiles.size}
 Read Files with modification times: ${this.readFiles.size}
-${markdownList(Array.from(this.readFiles.entries()).map(
-      ([file, timestamp]) => `${file}: ${new Date(timestamp).toISOString()}`,
-    ))}`;
+${markdownList(Array.from(this.readFiles.entries()).map(([file, timestamp]) => `${file}: ${new Date(timestamp).toISOString()}`))}`;
   }
 }

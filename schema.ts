@@ -2,39 +2,39 @@ import z from "zod";
 
 export const FileSystemAgentConfigSchema = z
   .object({
-    provider: z.string().optional(),
-    workingDirectory: z.string().optional(),
-    selectedFiles: z.array(z.string()).optional(),
+    provider: z.string().exactOptional(),
+    workingDirectory: z.string().exactOptional(),
+    selectedFiles: z.array(z.string()).exactOptional(),
     fileWrite: z
       .object({
-        requireReadBeforeWrite: z.boolean().optional(),
-        maxReturnedDiffSize: z.number().optional(),
-        validateWrittenFiles: z.boolean().optional(),
+        requireReadBeforeWrite: z.boolean().exactOptional(),
+        maxReturnedDiffSize: z.number().exactOptional(),
+        validateWrittenFiles: z.boolean().exactOptional(),
       })
-      .optional(),
+      .exactOptional(),
     fileRead: z
       .object({
-        maxFileReadCount: z.number().optional(),
-        maxFileSize: z.number().optional(),
+        maxFileReadCount: z.number().exactOptional(),
+        maxFileSize: z.number().exactOptional(),
       })
-      .optional(),
+      .exactOptional(),
     fileGrep: z
       .object({
-        maxSnippetCount: z.number().optional(),
-        maxSnippetSizePercent: z.number().optional(),
-        snippetLinesBefore: z.number().optional(),
-        snippetLinesAfter: z.number().optional(),
+        maxSnippetCount: z.number().exactOptional(),
+        maxSnippetSizePercent: z.number().exactOptional(),
+        snippetLinesBefore: z.number().exactOptional(),
+        snippetLinesAfter: z.number().exactOptional(),
       })
-      .optional(),
+      .exactOptional(),
     fileEdit: z
       .object({
-        enabled: z.boolean().optional(),
-        fuzzyMatchSimilarity: z.number().min(0.7).max(1).optional(),
-        minimumMatchedCharacters: z.number().optional(),
-        consecutiveFailureCount: z.number().optional(),
-        disableAfterConsecutiveFailures: z.number().optional()
+        enabled: z.boolean().exactOptional(),
+        fuzzyMatchSimilarity: z.number().min(0.7).max(1).exactOptional(),
+        minimumMatchedCharacters: z.number().exactOptional(),
+        consecutiveFailureCount: z.number().exactOptional(),
+        disableAfterConsecutiveFailures: z.number().exactOptional(),
       })
-      .optional(),
+      .exactOptional(),
   })
   .strict()
   .default({});

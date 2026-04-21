@@ -1,7 +1,7 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type {ContextHandlerOptions, ContextItem} from "@tokenring-ai/chat/schema";
-import {z} from "zod";
-import type {GrepResult} from "../FileSystemProvider.ts";
+import type { ContextHandlerOptions, ContextItem } from "@tokenring-ai/chat/schema";
+import { z } from "zod";
+import type { GrepResult } from "../FileSystemProvider.ts";
 import FileSystemService from "../FileSystemService.ts";
 
 const FileSearchContextSchema = z.object({
@@ -188,7 +188,7 @@ function extractKeywords(input: string): string[] {
     .toLowerCase()
     .replace(/[^\w\s.-]/g, " ")
     .split(/\s+/)
-    .filter((token) => token.length > 1);
+    .filter(token => token.length > 1);
 
   for (const token of tokens) {
     // Skip stop words
@@ -204,7 +204,7 @@ function extractKeywords(input: string): string[] {
   }
 
   // Deduplicate while preserving order
-  return [...new Set(keywords)].filter((k) => k.length > 1);
+  return [...new Set(keywords)].filter(k => k.length > 1);
 }
 
 /**
@@ -271,11 +271,7 @@ function fuzzyScore(needle: string, haystack: string): number {
   let maxConsecutive = 0;
   let lastMatchIdx = -2;
 
-  for (
-    let i = 0;
-    i < lowerHaystack.length && needleIdx < lowerNeedle.length;
-    i++
-  ) {
+  for (let i = 0; i < lowerHaystack.length && needleIdx < lowerNeedle.length; i++) {
     if (lowerHaystack[i] === lowerNeedle[needleIdx]) {
       if (i === lastMatchIdx + 1) {
         consecutiveMatches++;
@@ -301,11 +297,7 @@ function fuzzyScore(needle: string, haystack: string): number {
 /**
  * Score a file path against search keywords
  */
-function scoreFilePath(
-  filePath: string,
-  keywords: string[],
-  extensions: string[],
-): number {
+function scoreFilePath(filePath: string, keywords: string[], extensions: string[]): number {
   let score = 0;
   const fileName = filePath.split("/").pop() || "";
   const fileNameWithoutExt = fileName.replace(FILE_EXTENSION_PATTERN, "");
@@ -353,21 +345,16 @@ function scoreFilePath(
 /**
  * Aggregate grep results by file
  */
-function aggregateGrepResults(
-  grepResults: GrepResult[],
-): Map<string, Array<{ line: number; content: string }>> {
-  const fileMatches = new Map<
-    string,
-    Array<{ line: number; content: string }>
-  >();
+function aggregateGrepResults(grepResults: GrepResult[]): Map<string, Array<{ line: number; content: string }>> {
+  const fileMatches = new Map<string, Array<{ line: number; content: string }>>();
 
   for (const result of grepResults) {
     const existing = fileMatches.get(result.file);
-    const lineMatch = {line: result.line, content: result.match};
+    const lineMatch = { line: result.line, content: result.match };
 
     if (existing) {
       // Avoid duplicate lines
-      if (!existing.some((m) => m.line === result.line)) {
+      if (!existing.some(m => m.line === result.line)) {
         existing.push(lineMatch);
       }
     } else {
@@ -412,12 +399,7 @@ async function searchFiles(
   }
 
   // Strategy 2: Content search via grep for high-value keywords
-  const grepKeywords = keywords.filter(
-    (k) =>
-      k.length > 3 &&
-      !STOP_WORDS.has(k.toLowerCase()) &&
-      /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k),
-  );
+  const grepKeywords = keywords.filter(k => k.length > 3 && !STOP_WORDS.has(k.toLowerCase()) && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
 
   if (grepKeywords.length > 0) {
     try {
@@ -460,18 +442,10 @@ function formatResults(results: FileMatch[], keywords: string[]): string {
     return `No files found matching keywords: ${keywords.join(", ")}`;
   }
 
-  const lines: string[] = [
-    `Found ${results.length} file(s) matching keywords: ${keywords.join(", ")}`,
-    "",
-  ];
+  const lines: string[] = [`Found ${results.length} file(s) matching keywords: ${keywords.join(", ")}`, ""];
 
   for (const result of results) {
-    const matchTypeLabel =
-      result.matchType === "both"
-        ? "(filename + content)"
-        : result.matchType === "content"
-          ? "(content)"
-          : "(filename)";
+    const matchTypeLabel = result.matchType === "both" ? "(filename + content)" : result.matchType === "content" ? "(content)" : "(filename)";
 
     lines.push(`## ${result.filePath} ${matchTypeLabel}`);
 
@@ -497,12 +471,8 @@ function formatResults(results: FileMatch[], keywords: string[]): string {
 /**
  * Main context provider function
  */
-export default async function* getContextItems({
-                                                 input,
-                                                 sourceConfig,
-                                                 agent,
-                                               }: ContextHandlerOptions): AsyncGenerator<ContextItem> {
-  const {maxResults} = FileSearchContextSchema.parse(sourceConfig);
+export default async function* getContextItems({ input, sourceConfig, agent }: ContextHandlerOptions): AsyncGenerator<ContextItem> {
+  const { maxResults } = FileSearchContextSchema.parse(sourceConfig);
 
   const fileSystemService = agent.requireServiceByType(FileSystemService);
 
@@ -513,13 +483,7 @@ export default async function* getContextItems({
     return;
   }
 
-  const searchResults = await searchFiles(
-    fileSystemService,
-    keywords,
-    extensions,
-    maxResults,
-    agent,
-  );
+  const searchResults = await searchFiles(fileSystemService, keywords, extensions, maxResults, agent);
 
   const formattedContent = formatResults(searchResults, keywords);
 
@@ -530,12 +494,4 @@ export default async function* getContextItems({
 }
 
 // Export utilities for testing
-export {
-  aggregateGrepResults,
-  extractFileExtensions,
-  extractKeywords,
-  formatResults,
-  fuzzyScore,
-  scoreFilePath,
-  searchFiles,
-};
+export { aggregateGrepResults, extractFileExtensions, extractKeywords, formatResults, fuzzyScore, scoreFilePath, searchFiles };

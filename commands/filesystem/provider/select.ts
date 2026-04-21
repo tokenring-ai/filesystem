@@ -1,13 +1,11 @@
-import type {TreeLeaf} from "@tokenring-ai/agent/question";
-import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import type { TreeLeaf } from "@tokenring-ai/agent/question";
+import type { AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand } from "@tokenring-ai/agent/types";
 import FileSystemService from "../../../FileSystemService.ts";
-import {FileSystemState} from "../../../state/fileSystemState.ts";
+import { FileSystemState } from "../../../state/fileSystemState.ts";
 
 const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
-async function execute({
-                         agent,
-                       }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+async function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const fileSystemService = agent.requireServiceByType(FileSystemService);
   const available = fileSystemService.getFilesystemProviderNames();
   if (available.length === 0) return "No filesystem providers are registered.";

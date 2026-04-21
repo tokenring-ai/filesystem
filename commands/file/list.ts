@@ -1,16 +1,13 @@
-import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import type { AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand } from "@tokenring-ai/agent/types";
 import numberedList from "@tokenring-ai/utility/string/numberedList";
 import FileSystemService from "../../FileSystemService.ts";
 
 const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
-function execute({
-                   agent,
-                 }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
   const filesInChat = Array.from(filesystem.getFilesInChat(agent));
-  if (filesInChat.length === 0)
-    return Promise.resolve("No files are currently in the chat session.");
+  if (filesInChat.length === 0) return Promise.resolve("No files are currently in the chat session.");
   return Promise.resolve("Files in chat session:\n" + numberedList(filesInChat));
 }
 

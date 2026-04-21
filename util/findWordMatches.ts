@@ -3,10 +3,7 @@ export type WordMatch = {
   end: number;
 };
 
-export default function findWordMatches(
-  content: string,
-  find: string,
-): WordMatch[] {
+export default function findWordMatches(content: string, find: string): WordMatch[] {
   const trimmed = find.trim();
   if (trimmed.length === 0) return [];
 
@@ -35,7 +32,7 @@ export default function findWordMatches(
     }
 
     if (matched) {
-      matches.push({start: firstIndex, end});
+      matches.push({ start: firstIndex, end });
       searchFrom = end;
     } else {
       searchFrom = firstIndex + 1;

@@ -9,15 +9,4 @@ import providerReset from "./commands/filesystem/provider/reset.ts";
 import providerSelect from "./commands/filesystem/provider/select.ts";
 import providerSet from "./commands/filesystem/provider/set.ts";
 
-export default [
-  fileSelect,
-  fileAdd,
-  fileRemove,
-  fileList,
-  fileClear,
-  fileDefault,
-  providerGet,
-  providerSet,
-  providerSelect,
-  providerReset,
-];
+export default [fileSelect, fileAdd, fileRemove, fileList, fileClear, fileDefault, providerGet, providerSet, providerSelect, providerReset];

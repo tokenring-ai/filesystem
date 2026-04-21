@@ -1,5 +1,5 @@
-import {CommandFailedError} from "@tokenring-ai/agent/AgentError";
-import type {AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand} from "@tokenring-ai/agent/types";
+import { CommandFailedError } from "@tokenring-ai/agent/AgentError";
+import type { AgentCommandInputSchema, AgentCommandInputType, TokenRingAgentCommand } from "@tokenring-ai/agent/types";
 import FileSystemService from "../../FileSystemService.ts";
 
 const inputSchema = {
@@ -11,10 +11,7 @@ const inputSchema = {
   },
 } as const satisfies AgentCommandInputSchema;
 
-function execute({
-                   remainder,
-                   agent,
-                 }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+function execute({ remainder, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const filesystem = agent.requireServiceByType(FileSystemService);
   const filesToRemove = remainder.split(/\s+/);
   let removedCount = 0;
@@ -25,9 +22,7 @@ function execute({
       filesystem.removeFileFromChat(file, agent);
       removedCount++;
     } catch (error: unknown) {
-      errors.push(
-        `Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      errors.push(`Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
