@@ -2,6 +2,7 @@ import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { AgentCreationContext } from "@tokenring-ai/agent/types";
 import type { TokenRingService } from "@tokenring-ai/app/types";
+import type { JSONValue } from "@tokenring-ai/utility/json/safeParse";
 import deepMerge from "@tokenring-ai/utility/object/deepMerge";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import type { MaybePromise } from "bun";
@@ -203,7 +204,7 @@ export default class FileSystemService implements TokenRingService {
     return matches.map(filePath => this.relativePathForAgent(filePath, agent));
   }
 
-  async watch(dir: string, options: Optional<WatchOptions, "ignoreFilter">, agent: Agent): Promise<any> {
+  async watch(dir: string, options: Optional<WatchOptions, "ignoreFilter">, agent: Agent): Promise<JSONValue> {
     const activeFileSystem = this.requireActiveFileSystem(agent);
     if (!activeFileSystem.watch) {
       throw new Error(`Watch is not supported by the active file system`);
