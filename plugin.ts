@@ -9,7 +9,7 @@ import { z } from "zod";
 import agentCommands from "./commands.ts";
 import contextHandlers from "./contextHandlers.ts";
 import FileSystemService from "./FileSystemService.ts";
-import hooks from "./hooks.ts";
+import clearReadFiles from "./hooks/clearReadFiles.ts";
 import packageJSON from "./package.json" with { type: "json" };
 import filesystemRPC from "./rpc/filesystem.ts";
 import { FileSystemConfigSchema } from "./schema.ts";
@@ -67,7 +67,7 @@ export default {
         chatService.registerContextHandlers(contextHandlers);
       });
 
-      app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(hooks));
+      app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles));
       app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(agentCommands));
       app.addServices(new FileSystemService(config.filesystem));
 

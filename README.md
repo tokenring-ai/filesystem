@@ -1,13 +1,15 @@
 # @tokenring-ai/filesystem
 
-A filesystem abstraction service for Token Ring AI agents that provides unified file operations including reading, writing, searching, and executing commands through a provider-based architecture.
+A filesystem abstraction service for Token Ring AI agents that provides unified file operations including reading,
+writing, searching, and executing commands through a provider-based architecture.
 
 ## Overview
 
-The `@tokenring-ai/filesystem` package provides a unified, abstracted filesystem interface for AI agents in Token Ring applications. It enables secure file operations including:
+The `@tokenring-ai/filesystem` package provides a unified, abstracted filesystem interface for AI agents in Token Ring
+applications. It enables secure file operations including:
 
 - File reading and writing with safety controls
-- File editing with contiguous line matching and fuzzy matching support
+- File editing with word-based matching support
 - File search and content management
 - Chat-based file management
 - Context-aware file tracking and state management
@@ -19,7 +21,8 @@ The `@tokenring-ai/filesystem` package provides a unified, abstracted filesystem
 - Glob pattern matching for file discovery
 - Grep-based text search with configurable snippets
 
-The package integrates deeply with the agent system, providing both tools for AI-driven operations and chat commands for user interface control.
+The package integrates deeply with the agent system, providing both tools for AI-driven operations and chat commands for
+user interface control.
 
 ## Installation
 
@@ -30,11 +33,11 @@ bun install @tokenring-ai/filesystem
 ## Plugin Registration
 
 ```typescript
-import {TokenRingPlugin} from "@tokenring-ai/app";
-import {z} from "zod";
+import { TokenRingPlugin } from "@tokenring-ai/app";
+import { z } from "zod";
 import plugin from "./plugin.ts";
-import packageJSON from "./package.json" with {type: 'json'};
-import {FileSystemConfigSchema} from "./schema.ts";
+import packageJSON from "./package.json" with { type: 'json' };
+import { FileSystemConfigSchema } from "./schema.ts";
 
 const packageConfigSchema = z.object({
   filesystem: FileSystemConfigSchema.optional(),
@@ -83,31 +86,31 @@ const FileSystemConfigSchema = z.object({
 
 ```typescript
 const FileSystemAgentConfigSchema = z.object({
-  provider: z.string().optional(),
-  workingDirectory: z.string().optional(),
-  selectedFiles: z.array(z.string()).optional(),
+  provider: z.string().exactOptional(),
+  workingDirectory: z.string().exactOptional(),
+  selectedFiles: z.array(z.string()).exactOptional(),
   fileWrite: z.object({
-    requireReadBeforeWrite: z.boolean().optional(),
-    maxReturnedDiffSize: z.number().optional(),
-    validateWrittenFiles: z.boolean().optional(),
-  }).optional(),
+    requireReadBeforeWrite: z.boolean().exactOptional(),
+    maxReturnedDiffSize: z.number().exactOptional(),
+    validateWrittenFiles: z.boolean().exactOptional(),
+  }).exactOptional(),
   fileRead: z.object({
-    maxFileReadCount: z.number().optional(),
-    maxFileSize: z.number().optional()
-  }).optional(),
+    maxFileReadCount: z.number().exactOptional(),
+    maxFileSize: z.number().exactOptional()
+  }).exactOptional(),
   fileGrep: z.object({
-    maxSnippetCount: z.number().optional(),
-    maxSnippetSizePercent: z.number().optional(),
-    snippetLinesBefore: z.number().optional(),
-    snippetLinesAfter: z.number().optional(),
-  }).optional(),
+    maxSnippetCount: z.number().exactOptional(),
+    maxSnippetSizePercent: z.number().exactOptional(),
+    snippetLinesBefore: z.number().exactOptional(),
+    snippetLinesAfter: z.number().exactOptional(),
+  }).exactOptional(),
   fileEdit: z.object({
-    enabled: z.boolean().optional(),
-    fuzzyMatchSimilarity: z.number().min(0.7).max(1).optional(),
-    minimumMatchedCharacters: z.number().optional(),
-    consecutiveFailureCount: z.number().optional(),
-    disableAfterConsecutiveFailures: z.number().optional(),
-  }).optional(),
+    enabled: z.boolean().exactOptional(),
+    fuzzyMatchSimilarity: z.number().min(0.7).max(1).exactOptional(),
+    minimumMatchedCharacters: z.number().exactOptional(),
+    consecutiveFailureCount: z.number().exactOptional(),
+    disableAfterConsecutiveFailures: z.number().exactOptional(),
+  }).exactOptional(),
 }).strict().default({});
 ```
 
@@ -115,7 +118,8 @@ const FileSystemAgentConfigSchema = z.object({
 
 ### FileSystemService
 
-The main service class implementing `TokenRingService`. It manages filesystem providers, agent state, and delegates operations.
+The main service class implementing `TokenRingService`. It manages filesystem providers, agent state, and delegates
+operations.
 
 **Exports:**
 
@@ -195,7 +199,7 @@ start(): void {
 attach(agent: Agent, creationContext: AgentCreationContext): void {
   const config = deepMerge(this.options.agentDefaults, agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema))
   const initialState = agent.initializeState(FileSystemState, config);
-  if (config.selectedFiles.length > 0) {
+  if(config.selectedFiles.length > 0) {
     creationContext.items.push(`Selected Files: ${Array.from(initialState.selectedFiles).join(', ')}`);
   }
   creationContext.items.push(`Working Directory: ${initialState.workingDirectory}`);
@@ -204,7 +208,8 @@ attach(agent: Agent, creationContext: AgentCreationContext): void {
 
 ### FileSystemProvider
 
-Abstract interface for filesystem implementations. Implementations can provide virtual, remote, or local filesystem access.
+Abstract interface for filesystem implementations. Implementations can provide virtual, remote, or local filesystem
+access.
 
 **Interface:**
 
@@ -265,23 +270,34 @@ export default interface FileSystemProvider {
 
   // File operations
   writeFile(absolutePath: string, content: string | Buffer): MaybePromise<boolean>;
+
   appendFile(absoluteFilePath: string, finalContent: string | Buffer): MaybePromise<boolean>;
+
   deleteFile(absolutePath: string): MaybePromise<boolean>;
+
   readFile(absolutePath: string): MaybePromise<Buffer | null>;
+
   rename(oldAbsolutePath: string, newAbsolutePath: string): MaybePromise<boolean>;
+
   exists(absolutePath: string): MaybePromise<boolean>;
+
   stat(absolutePath: string): MaybePromise<StatLike>;
+
   createDirectory(
     absolutePath: string,
     options?: { recursive?: boolean },
   ): MaybePromise<boolean>;
+
   copy(
     absoluteSource: string,
     absoluteDestination: string,
     options?: { overwrite?: boolean },
   ): MaybePromise<boolean>;
+
   glob?(absolutePattern: string, options?: GlobOptions): MaybePromise<string[]>;
+
   watch?(absoluteDir: string, options?: WatchOptions): MaybePromise<any>;
+
   grep?(
     searchString: string | string[],
     options?: GrepOptions,
@@ -291,7 +307,8 @@ export default interface FileSystemProvider {
 
 ### FileMatchResource
 
-A resource class for matching files based on include/exclude patterns. Provides async generation of matched files using the FileSystemService.
+A resource class for matching files based on include/exclude patterns. Provides async generation of matched files using
+the FileSystemService.
 
 **Exports:**
 
@@ -312,6 +329,7 @@ export default class FileMatchResource {
   constructor(private readonly items: MatchItem[])
 
   async* getMatchedFiles(agent: Agent): AsyncGenerator<string>
+
   async addFilesToSet(set: Set<string>, agent: Agent): Promise<void>
 }
 ```
@@ -333,18 +351,19 @@ for await (const file of fileMatchResource.getMatchedFiles(agent)) {
 
 Tools are exported from `tools.ts` and registered with `ChatService` during plugin installation.
 
-Currently, five tools are actively exported: `file_edit`, `file_write`, `file_read`, `file_glob`, and `file_grep`. The `append` tool is defined but commented out in the exports.
+Currently, five tools are actively exported: `file_edit`, `file_write`, `file_read`, `file_glob`, and `file_grep`. The
+`file_search` tool is also available. The `append` tool is defined but commented out in the exports.
 
 ### file_edit
 
-Modifies an existing file by finding and replacing contiguous blocks of lines.
+Modifies an existing file by finding and replacing text using word-based matching.
 
 **File:** `pkg/filesystem/tools/edit.ts`
 
 **Tool Definition:**
 
 ```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
 import edit from "@tokenring-ai/filesystem/tools/edit";
 
 const name = "file_edit";
@@ -353,18 +372,17 @@ const displayName = "Filesystem/edit";
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | `string` | Relative path of the file to edit (required). Relative to the project root directory. |
-| `findLines` | `string` | Up to 3 contiguous lines to match in the file (required). Each line must be complete, and all matched lines must be contiguous. |
-| `replaceLines` | `string` | The complete lines that will replace the matched block (required). Provide an empty string to delete the matched lines. |
+| Parameter   | Type     | Description                                                                                                                                                                                                                         |
+|-------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`      | `string` | Relative path of the file to edit (e.g., 'src/main.ts'). Relative to the project root directory.                                                                                                                                    |
+| `find`      | `string` | Text to find. Will be trimmed; whitespace between words is not significant but word order and exact word content are. The first word must appear verbatim, and remaining words must follow in order, separated by any whitespace. |
+| `replace`   | `string` | Replacement text. Replaces the matched region verbatim. Use an empty string to delete the match.                                                                                                                                    |
+| `multiple`  | `boolean`| If true, replace every match. If false and more than one match is found, the matches are returned without modifying the file. Default: false.                                                                                       |
 
 **Behavior:**
 
-- Finds a contiguous block of complete lines in an existing file
-- Replaces those lines with new lines
-- Matches must be exact, complete lines, with the exact prior content of the line
-- Partial-line matches are never allowed
+- Finds text matches using word-based matching (first word verbatim, remaining words in order with any whitespace)
+- Replaces matched text with replacement text
 - Supports fuzzy matching with configurable similarity threshold (default: 0.85) when exact match fails
 - Automatically writes the updated file if content changes
 - Returns diff if file existed before (up to `maxReturnedDiffSize` limit)
@@ -375,16 +393,16 @@ const displayName = "Filesystem/edit";
 
 **Matching Rules:**
 
-- Ignores whitespace when matching lines
-- Requires contiguous block of lines (no gaps)
-- Maximum 3 lines for find operation
+- First word must appear verbatim in the file
+- Remaining words must follow in order, separated by any amount of whitespace
+- Word order is significant
 - Fuzzy matching uses Levenshtein similarity when exact match fails
 - Minimum 15 characters required for fuzzy matching
 - Configurable via `fuzzyMatchSimilarity` and `minimumMatchedCharacters` options
 
 **Error Cases:**
 
-- Returns error if multiple exact matches found
+- Returns error if multiple exact matches found (unless `multiple=true`)
 - Returns error if fuzzy match is not unique enough
 - Returns error if no match found
 - Returns error if file cannot be read
@@ -414,15 +432,23 @@ function adjustActivation(enabled: boolean, agent: Agent): boolean {
 // Modify an existing file
 const result = await edit({
   path: 'src/main.ts',
-  findLines: 'const x = 1;\nconst y = 2;',
-  replaceLines: 'const x = 10;\nconst y = 20;'
+  find: 'const x = 1',
+  replace: 'const x = 10'
 }, agent);
 
-// Delete lines
+// Delete text
 const result = await edit({
   path: 'src/main.ts',
-  findLines: '// Old comment\nconst old = true;',
-  replaceLines: ''
+  find: '// Old comment',
+  replace: ''
+}, agent);
+
+// Replace all matches
+const result = await edit({
+  path: 'src/main.ts',
+  find: 'TODO',
+  replace: 'FIXME',
+  multiple: true
 }, agent);
 ```
 
@@ -435,7 +461,7 @@ Writes a file to the filesystem.
 **Tool Definition:**
 
 ```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
 import write from "@tokenring-ai/filesystem/tools/write";
 
 const name = "file_write";
@@ -444,10 +470,10 @@ const displayName = "Filesystem/write";
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | `string` | Relative path of the file to write (required). Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. |
-| `content` | `string` | Content to write to the file (required). ALWAYS include the ENTIRE file contents to avoid data loss. |
+| Parameter | Type     | Description                                                                                                                                                                                                             |
+|-----------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`    | `string` | Relative path of the file to write (e.g., 'src/main.ts' or 'docs/design.md'). Starts from the project root directory. Required.                                                                                         |
+| `content` | `string` | Content to write to the file. ALWAYS include the ENTIRE file contents to avoid data loss. Required.                                                                                                                     |
 
 **Behavior:**
 
@@ -496,7 +522,7 @@ Reads files from the filesystem by path or glob pattern.
 **Tool Definition:**
 
 ```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
 import read from "@tokenring-ai/filesystem/tools/read";
 
 const name = "file_read";
@@ -505,9 +531,9 @@ const displayName = "Filesystem/read";
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `files` | `string[]` | List of file paths or glob patterns (required). Examples: `'**/*.ts'`, `'path/to/file.txt'` |
+| Parameter | Type       | Description                                                                                 |
+|-----------|------------|---------------------------------------------------------------------------------------------|
+| `files`   | `string[]` | List of file paths or glob patterns (e.g., '**/*.ts', 'path/to/file.txt'). Required.        |
 
 **Behavior:**
 
@@ -560,7 +586,7 @@ Lists files matching glob patterns relative to the project root folder.
 **Tool Definition:**
 
 ```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
 import glob from "@tokenring-ai/filesystem/tools/glob";
 
 const name = "file_glob";
@@ -569,9 +595,9 @@ const displayName = "Filesystem/glob";
 
 **Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `filePaths` | `string[]` | `["**/*"]` | List of glob patterns to match files. Examples: `'**/*.ts'`, `'path/to/file.txt'` |
+| Parameter   | Type       | Default    | Description                                                                       |
+|-------------|------------|------------|-----------------------------------------------------------------------------------|
+| `filePaths` | `string[]` | `["**/*"]` | List of glob patterns to match files. Examples: '**/*.ts', 'path/to/file.txt'     |
 
 **Behavior:**
 
@@ -583,7 +609,7 @@ const displayName = "Filesystem/glob";
 
 **Output Format:**
 
-```
+```text
 BEGIN DIRECTORY LISTING
 - file1.ts
 - file2.ts
@@ -623,7 +649,7 @@ Searches for text patterns within files. Supports plain string and regex pattern
 **Tool Definition:**
 
 ```typescript
-import {TokenRingToolDefinition} from "@tokenring-ai/chat/schema";
+import { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
 import grep from "@tokenring-ai/filesystem/tools/grep";
 
 const name = "file_grep";
@@ -632,14 +658,14 @@ const displayName = "Filesystem/grep";
 
 **Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `filePaths` | `string[]` | `["**/*"]` | List of file paths or glob patterns to search within. Examples: `'**/*.ts'`, `'path/to/file.txt'` |
-| `searchTerms` | `string[]` | - | List of search terms. Plain strings use fuzzy substring match; wrap in `'/'` for regex. Examples: `"searchTerm"`, `"/searchTerm.*/"` |
+| Parameter     | Type       | Default    | Description                                                                                                                          |
+|---------------|------------|------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `filePaths`   | `string[]` | `["**/*"]` | List of file paths or glob patterns to search within. Examples: '**/*.ts', 'path/to/file.txt'                                        |
+| `searchTerms` | `string[]` | -          | List of search terms. Plain strings use substring match; wrap in '/' for regex. Examples: "searchTerm", "/searchTerm.*/"             |
 
 **Behavior:**
 
-- Supports substring, regex, and exact matching
+- Supports substring and regex matching
 - Returns grep-style snippets with context lines (`snippetLinesBefore` and `snippetLinesAfter`)
 - Automatically decides whether to return full file contents, snippets, or file names based on match count
 - Marks read files in state with modification time
@@ -648,12 +674,13 @@ const displayName = "Filesystem/grep";
 
 **Search Patterns:**
 
-- Plain strings: Fuzzy substring matching (case-insensitive)
+- Plain strings: Substring matching (case-insensitive)
 - Regex: Enclosed in `/` (e.g., `/class \w+Service/`)
 
 **Output Format:**
 
-- When matches are few: Returns grep-style snippets with line numbers (format: `BEGIN FILE GREP MATCHES: {file} (line: match)`)
+- When matches are few: Returns grep-style snippets with line numbers (format:
+  `BEGIN FILE GREP MATCHES: {file} (line: match)`)
 - When snippet is too large: Returns full file contents (format: `BEGIN FILE ATTACHMENT: {file}`)
 - When too many files match: Returns directory listing with file names
 
@@ -706,6 +733,82 @@ const result = await grep({
 }, agent);
 ```
 
+### file_search
+
+Searches for text patterns in files with intelligent result formatting.
+
+**File:** `pkg/filesystem/tools/search.ts`
+
+**Tool Definition:**
+
+```typescript
+import { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
+import search from "@tokenring-ai/filesystem/tools/search";
+
+const name = "file_search";
+const displayName = "Filesystem/search";
+```
+
+**Parameters:**
+
+| Parameter     | Type       | Default    | Description                                                                                                                          |
+|---------------|------------|------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `filePaths`   | `string[]` | `["**/*"]` | List of file paths or glob patterns to search within. Omit to search across all files. Examples: '**/*.ts', 'path/to/file.txt'       |
+| `searchTerms` | `string[]` | -          | List of search terms to search for. Plain strings use fuzzy substring match; wrap in '/' for regex. Examples: "searchTerm", "/pattern/" |
+
+**Behavior:**
+
+- Supports substring, regex, and fuzzy matching
+- Returns grep-style snippets with context lines
+- Automatically decides whether to return full file contents, snippets, or file names based on match count
+- Marks read files in state with modification time
+- Searches are OR-based across multiple patterns (any match counts)
+
+**Search Patterns:**
+
+- Plain strings: Fuzzy substring matching (case-insensitive)
+- Regex: Enclosed in `/` (e.g., `/class \w+Service/`)
+
+**Output Format:**
+
+- When matches are few: Returns grep-style snippets with line numbers
+- When snippet is too large: Returns full file contents
+- When too many files match: Returns directory listing with file names
+
+**Error Cases:**
+
+- Returns "No files were found that matched the search criteria" if no files match
+- Returns directory listing if more than `maxSnippetCount` files matched
+
+**Required Context Handlers:** `["selected-files"]`
+
+**Examples:**
+
+```typescript
+// Search for a function across all files
+const result = await search({
+  filePaths: ['src/**/*.ts'],
+  searchTerms: ['function execute']
+}, agent);
+
+// Regex search for pattern
+const result = await search({
+  filePaths: ['pkg/agent/**/*.ts'],
+  searchTerms: ['/class \w+Service/']
+}, agent);
+
+// Search with specific files
+const result = await search({
+  filePaths: ['src/**/*.ts', 'pkg/**/*.ts'],
+  searchTerms: ['TODO', 'FIXME']
+}, agent);
+
+// Search across all files (default)
+const result = await search({
+  searchTerms: ['import']
+}, agent);
+```
+
 ## Chat Commands
 
 ### file
@@ -714,14 +817,14 @@ Manage files in the chat session.
 
 **Location:** `commands/file/`
 
-| Command | File | Aliases | Description |
-|---------|------|---------|-------------|
-| `file select` | `commands/file/select.ts` | - | Interactive file selector |
-| `file add [files...]` | `commands/file/add.ts` | - | Add specific files to chat |
-| `file remove [files...]` | `commands/file/remove.ts` | `file rm` | Remove specific files from chat |
-| `file list` | `commands/file/list.ts` | `file ls` | List all files currently in chat |
-| `file clear` | `commands/file/clear.ts` | - | Remove all files from chat |
-| `file default` | `commands/file/default.ts` | - | Reset to default files from config |
+| Command                  | File                       | Aliases   | Description                        |
+|--------------------------|----------------------------|-----------|------------------------------------|
+| `file select`            | `commands/file/select.ts`  | -         | Interactive file selector          |
+| `file add [files...]`    | `commands/file/add.ts`     | -         | Add specific files to chat         |
+| `file remove [files...]` | `commands/file/remove.ts`  | `file rm` | Remove specific files from chat    |
+| `file list`              | `commands/file/list.ts`    | `file ls` | List all files currently in chat   |
+| `file clear`             | `commands/file/clear.ts`   | -         | Remove all files from chat         |
+| `file default`           | `commands/file/default.ts` | -         | Reset to default files from config |
 
 **Command Examples:**
 
@@ -753,12 +856,12 @@ Manage filesystem providers.
 
 **Location:** `commands/filesystem/provider/`
 
-| Command | File | Aliases | Description |
-|---------|------|---------|-------------|
-| `filesystem/provider get` | `commands/filesystem/provider/get.ts` | - | Get current provider for agent |
-| `filesystem/provider set` | `commands/filesystem/provider/set.ts` | - | Set provider for agent |
-| `filesystem/provider select` | `commands/filesystem/provider/select.ts` | - | Interactive provider selector |
-| `filesystem/provider reset` | `commands/filesystem/provider/reset.ts` | - | Reset to default provider |
+| Command                      | File                                     | Aliases | Description                    |
+|------------------------------|------------------------------------------|---------|--------------------------------|
+| `filesystem/provider get`    | `commands/filesystem/provider/get.ts`    | -       | Get current provider for agent |
+| `filesystem/provider set`    | `commands/filesystem/provider/set.ts`    | -       | Set provider for agent         |
+| `filesystem/provider select` | `commands/filesystem/provider/select.ts` | -       | Interactive provider selector  |
+| `filesystem/provider reset`  | `commands/filesystem/provider/reset.ts`  | -       | Reset to default provider      |
 
 **Command Examples:**
 
@@ -797,61 +900,14 @@ Provides contents of selected files as chat context.
   - Files: `BEGIN FILE ATTACHMENT: {path}\n{content}\nEND FILE ATTACHMENT`
   - Directories: `BEGIN DIRECTORY LISTING:\n{path}\n- {file}\n...\nEND DIRECTORY LISTING`
 
-**Implementation:**
-
-```typescript
-export default async function* getContextItems({agent}: ContextHandlerOptions): AsyncGenerator<ContextItem> {
-  const fileSystem = agent.requireServiceByType(FileSystemService);
-
-  const fileContents: string[] = [];
-  const directoryContents: string[] = [];
-  for (const filePath of agent.getState(FileSystemState).selectedFiles) {
-    const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
-
-    const content = await fileSystem.readTextFile(filePath, agent);
-    if (content) {
-      fileContents.push(`BEGIN FILE ATTACHMENT: ${filePath}\n${content}\nEND FILE ATTACHMENT`);
-      if (fileModificationTime === null) {
-        agent.infoMessage(`[FileSystemService] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`);
-      } else {
-        agent.mutateState(FileSystemState, (state) => {
-          state.readFiles.set(filePath, fileModificationTime);
-        });
-      }
-    } else {
-      try {
-        const directoryListing = await fileSystem.getDirectoryTree(filePath, {}, agent);
-        const files = await Array.fromAsync(directoryListing);
-        directoryContents.push(`BEGIN DIRECTORY LISTING:\n${filePath}\n${files.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`);
-      } catch (error) {
-        // The file does not exist, or is not a directory
-      }
-    }
-  }
-
-  if (fileContents.length > 0) {
-    yield {
-      role: "user",
-      content: `// The user has attached the following files:\n\n${fileContents.join("\n\n")}`,
-    }
-  }
-
-  if (directoryContents.length > 0) {
-    yield {
-      role: "user",
-      content: `// The user has attached the following directory listing:\n\n${directoryContents.join("\n\n")}`,
-    }
-  }
-}
-```
-
 ### search-files
 
 Provides file search results based on user input keywords.
 
 **Location:** `contextHandlers/searchFiles.ts`
 
-**Handler:** `getContextItems({input, attachments, chatConfig, sourceConfig, agent}: ContextHandlerOptions): AsyncGenerator<ContextItem>`
+**Handler:**
+`getContextItems({input, attachments, chatConfig, sourceConfig, agent}: ContextHandlerOptions): AsyncGenerator<ContextItem>`
 
 **Configuration Schema:**
 
@@ -926,23 +982,23 @@ The package registers RPC endpoints under `/rpc/filesystem`.
 
 ### Endpoints
 
-| Method | Type | Description | Request Params | Response Params |
-|--------|------|-------------|----------------|-----------------|
-| `getFilesystemProviders` | Query | Get all registered filesystem providers | `{}` | `{ providers: string[] }` |
-| `readTextFile` | Query | Read file content as text | `{ provider: string, path: string }` | `{ content: string \| null }` |
-| `exists` | Query | Check if a file exists | `{ provider: string, path: string }` | `{ exists: boolean }` |
-| `stat` | Query | Get file statistics | `{ provider: string, path: string }` | `{ stats: string }` (JSON stringified StatLike) |
-| `glob` | Query | Match files with glob pattern | `{ provider: string, pattern: string }` | `{ files: string[] }` |
-| `listDirectory` | Query | List directory contents | `{ provider: string, path: string, showHidden: boolean (default: false), recursive: boolean (default: false) }` | `{ files: string[] }` |
-| `writeFile` | Mutation | Write a file | `{ provider: string, path: string, content: string }` | `{ success: boolean }` |
-| `appendFile` | Mutation | Append to a file | `{ provider: string, path: string, content: string }` | `{ success: boolean }` |
-| `deleteFile` | Mutation | Delete a file | `{ provider: string, path: string }` | `{ success: boolean }` |
-| `rename` | Mutation | Rename a file | `{ provider: string, oldPath: string, newPath: string }` | `{ success: boolean }` |
-| `createDirectory` | Mutation | Create a directory | `{ provider: string, path: string, recursive: boolean (default: false) }` | `{ success: boolean }` |
-| `copy` | Mutation | Copy a file or directory | `{ provider: string, source: string, destination: string, overwrite: boolean (default: false) }` | `{ success: boolean }` |
-| `getFilesystemState` | Query | Get filesystem state for agent | `{ agentId: string }` | `{ provider: string, workingDirectory: string, selectedFiles: string[], readFiles: Record<string, number>, dirty: boolean }` |
-| `addFileToChat` | Mutation | Add file to chat context | `{ agentId: string, file: string }` | `{ success: boolean }` |
-| `removeFileFromChat` | Mutation | Remove file from chat context | `{ agentId: string, file: string }` | `{ success: boolean }` |
+| Method                   | Type     | Description                             | Request Params                                                                                                  | Response Params                                                                                                              |
+|--------------------------|----------|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `getFilesystemProviders` | Query    | Get all registered filesystem providers | `{}`                                                                                                            | `{ providers: string[] }`                                                                                                    |
+| `readTextFile`           | Query    | Read file content as text               | `{ provider: string, path: string }`                                                                            | `{ content: string \| null }`                                                                                                |
+| `exists`                 | Query    | Check if a file exists                  | `{ provider: string, path: string }`                                                                            | `{ exists: boolean }`                                                                                                        |
+| `stat`                   | Query    | Get file statistics                     | `{ provider: string, path: string }`                                                                            | `{ stats: string }` (JSON stringified StatLike)                                                                              |
+| `glob`                   | Query    | Match files with glob pattern           | `{ provider: string, pattern: string }`                                                                         | `{ files: string[] }`                                                                                                        |
+| `listDirectory`          | Query    | List directory contents                 | `{ provider: string, path: string, showHidden: boolean (default: false), recursive: boolean (default: false) }` | `{ files: string[] }`                                                                                                        |
+| `writeFile`              | Mutation | Write a file                            | `{ provider: string, path: string, content: string }`                                                           | `{ success: boolean }`                                                                                                       |
+| `appendFile`             | Mutation | Append to a file                        | `{ provider: string, path: string, content: string }`                                                           | `{ success: boolean }`                                                                                                       |
+| `deleteFile`             | Mutation | Delete a file                           | `{ provider: string, path: string }`                                                                            | `{ success: boolean }`                                                                                                       |
+| `rename`                 | Mutation | Rename a file                           | `{ provider: string, oldPath: string, newPath: string }`                                                        | `{ success: boolean }`                                                                                                       |
+| `createDirectory`        | Mutation | Create a directory                      | `{ provider: string, path: string, recursive: boolean (default: false) }`                                       | `{ success: boolean }`                                                                                                       |
+| `copy`                   | Mutation | Copy a file or directory                | `{ provider: string, source: string, destination: string, overwrite: boolean (default: false) }`                | `{ success: boolean }`                                                                                                       |
+| `getFilesystemState`     | Query    | Get filesystem state for agent          | `{ agentId: string }`                                                                                           | `{ status: "success" \| "agentNotFound", ... }`                                                                              |
+| `addFileToChat`          | Mutation | Add file to chat context                | `{ agentId: string, file: string }`                                                                             | `{ status: "success" \| "agentNotFound", success: boolean }`                                                                 |
+| `removeFileFromChat`     | Mutation | Remove file from chat context           | `{ agentId: string, file: string }`                                                                             | `{ status: "success" \| "agentNotFound", success: boolean }`                                                                 |
 
 **RPC Client Example:**
 
@@ -988,12 +1044,12 @@ The package registers scripting functions for common file operations:
 
 ### Functions
 
-| Function | Parameters | Description |
-|----------|------------|-------------|
-| `createFile` | `path`, `content` | Create a file with content |
-| `deleteFile` | `path` | Delete a file |
-| `globFiles` | `pattern` | Match files with glob pattern |
-| `searchFiles` | `searchString` | Search for text patterns in files |
+| Function      | Parameters        | Description                       |
+|---------------|-------------------|-----------------------------------|
+| `createFile`  | `path`, `content` | Create a file with content        |
+| `deleteFile`  | `path`            | Delete a file                     |
+| `globFiles`   | `pattern`         | Match files with glob pattern     |
+| `searchFiles` | `searchString`    | Search for text patterns in files |
 
 **Example:**
 
@@ -1011,7 +1067,7 @@ const files = await scriptingService.executeFunction("globFiles", ["**/*.ts"]);
 const results = await scriptingService.executeFunction("searchFiles", ["function execute"]);
 ```
 
-## State Management
+## Agent State
 
 ### FileSystemState
 
@@ -1045,7 +1101,7 @@ class FileSystemState {
 **State Slices:**
 
 ```typescript
-import {FileSystemState} from "./state/fileSystemState.js";
+import { FileSystemState } from "./state/fileSystemState.js";
 
 // Get config slice
 const config = agent.getAgentConfigSlice('filesystem', FileSystemAgentConfigSchema);
@@ -1175,13 +1231,20 @@ const files = await fs.glob(pattern, options, agent);
 The `FileValidator` type defines the interface for file validation functions:
 
 ```typescript
-export type FileValidator = (path: string, content: string) => Promise<string | null>;
+export default interface FileValidator {
+  validateFile(path: string, agent: Agent): Promise<ValidationResult>;
+}
+
+export type ValidationResult = {
+  valid: boolean;
+  result?: string | undefined;
+};
 ```
 
-Validators receive the file path and content, and return:
+Validators receive the file path and agent, and return:
 
-- `null` for successful validation
-- An error message string for validation failures
+- `{ valid: true }` for successful validation
+- `{ valid: false, result: "error message" }` for validation failures
 
 Validators are registered with the `FileSystemService`:
 
@@ -1190,18 +1253,20 @@ Validators are registered with the `FileSystemService`:
 ```typescript
 const fileSystemService = app.requireService(FileSystemService);
 
-fileSystemService.registerFileValidator('.ts', async (path: string, content: string) => {
-  // Validate TypeScript file
-  const result = await runTypeScriptValidator(content);
-  return result ? `TypeScript validation failed: ${result}` : null;
+fileSystemService.registerFileValidator('.ts', {
+  validateFile: async (path: string, agent: Agent) => {
+    // Validate TypeScript file
+    const result = await runTypeScriptValidator(path, agent);
+    return result ? { valid: false, result } : { valid: true };
+  }
 });
 ```
 
 **Usage:**
 
 - Validators are automatically run after file writes if `validateWrittenFiles` is enabled
-- Validators receive the file path and content
-- Return `null` for success, or an error message string for failure
+- Validators receive the file path and agent
+- Return `{ valid: true }` for success, or `{ valid: false, result: "error message" }` for failure
 - Error messages are appended to the tool result
 
 ## Hooks
@@ -1244,7 +1309,7 @@ export default {name, displayName, description, callbacks} satisfies HookSubscri
 
 ## Package Structure
 
-```
+```text
 pkg/filesystem/
 ├── index.ts                         # Main exports
 ├── package.json                     # Package configuration
@@ -1339,29 +1404,27 @@ bun build
 
 **Production Dependencies:**
 
-| Package | Version | Description |
-|---------|---------|-------------|
-| `@tokenring-ai/agent` | 0.2.0 | Agent framework |
-| `@tokenring-ai/app` | 0.2.0 | Application framework |
-| `@tokenring-ai/chat` | 0.2.0 | Chat service |
-| `@tokenring-ai/ai-client` | 0.2.0 | AI client registry |
-| `@tokenring-ai/utility` | 0.2.0 | Utility functions |
-| `@tokenring-ai/lifecycle` | 0.2.0 | Lifecycle service |
-| `@tokenring-ai/scripting` | 0.2.0 | Scripting service |
-| `@tokenring-ai/rpc` | 0.2.0 | RPC service |
-| `zod` | ^4.3.6 | Schema validation |
-| `ignore` | ^7.0.5 | Git ignore pattern matching |
-| `path-browserify` | ^1.0.1 | Path manipulation for browser |
-| `diff` | ^8.0.4 | Diff generation for file operations |
-| `mime-types` | ^3.0.2 | MIME type detection |
+| Package                   | Version | Description                         |
+|---------------------------|---------|-------------------------------------|
+| `@tokenring-ai/app`       | 0.2.0   | Application framework               |
+| `@tokenring-ai/chat`      | 0.2.0   | Chat service                        |
+| `@tokenring-ai/agent`     | 0.2.0   | Agent framework                     |
+| `@tokenring-ai/utility`   | 0.2.0   | Utility functions                   |
+| `@tokenring-ai/lifecycle` | 0.2.0   | Lifecycle service                   |
+| `@tokenring-ai/scripting` | 0.2.0   | Scripting service                   |
+| `@tokenring-ai/rpc`       | 0.2.0   | RPC service                         |
+| `zod`                     | ^4.3.6  | Schema validation                   |
+| `ignore`                  | ^7.0.5  | Git ignore pattern matching         |
+| `diff`                    | ^8.0.4  | Diff generation for file operations |
+| `mime-types`              | ^3.0.2  | MIME type detection                 |
 
 **Development Dependencies:**
 
-| Package | Version | Description |
-|---------|---------|-------------|
-| `@vitest/coverage-v8` | ^4.1.1 | Coverage tool |
-| `vitest` | ^4.1.1 | Testing framework |
-| `typescript` | ^6.0.2 | TypeScript compiler |
+| Package               | Version | Description         |
+|-----------------------|---------|---------------------|
+| `@types/mime-types`   | ^3.0.1  | TypeScript types    |
+| `vitest`              | ^4.1.1  | Testing framework   |
+| `typescript`          | ^6.0.2  | TypeScript compiler |
 
 ## License
 

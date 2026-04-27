@@ -13,10 +13,6 @@ import { FileSystemState } from "./state/fileSystemState.ts";
 import createIgnoreFilter from "./util/createIgnoreFilter.ts";
 import fallbackGlob from "./util/fallbackGlob.ts";
 
-export type FileValidator = {
-  readonly validateFile: (path: string, content: string) => MaybePromise<string | null>;
-};
-
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
 /**
@@ -35,10 +31,6 @@ export default class FileSystemService implements TokenRingService {
   unregisterFileSystemProvider = this.fileSystemProviderRegistry.unregister;
   requireFileSystemProviderByName = this.fileSystemProviderRegistry.require;
   getFilesystemProviderNames = this.fileSystemProviderRegistry.keysArray;
-
-  private fileValidatorRegistry = new KeyedRegistry<FileValidator>();
-  registerFileValidator = this.fileValidatorRegistry.set;
-  getFileValidatorForExtension = this.fileValidatorRegistry.get;
 
   /**
    * Creates an instance of FileSystem
