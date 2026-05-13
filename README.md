@@ -372,12 +372,12 @@ const displayName = "Filesystem/edit";
 
 **Parameters:**
 
-| Parameter   | Type     | Description                                                                                                                                                                                                                         |
-|-------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `path`      | `string` | Relative path of the file to edit (e.g., 'src/main.ts'). Relative to the project root directory.                                                                                                                                    |
-| `find`      | `string` | Text to find. Will be trimmed; whitespace between words is not significant but word order and exact word content are. The first word must appear verbatim, and remaining words must follow in order, separated by any whitespace. |
-| `replace`   | `string` | Replacement text. Replaces the matched region verbatim. Use an empty string to delete the match.                                                                                                                                    |
-| `multiple`  | `boolean`| If true, replace every match. If false and more than one match is found, the matches are returned without modifying the file. Default: false.                                                                                       |
+| Parameter  | Type      | Description                                                                                                                                                                                                                       |
+|------------|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `path`     | `string`  | Relative path of the file to edit (e.g., 'src/main.ts'). Relative to the project root directory.                                                                                                                                  |
+| `find`     | `string`  | Text to find. Will be trimmed; whitespace between words is not significant but word order and exact word content are. The first word must appear verbatim, and remaining words must follow in order, separated by any whitespace. |
+| `replace`  | `string`  | Replacement text. Replaces the matched region verbatim. Use an empty string to delete the match.                                                                                                                                  |
+| `multiple` | `boolean` | If true, replace every match. If false and more than one match is found, the matches are returned without modifying the file. Default: false.                                                                                     |
 
 **Behavior:**
 
@@ -470,10 +470,10 @@ const displayName = "Filesystem/write";
 
 **Parameters:**
 
-| Parameter | Type     | Description                                                                                                                                                                                                             |
-|-----------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `path`    | `string` | Relative path of the file to write (e.g., 'src/main.ts' or 'docs/design.md'). Starts from the project root directory. Required.                                                                                         |
-| `content` | `string` | Content to write to the file. ALWAYS include the ENTIRE file contents to avoid data loss. Required.                                                                                                                     |
+| Parameter | Type     | Description                                                                                                                     |
+|-----------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| `path`    | `string` | Relative path of the file to write (e.g., 'src/main.ts' or 'docs/design.md'). Starts from the project root directory. Required. |
+| `content` | `string` | Content to write to the file. ALWAYS include the ENTIRE file contents to avoid data loss. Required.                             |
 
 **Behavior:**
 
@@ -531,9 +531,9 @@ const displayName = "Filesystem/read";
 
 **Parameters:**
 
-| Parameter | Type       | Description                                                                                 |
-|-----------|------------|---------------------------------------------------------------------------------------------|
-| `files`   | `string[]` | List of file paths or glob patterns (e.g., '**/*.ts', 'path/to/file.txt'). Required.        |
+| Parameter | Type       | Description                                                                          |
+|-----------|------------|--------------------------------------------------------------------------------------|
+| `files`   | `string[]` | List of file paths or glob patterns (e.g., '**/*.ts', 'path/to/file.txt'). Required. |
 
 **Behavior:**
 
@@ -595,9 +595,9 @@ const displayName = "Filesystem/glob";
 
 **Parameters:**
 
-| Parameter   | Type       | Default    | Description                                                                       |
-|-------------|------------|------------|-----------------------------------------------------------------------------------|
-| `filePaths` | `string[]` | `["**/*"]` | List of glob patterns to match files. Examples: '**/*.ts', 'path/to/file.txt'     |
+| Parameter   | Type       | Default    | Description                                                                   |
+|-------------|------------|------------|-------------------------------------------------------------------------------|
+| `filePaths` | `string[]` | `["**/*"]` | List of glob patterns to match files. Examples: '**/*.ts', 'path/to/file.txt' |
 
 **Behavior:**
 
@@ -658,10 +658,10 @@ const displayName = "Filesystem/grep";
 
 **Parameters:**
 
-| Parameter     | Type       | Default    | Description                                                                                                                          |
-|---------------|------------|------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `filePaths`   | `string[]` | `["**/*"]` | List of file paths or glob patterns to search within. Examples: '**/*.ts', 'path/to/file.txt'                                        |
-| `searchTerms` | `string[]` | -          | List of search terms. Plain strings use substring match; wrap in '/' for regex. Examples: "searchTerm", "/searchTerm.*/"             |
+| Parameter     | Type       | Default    | Description                                                                                                              |
+|---------------|------------|------------|--------------------------------------------------------------------------------------------------------------------------|
+| `filePaths`   | `string[]` | `["**/*"]` | List of file paths or glob patterns to search within. Examples: '**/*.ts', 'path/to/file.txt'                            |
+| `searchTerms` | `string[]` | -          | List of search terms. Plain strings use substring match; wrap in '/' for regex. Examples: "searchTerm", "/searchTerm.*/" |
 
 **Behavior:**
 
@@ -751,9 +751,9 @@ const displayName = "Filesystem/search";
 
 **Parameters:**
 
-| Parameter     | Type       | Default    | Description                                                                                                                          |
-|---------------|------------|------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `filePaths`   | `string[]` | `["**/*"]` | List of file paths or glob patterns to search within. Omit to search across all files. Examples: '**/*.ts', 'path/to/file.txt'       |
+| Parameter     | Type       | Default    | Description                                                                                                                             |
+|---------------|------------|------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `filePaths`   | `string[]` | `["**/*"]` | List of file paths or glob patterns to search within. Omit to search across all files. Examples: '**/*.ts', 'path/to/file.txt'          |
 | `searchTerms` | `string[]` | -          | List of search terms to search for. Plain strings use fuzzy substring match; wrap in '/' for regex. Examples: "searchTerm", "/pattern/" |
 
 **Behavior:**
@@ -897,8 +897,8 @@ Provides contents of selected files as chat context.
 - For directories, yields directory listings
 - Marks files as read in `state.readFiles` (using modification time as Map value)
 - Output format:
-  - Files: `BEGIN FILE ATTACHMENT: {path}\n{content}\nEND FILE ATTACHMENT`
-  - Directories: `BEGIN DIRECTORY LISTING:\n{path}\n- {file}\n...\nEND DIRECTORY LISTING`
+- Files: `BEGIN FILE ATTACHMENT: {path}\n{content}\nEND FILE ATTACHMENT`
+- Directories: `BEGIN DIRECTORY LISTING:\n{path}\n- {file}\n...\nEND DIRECTORY LISTING`
 
 ### search-files
 
@@ -982,23 +982,23 @@ The package registers RPC endpoints under `/rpc/filesystem`.
 
 ### Endpoints
 
-| Method                   | Type     | Description                             | Request Params                                                                                                  | Response Params                                                                                                              |
-|--------------------------|----------|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `getFilesystemProviders` | Query    | Get all registered filesystem providers | `{}`                                                                                                            | `{ providers: string[] }`                                                                                                    |
-| `readTextFile`           | Query    | Read file content as text               | `{ provider: string, path: string }`                                                                            | `{ content: string \| null }`                                                                                                |
-| `exists`                 | Query    | Check if a file exists                  | `{ provider: string, path: string }`                                                                            | `{ exists: boolean }`                                                                                                        |
-| `stat`                   | Query    | Get file statistics                     | `{ provider: string, path: string }`                                                                            | `{ stats: string }` (JSON stringified StatLike)                                                                              |
-| `glob`                   | Query    | Match files with glob pattern           | `{ provider: string, pattern: string }`                                                                         | `{ files: string[] }`                                                                                                        |
-| `listDirectory`          | Query    | List directory contents                 | `{ provider: string, path: string, showHidden: boolean (default: false), recursive: boolean (default: false) }` | `{ files: string[] }`                                                                                                        |
-| `writeFile`              | Mutation | Write a file                            | `{ provider: string, path: string, content: string }`                                                           | `{ success: boolean }`                                                                                                       |
-| `appendFile`             | Mutation | Append to a file                        | `{ provider: string, path: string, content: string }`                                                           | `{ success: boolean }`                                                                                                       |
-| `deleteFile`             | Mutation | Delete a file                           | `{ provider: string, path: string }`                                                                            | `{ success: boolean }`                                                                                                       |
-| `rename`                 | Mutation | Rename a file                           | `{ provider: string, oldPath: string, newPath: string }`                                                        | `{ success: boolean }`                                                                                                       |
-| `createDirectory`        | Mutation | Create a directory                      | `{ provider: string, path: string, recursive: boolean (default: false) }`                                       | `{ success: boolean }`                                                                                                       |
-| `copy`                   | Mutation | Copy a file or directory                | `{ provider: string, source: string, destination: string, overwrite: boolean (default: false) }`                | `{ success: boolean }`                                                                                                       |
-| `getFilesystemState`     | Query    | Get filesystem state for agent          | `{ agentId: string }`                                                                                           | `{ status: "success" \| "agentNotFound", ... }`                                                                              |
-| `addFileToChat`          | Mutation | Add file to chat context                | `{ agentId: string, file: string }`                                                                             | `{ status: "success" \| "agentNotFound", success: boolean }`                                                                 |
-| `removeFileFromChat`     | Mutation | Remove file from chat context           | `{ agentId: string, file: string }`                                                                             | `{ status: "success" \| "agentNotFound", success: boolean }`                                                                 |
+| Method                   | Type     | Description                             | Request Params                                                                                                  | Response Params                                              |
+|--------------------------|----------|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
+| `getFilesystemProviders` | Query    | Get all registered filesystem providers | `{}`                                                                                                            | `{ providers: string[] }`                                    |
+| `readTextFile`           | Query    | Read file content as text               | `{ provider: string, path: string }`                                                                            | `{ content: string \| null }`                                |
+| `exists`                 | Query    | Check if a file exists                  | `{ provider: string, path: string }`                                                                            | `{ exists: boolean }`                                        |
+| `stat`                   | Query    | Get file statistics                     | `{ provider: string, path: string }`                                                                            | `{ stats: string }` (JSON stringified StatLike)              |
+| `glob`                   | Query    | Match files with glob pattern           | `{ provider: string, pattern: string }`                                                                         | `{ files: string[] }`                                        |
+| `listDirectory`          | Query    | List directory contents                 | `{ provider: string, path: string, showHidden: boolean (default: false), recursive: boolean (default: false) }` | `{ files: string[] }`                                        |
+| `writeFile`              | Mutation | Write a file                            | `{ provider: string, path: string, content: string }`                                                           | `{ success: boolean }`                                       |
+| `appendFile`             | Mutation | Append to a file                        | `{ provider: string, path: string, content: string }`                                                           | `{ success: boolean }`                                       |
+| `deleteFile`             | Mutation | Delete a file                           | `{ provider: string, path: string }`                                                                            | `{ success: boolean }`                                       |
+| `rename`                 | Mutation | Rename a file                           | `{ provider: string, oldPath: string, newPath: string }`                                                        | `{ success: boolean }`                                       |
+| `createDirectory`        | Mutation | Create a directory                      | `{ provider: string, path: string, recursive: boolean (default: false) }`                                       | `{ success: boolean }`                                       |
+| `copy`                   | Mutation | Copy a file or directory                | `{ provider: string, source: string, destination: string, overwrite: boolean (default: false) }`                | `{ success: boolean }`                                       |
+| `getFilesystemState`     | Query    | Get filesystem state for agent          | `{ agentId: string }`                                                                                           | `{ status: "success" \| "agentNotFound", ... }`              |
+| `addFileToChat`          | Mutation | Add file to chat context                | `{ agentId: string, file: string }`                                                                             | `{ status: "success" \| "agentNotFound", success: boolean }` |
+| `removeFileFromChat`     | Mutation | Remove file from chat context           | `{ agentId: string, file: string }`                                                                             | `{ status: "success" \| "agentNotFound", success: boolean }` |
 
 **RPC Client Example:**
 
@@ -1420,11 +1420,11 @@ bun build
 
 **Development Dependencies:**
 
-| Package               | Version | Description         |
-|-----------------------|---------|---------------------|
-| `@types/mime-types`   | ^3.0.1  | TypeScript types    |
-| `vitest`              | ^4.1.1  | Testing framework   |
-| `typescript`          | ^6.0.2  | TypeScript compiler |
+| Package             | Version | Description         |
+|---------------------|---------|---------------------|
+| `@types/mime-types` | ^3.0.1  | TypeScript types    |
+| `vitest`            | ^4.1.1  | Testing framework   |
+| `typescript`        | ^6.0.2  | TypeScript compiler |
 
 ## License
 

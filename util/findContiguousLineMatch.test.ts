@@ -1,4 +1,4 @@
-import {describe, expect, it} from "vitest";
+import { describe, expect, it } from "vitest";
 import findContiguousLineMatch from "./findContiguousLineMatch.ts";
 
 describe("findContiguousLineMatch", () => {
@@ -27,10 +27,10 @@ describe("findContiguousLineMatch", () => {
   it("falls back to fuzzy matching when the exact block is not present", () => {
     const result = findContiguousLineMatch(
       [
-        'const message = "The quick brown fox jumps over the lazy dog";',
+        "const message = \"The quick brown fox jumps over the lazy dog\";",
       ],
       [
-        'const message = "The quick brown fox jumps over the lazy dox";',
+        "const message = \"The quick brown fox jumps over the lazy dox\";",
       ],
       {
         fuzzyMatch: {

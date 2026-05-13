@@ -18,10 +18,6 @@ export default {
   execute,
   help: `List all files currently in the chat session.
 
-## Aliases
-
-/file ls
-
 ## Example
 
 /file list`,

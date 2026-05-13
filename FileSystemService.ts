@@ -64,26 +64,6 @@ export default class FileSystemService implements TokenRingService {
     });
   }
 
-  private getWorkingDirectory(agent: Agent): string {
-    return agent.getState(FileSystemState).workingDirectory;
-  }
-
-  private resolveAbsolutePath(filePath: string, agent: Agent): string {
-    const workingDirectory = this.getWorkingDirectory(agent);
-    const absolutePath = path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(workingDirectory, filePath);
-
-    const relativePath = path.relative(workingDirectory, absolutePath);
-    if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-      throw new Error(`Path ${filePath} is outside the root directory`);
-    }
-
-    return absolutePath;
-  }
-
-  private resolveAbsolutePattern(pattern: string, agent: Agent): string {
-    return path.isAbsolute(pattern) ? this.resolveAbsolutePath(pattern, agent) : path.resolve(this.getWorkingDirectory(agent), pattern);
-  }
-
   // Directory walking
   async *getDirectoryTree(path: string, options: Optional<DirectoryTreeOptions, "ignoreFilter"> = {}, agent: Agent): AsyncGenerator<string> {
     const activeFileSystem = this.requireActiveFileSystem(agent);
@@ -248,12 +228,6 @@ export default class FileSystemService implements TokenRingService {
     });
   }
 
-  private relativePathForAgent(absolutePath: string, agent: Agent): string {
-    const hasTrailingSeparator = absolutePath.endsWith("/") || absolutePath.endsWith(path.sep);
-    const relativePath = path.relative(this.getWorkingDirectory(agent), this.resolveAbsolutePath(absolutePath, agent));
-    return hasTrailingSeparator ? `${relativePath}/` : relativePath;
-  }
-
   isDirty(agent: Agent): boolean {
     return agent.getState(FileSystemState).dirty;
   }
@@ -291,5 +265,31 @@ export default class FileSystemService implements TokenRingService {
     agent.mutateState(FileSystemState, (state: FileSystemState) => {
       state.selectedFiles = new Set(files);
     });
+  }
+
+  private getWorkingDirectory(agent: Agent): string {
+    return agent.getState(FileSystemState).workingDirectory;
+  }
+
+  private resolveAbsolutePath(filePath: string, agent: Agent): string {
+    const workingDirectory = this.getWorkingDirectory(agent);
+    const absolutePath = path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(workingDirectory, filePath);
+
+    const relativePath = path.relative(workingDirectory, absolutePath);
+    if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+      throw new Error(`Path ${filePath} is outside the root directory`);
+    }
+
+    return absolutePath;
+  }
+
+  private resolveAbsolutePattern(pattern: string, agent: Agent): string {
+    return path.isAbsolute(pattern) ? this.resolveAbsolutePath(pattern, agent) : path.resolve(this.getWorkingDirectory(agent), pattern);
+  }
+
+  private relativePathForAgent(absolutePath: string, agent: Agent): string {
+    const hasTrailingSeparator = absolutePath.endsWith("/") || absolutePath.endsWith(path.sep);
+    const relativePath = path.relative(this.getWorkingDirectory(agent), this.resolveAbsolutePath(absolutePath, agent));
+    return hasTrailingSeparator ? `${relativePath}/` : relativePath;
   }
 }

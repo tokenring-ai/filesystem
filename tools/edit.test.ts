@@ -1,9 +1,9 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent";
 import createTestingApp from "@tokenring-ai/app/test/createTestingApp";
-import {FileSystemConfigSchema} from "../schema.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FileSystemService from "../FileSystemService.ts";
-import {FileSystemState} from "../state/fileSystemState.ts";
+import { FileSystemConfigSchema } from "../schema.ts";
+import { FileSystemState } from "../state/fileSystemState.ts";
 import findReplaceTool from "./edit.ts";
 
 function createMockFileSystemProvider(initialFiles: Record<string, string>) {
@@ -13,7 +13,7 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
 
   return {
     files,
-    async *getDirectoryTree() {
+    async* getDirectoryTree() {
     },
     async writeFile(absolutePath: string, content: string | Buffer) {
       files.set(absolutePath, Buffer.isBuffer(content) ? content : Buffer.from(content));
@@ -86,7 +86,7 @@ describe("file_findReplace", () => {
     provider = createMockFileSystemProvider({
       "/repo/src/example.ts": [
         "function example() {",
-        '  const message = "The quick brown fox jumps over the lazy dog";',
+        "  const message = \"The quick brown fox jumps over the lazy dog\";",
         "}",
         "",
       ].join("\n"),
@@ -106,12 +106,12 @@ describe("file_findReplace", () => {
           maxFileReadCount: 10,
           maxFileSize: 128 * 1024,
         },
-      fileSearch: {
-        maxSnippetCount: 10,
-        maxSnippetSizePercent: 0.3,
-        snippetLinesBefore: 5,
-        snippetLinesAfter: 5,
-      },
+        fileSearch: {
+          maxSnippetCount: 10,
+          maxSnippetSizePercent: 0.3,
+          snippetLinesBefore: 5,
+          snippetLinesAfter: 5,
+        },
       },
     }));
 
@@ -120,7 +120,7 @@ describe("file_findReplace", () => {
     fileSystemService.start();
 
     agent = createTestingAgent(app);
-    fileSystemService.attach(agent, {items: []} as any);
+    fileSystemService.attach(agent, { items: [] } as any);
   });
 
   afterEach(() => {
@@ -135,8 +135,8 @@ describe("file_findReplace", () => {
 
     const result = await findReplaceTool.execute({
       path: "src/example.ts",
-      find: 'lazy   dog";',
-      replace: 'lazy cat";',
+      find: "lazy   dog\";",
+      replace: "lazy cat\";",
       multiple: false,
     }, agent);
 

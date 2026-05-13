@@ -1,9 +1,9 @@
-import {beforeEach, describe, expect, it} from "vitest";
-import path from "node:path";
 import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent";
 import createTestingApp from "@tokenring-ai/app/test/createTestingApp";
+import path from "node:path";
+import { beforeEach, describe, expect, it } from "vitest";
 import FileSystemService from "./FileSystemService.ts";
-import {FileSystemConfigSchema} from "./schema.ts";
+import { FileSystemConfigSchema } from "./schema.ts";
 
 function createMockFileSystemProvider(initialFiles: Record<string, string>) {
   const files = new Map(
@@ -23,7 +23,7 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
   };
 
   return {
-    async *getDirectoryTree(absolutePath: string, {ignoreFilter, recursive = true}: {ignoreFilter: (path: string) => boolean; recursive?: boolean}) {
+    async* getDirectoryTree(absolutePath: string, { ignoreFilter, recursive = true }: { ignoreFilter: (path: string) => boolean; recursive?: boolean }) {
       const entries = new Set<string>();
       const normalizedRoot = absolutePath === "/" ? "/" : absolutePath.replace(/\/+$/, "");
 
@@ -160,7 +160,7 @@ describe("FileSystemService glob fallback", () => {
 
   beforeEach(() => {
     agent = createTestingAgent(app);
-    fileSystemService.attach(agent, {items: []} as any);
+    fileSystemService.attach(agent, { items: [] } as any);
   });
 
   it("matches files when the provider does not implement glob", async () => {
@@ -169,12 +169,12 @@ describe("FileSystemService glob fallback", () => {
   });
 
   it("matches directories when includeDirectories is enabled", async () => {
-    await expect(fileSystemService.glob("src/*", {includeDirectories: true}, agent))
+    await expect(fileSystemService.glob("src/*", { includeDirectories: true }, agent))
       .resolves.toEqual(["src/components", "src/example.ts", "src/index.js"]);
   });
 
   it("supports exact directory matches without provider glob support", async () => {
-    await expect(fileSystemService.glob("src/components", {includeDirectories: true}, agent))
+    await expect(fileSystemService.glob("src/components", { includeDirectories: true }, agent))
       .resolves.toEqual(["src/components"]);
   });
 });
