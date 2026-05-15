@@ -1,28 +1,31 @@
-// Keep .ts extension for NodeNext/ESM compatibility in TS source
 import type { Agent } from "@tokenring-ai/agent";
+import type { ParsedCodeBaseResource } from "@tokenring-ai/codebase/schema";
 import FileSystemService from "./FileSystemService.ts";
 
-export interface MatchItem {
-  path: string;
-  include?: RegExp;
-  exclude?: RegExp;
-}
+type ItemMatch = { path: string, include: RegExp | undefined, exclude: RegExp | undefined }
 
 /**
  * Class representing a file tree context extending DirectoryService.
  */
 export default class FileMatchResource {
-  constructor(private readonly items: MatchItem[]) {}
+  readonly itemMatches: ItemMatch[]
+  constructor(private readonly options: ParsedCodeBaseResource) {
+    this.itemMatches = options.items.map(item => ({
+      path: item.path,
+      include: item.include ? new RegExp(item.include) : undefined,
+      exclude: item.exclude ? new RegExp(item.exclude) : undefined
+    }))
+  }
 
   /**
    * Asynchronously gets matched files
    */
-  async *getMatchedFiles(agent: Agent): AsyncGenerator<string> {
+  async* getMatchedFiles(agent: Agent): AsyncGenerator<string> {
     const fileSystem = agent.requireServiceByType(FileSystemService);
 
-    for (const { path, include, exclude } of this.items) {
+    for (const { path, include, exclude } of this.itemMatches) {
       for await (const relPath of fileSystem.getDirectoryTree(path, {}, agent)) {
-        if (exclude?.test(relPath) || include?.test(relPath) === false) continue;
+        if (exclude?.test(relPath) || !include?.test(relPath)) continue;
         yield relPath;
       }
     }
