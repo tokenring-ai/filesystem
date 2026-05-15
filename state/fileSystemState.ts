@@ -1,4 +1,5 @@
 import { AgentStateSlice } from "@tokenring-ai/agent/types";
+import deepClone from "@tokenring-ai/utility/object/deepClone";
 import markdownList from "@tokenring-ai/utility/string/markdownList";
 import { z } from "zod";
 import { FileSystemConfigSchema } from "../schema.ts";
@@ -29,19 +30,26 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
 
   constructor(readonly initialConfig: z.output<typeof FileSystemConfigSchema>["agentDefaults"]) {
     super("FileSystemState", serializationSchema);
+    this.reset();
     this.selectedFiles = new Set(initialConfig.selectedFiles);
     this.providerName = initialConfig.provider ?? null;
     this.workingDirectory = initialConfig.workingDirectory;
-    this.fileRead = initialConfig.fileRead;
-    this.fileWrite = initialConfig.fileWrite;
-    this.fileGrep = initialConfig.fileGrep;
-    this.fileEdit = initialConfig.fileEdit;
+    this.fileRead = deepClone(initialConfig.fileRead);
+    this.fileWrite = deepClone(initialConfig.fileWrite);
+    this.fileGrep = deepClone(initialConfig.fileGrep);
+    this.fileEdit = deepClone(initialConfig.fileEdit);
   }
 
   reset(): void {
     this.providerName = this.initialConfig.provider ?? null;
     this.workingDirectory = this.initialConfig.workingDirectory;
     this.selectedFiles = new Set(this.initialConfig.selectedFiles);
+
+    this.fileRead = deepClone(this.initialConfig.fileRead);
+    this.fileWrite = deepClone(this.initialConfig.fileWrite);
+    this.fileGrep = deepClone(this.initialConfig.fileGrep);
+    this.fileEdit = deepClone(this.initialConfig.fileEdit);
+
     this.dirty = false;
     this.readFiles.clear();
   }

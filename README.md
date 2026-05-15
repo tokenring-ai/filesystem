@@ -1,12 +1,10 @@
 # @tokenring-ai/filesystem
 
-A filesystem abstraction service for Token Ring AI agents that provides unified file operations including reading,
-writing, searching, and executing commands through a provider-based architecture.
+A filesystem abstraction service for Token Ring AI agents that provides unified file operations including reading, writing, searching, and executing commands through a provider-based architecture.
 
 ## Overview
 
-The `@tokenring-ai/filesystem` package provides a unified, abstracted filesystem interface for AI agents in Token Ring
-applications. It enables secure file operations including:
+The `@tokenring-ai/filesystem` package provides a unified, abstracted filesystem interface for Token Ring applications. It enables secure file operations including:
 
 - File reading and writing with safety controls
 - File editing with word-based matching support
@@ -21,8 +19,7 @@ applications. It enables secure file operations including:
 - Glob pattern matching for file discovery
 - Grep-based text search with configurable snippets
 
-The package integrates deeply with the agent system, providing both tools for AI-driven operations and chat commands for
-user interface control.
+The package integrates deeply with the agent system, providing both tools for AI-driven operations and chat commands for user interface control.
 
 ## Installation
 
@@ -118,8 +115,7 @@ const FileSystemAgentConfigSchema = z.object({
 
 ### FileSystemService
 
-The main service class implementing `TokenRingService`. It manages filesystem providers, agent state, and delegates
-operations.
+The main service class implementing `TokenRingService`. It manages filesystem providers, agent state, and delegates operations.
 
 **Exports:**
 
@@ -208,8 +204,7 @@ attach(agent: Agent, creationContext: AgentCreationContext): void {
 
 ### FileSystemProvider
 
-Abstract interface for filesystem implementations. Implementations can provide virtual, remote, or local filesystem
-access.
+Abstract interface for filesystem implementations. Implementations can provide virtual, remote, or local filesystem access.
 
 **Interface:**
 
@@ -307,8 +302,7 @@ export default interface FileSystemProvider {
 
 ### FileMatchResource
 
-A resource class for matching files based on include/exclude patterns. Provides async generation of matched files using
-the FileSystemService.
+A resource class for matching files based on include/exclude patterns. Provides async generation of matched files using the FileSystemService.
 
 **Exports:**
 
@@ -351,8 +345,7 @@ for await (const file of fileMatchResource.getMatchedFiles(agent)) {
 
 Tools are exported from `tools.ts` and registered with `ChatService` during plugin installation.
 
-Currently, five tools are actively exported: `file_edit`, `file_write`, `file_read`, `file_glob`, and `file_grep`. The
-`file_search` tool is also available. The `append` tool is defined but commented out in the exports.
+Currently, five tools are actively exported: `file_edit`, `file_write`, `file_read`, `file_glob`, and `file_grep`.
 
 ### file_edit
 
@@ -729,82 +722,6 @@ const result = await grep({
 
 // Search across all files (default)
 const result = await grep({
-  searchTerms: ['import']
-}, agent);
-```
-
-### file_search
-
-Searches for text patterns in files with intelligent result formatting.
-
-**File:** `pkg/filesystem/tools/search.ts`
-
-**Tool Definition:**
-
-```typescript
-import { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
-import search from "@tokenring-ai/filesystem/tools/search";
-
-const name = "file_search";
-const displayName = "Filesystem/search";
-```
-
-**Parameters:**
-
-| Parameter     | Type       | Default    | Description                                                                                                                             |
-|---------------|------------|------------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `filePaths`   | `string[]` | `["**/*"]` | List of file paths or glob patterns to search within. Omit to search across all files. Examples: '**/*.ts', 'path/to/file.txt'          |
-| `searchTerms` | `string[]` | -          | List of search terms to search for. Plain strings use fuzzy substring match; wrap in '/' for regex. Examples: "searchTerm", "/pattern/" |
-
-**Behavior:**
-
-- Supports substring, regex, and fuzzy matching
-- Returns grep-style snippets with context lines
-- Automatically decides whether to return full file contents, snippets, or file names based on match count
-- Marks read files in state with modification time
-- Searches are OR-based across multiple patterns (any match counts)
-
-**Search Patterns:**
-
-- Plain strings: Fuzzy substring matching (case-insensitive)
-- Regex: Enclosed in `/` (e.g., `/class \w+Service/`)
-
-**Output Format:**
-
-- When matches are few: Returns grep-style snippets with line numbers
-- When snippet is too large: Returns full file contents
-- When too many files match: Returns directory listing with file names
-
-**Error Cases:**
-
-- Returns "No files were found that matched the search criteria" if no files match
-- Returns directory listing if more than `maxSnippetCount` files matched
-
-**Required Context Handlers:** `["selected-files"]`
-
-**Examples:**
-
-```typescript
-// Search for a function across all files
-const result = await search({
-  filePaths: ['src/**/*.ts'],
-  searchTerms: ['function execute']
-}, agent);
-
-// Regex search for pattern
-const result = await search({
-  filePaths: ['pkg/agent/**/*.ts'],
-  searchTerms: ['/class \w+Service/']
-}, agent);
-
-// Search with specific files
-const result = await search({
-  filePaths: ['src/**/*.ts', 'pkg/**/*.ts'],
-  searchTerms: ['TODO', 'FIXME']
-}, agent);
-
-// Search across all files (default)
-const result = await search({
   searchTerms: ['import']
 }, agent);
 ```
@@ -1228,44 +1145,59 @@ const files = await fs.glob(pattern, options, agent);
 
 ## FileValidator Interface
 
-The `FileValidator` type defines the interface for file validation functions:
+The `FileValidator` type defines the interface for file validation functions. Validators are defined through the `AgentLifecycleService` hook system.
+
+**Implementation in `util/runFileValidator.ts`:**
 
 ```typescript
-export default interface FileValidator {
-  validateFile(path: string, agent: Agent): Promise<ValidationResult>;
-}
+export const FileValidationResultSchema = z
+  .object({
+    valid: z.boolean(),
+    result: z.string(),
+  })
+  .nullable();
 
-export type ValidationResult = {
-  valid: boolean;
-  result?: string | undefined;
-};
+export type FileValidationResult = z.infer<typeof FileValidationResultSchema>;
+
+export class FileValidatonAfterFileWrite implements Hook<typeof FileValidationResultSchema> {
+  readonly type = "hook";
+  readonly returnType = FileValidationResultSchema;
+
+  constructor(
+    readonly filePath: string,
+    readonly fileExtension: string,
+    readonly content: string,
+  ) {}
+}
 ```
 
-Validators receive the file path and agent, and return:
-
-- `{ valid: true }` for successful validation
-- `{ valid: false, result: "error message" }` for validation failures
-
-Validators are registered with the `FileSystemService`:
+Validators are registered with the `AgentLifecycleService` as hooks:
 
 **Registration:**
 
 ```typescript
-const fileSystemService = app.requireService(FileSystemService);
+const lifecycleService = app.requireService(AgentLifecycleService);
 
-fileSystemService.registerFileValidator('.ts', {
-  validateFile: async (path: string, agent: Agent) => {
-    // Validate TypeScript file
-    const result = await runTypeScriptValidator(path, agent);
-    return result ? { valid: false, result } : { valid: true };
-  }
+lifecycleService.addHooks({
+  name: "validateTypeScript",
+  displayName: "TypeScript Validation",
+  description: "Validates TypeScript files after write",
+  callbacks: [
+    new HookCallback(AfterFileWrite, async (hook: FileValidatonAfterFileWrite, agent: Agent) => {
+      if (hook.fileExtension !== '.ts') return null;
+      
+      // Validate TypeScript file
+      const result = await runTypeScriptValidation(hook.content);
+      return result ? { valid: false, result } : { valid: true };
+    })
+  ]
 });
 ```
 
 **Usage:**
 
 - Validators are automatically run after file writes if `validateWrittenFiles` is enabled
-- Validators receive the file path and agent
+- Validators receive a `FileValidatonAfterFileWrite` hook with file path, extension, and content
 - Return `{ valid: true }` for success, or `{ valid: false, result: "error message" }` for failure
 - Error messages are appended to the tool result
 
@@ -1318,17 +1250,15 @@ pkg/filesystem/
 ├── FileSystemService.ts             # Core service implementation
 ├── FileSystemProvider.ts            # Provider interface definitions
 ├── FileMatchResource.ts             # File matching resource class
-├── FileValidator.ts                 # File validator interface
 ├── tools.ts                         # Tool exports
 ├── tools/
 │   ├── edit.ts                      # file_edit tool
 │   ├── edit.test.ts                 # Tests for edit tool
 │   ├── write.ts                     # file_write tool
 │   ├── read.ts                      # file_read tool
-│   ├── search.ts                    # file_search tool
+│   ├── search.ts                    # file_search tool (not exported)
 │   ├── glob.ts                      # file_glob tool
-│   ├── grep.ts                      # file_grep tool
-│   └── append.ts                    # file_append tool (commented out)
+│   └── grep.ts                      # file_grep tool
 ├── commands.ts                      # Command exports
 ├── commands/
 │   ├── file/
@@ -1351,13 +1281,11 @@ pkg/filesystem/
 │   └── fileSystemState.ts           # State management
 ├── util/
 │   ├── createIgnoreFilter.ts        # Ignore filter creation
-│   ├── runFileValidator.ts          # File validator runner
+│   ├── runFileValidator.ts          # File validator runner and types
 │   ├── createFileWriteResult.ts     # File write result creation
-│   ├── findContiguousLineMatch.ts   # Line matching utility
-│   ├── findContiguousLineMatch.test.ts  # Tests for line matching
+│   ├── findWordMatches.ts           # Word matching utility
 │   ├── fallbackGlob.ts              # Fallback glob implementation
-│   └── hooks/
-│       └── autoCommit.ts            # Auto-commit hook utility
+│   └── findContiguousLineMatch.ts   # Line matching utility
 ├── rpc/
 │   ├── filesystem.ts                # RPC endpoint definitions
 │   └── schema.ts                    # RPC schema definitions
@@ -1387,15 +1315,6 @@ bun test:watch
 # Run tests with coverage
 bun test:coverage
 
-# Run integration tests
-bun test:integration
-
-# Run e2e tests
-bun test:e2e
-
-# Run all tests including integration
-bun test:all
-
 # Build (type check)
 bun build
 ```
@@ -1404,19 +1323,19 @@ bun build
 
 **Production Dependencies:**
 
-| Package                   | Version | Description                         |
-|---------------------------|---------|-------------------------------------|
-| `@tokenring-ai/app`       | 0.2.0   | Application framework               |
-| `@tokenring-ai/chat`      | 0.2.0   | Chat service                        |
-| `@tokenring-ai/agent`     | 0.2.0   | Agent framework                     |
-| `@tokenring-ai/utility`   | 0.2.0   | Utility functions                   |
-| `@tokenring-ai/lifecycle` | 0.2.0   | Lifecycle service                   |
-| `@tokenring-ai/scripting` | 0.2.0   | Scripting service                   |
-| `@tokenring-ai/rpc`       | 0.2.0   | RPC service                         |
-| `zod`                     | ^4.3.6  | Schema validation                   |
-| `ignore`                  | ^7.0.5  | Git ignore pattern matching         |
-| `diff`                    | ^8.0.4  | Diff generation for file operations |
-| `mime-types`              | ^3.0.2  | MIME type detection                 |
+| Package                   | Version    | Description                         |
+|---------------------------|------------|-------------------------------------|
+| `@tokenring-ai/app`       | workspace:*| Application framework               |
+| `@tokenring-ai/chat`      | workspace:*| Chat service                        |
+| `@tokenring-ai/agent`     | workspace:*| Agent framework                     |
+| `@tokenring-ai/utility`   | workspace:*| Utility functions                   |
+| `@tokenring-ai/lifecycle` | workspace:*| Lifecycle service                   |
+| `@tokenring-ai/scripting` | workspace:*| Scripting service                   |
+| `@tokenring-ai/rpc`       | workspace:*| RPC service                         |
+| `zod`                     | ^4.3.6     | Schema validation                   |
+| `ignore`                  | ^7.0.5     | Git ignore pattern matching         |
+| `diff`                    | ^8.0.4     | Diff generation for file operations |
+| `mime-types`              | ^3.0.2     | MIME type detection                 |
 
 **Development Dependencies:**
 

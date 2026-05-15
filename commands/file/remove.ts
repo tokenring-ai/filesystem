@@ -22,7 +22,7 @@ function execute({ remainder, agent }: AgentCommandInputType<typeof inputSchema>
       filesystem.removeFileFromChat(file, agent);
       removedCount++;
     } catch (error: unknown) {
-      errors.push(`Failed to remove file ${file}: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(`Failed to remove file ${file}: ${Error.isError(error) ? error.message : String(error)}`);
     }
   }
 

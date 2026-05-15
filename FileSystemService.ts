@@ -1,9 +1,9 @@
+import deepClone from "@tokenring-ai/utility/object/deepClone";
 import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { AgentCreationContext } from "@tokenring-ai/agent/types";
 import type { TokenRingService } from "@tokenring-ai/app/types";
 import type { JSONValue } from "@tokenring-ai/utility/json/safeParse";
-import deepMerge from "@tokenring-ai/utility/object/deepMerge";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import type { MaybePromise } from "bun";
 import type { z } from "zod";
@@ -43,7 +43,7 @@ export default class FileSystemService implements TokenRingService {
   }
 
   attach(agent: Agent, creationContext: AgentCreationContext): void {
-    const config = deepMerge(this.options.agentDefaults, agent.getAgentConfigSlice("filesystem", FileSystemAgentConfigSchema));
+    const config = deepClone(this.options.agentDefaults, agent.getAgentConfigSlice("filesystem", FileSystemAgentConfigSchema));
     const initialState = agent.initializeState(FileSystemState, config);
     if (config.selectedFiles.length > 0) {
       creationContext.items.push(`Selected Files: ${Array.from(initialState.selectedFiles).join(", ")}`);

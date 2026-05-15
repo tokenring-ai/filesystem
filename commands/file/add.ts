@@ -22,7 +22,7 @@ async function execute({ remainder, agent }: AgentCommandInputType<typeof inputS
       await filesystem.addFileToChat(file, agent);
       addedCount++;
     } catch (error: unknown) {
-      errors.push(`Failed to add file ${file}: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(`Failed to add file ${file}: ${Error.isError(error) ? error.message : String(error)}`);
     }
   }
 
