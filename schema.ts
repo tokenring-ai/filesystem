@@ -1,5 +1,25 @@
 import z from "zod";
 
+export const StatExistsSchema = z.object({
+  path: z.string(),
+  absolutePath: z.string().exactOptional(),
+  exists: z.literal(true),
+  isFile: z.boolean().exactOptional(),
+  isDirectory: z.boolean().exactOptional(),
+  isSymbolicLink: z.boolean().exactOptional(),
+  size: z.number().exactOptional(),
+  created: z.string().exactOptional(),
+  modified: z.string().exactOptional(),
+  accessed: z.string().exactOptional(),
+});
+
+export const StatNotExistsSchema = z.object({
+  path: z.string(),
+  exists: z.literal(false),
+});
+
+export const StatSchema = z.discriminatedUnion("exists", [StatExistsSchema, StatNotExistsSchema]);
+
 export const FileSystemAgentConfigSchema = z
   .object({
     provider: z.string().exactOptional(),

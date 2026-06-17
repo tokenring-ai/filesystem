@@ -1,6 +1,7 @@
 import { AgentManager } from "@tokenring-ai/agent";
 import type TokenRingApp from "@tokenring-ai/app";
 import { createRPCEndpoint } from "@tokenring-ai/rpc/createRPCEndpoint";
+import { encode8601dates } from "@tokenring-ai/utility/date/transform8601Dates";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
 import fallbackGlob from "../util/fallbackGlob.ts";
@@ -31,7 +32,7 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
     const stats = await provider.stat(args.path);
-    return { stats: JSON.stringify(stats) };
+    return { stats: encode8601dates(stats, ["created", "modified", "accessed"]) };
   },
 
   async glob(args, app: TokenRingApp) {

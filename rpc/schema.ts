@@ -1,6 +1,7 @@
 import { AgentNotFoundSchema } from "@tokenring-ai/agent/schema";
 import type { RPCSchema } from "@tokenring-ai/rpc/types";
 import { z } from "zod";
+import { StatSchema } from "../schema.ts";
 
 export default {
   name: "Filesystem RPC",
@@ -41,7 +42,7 @@ export default {
         path: z.string(),
       }),
       result: z.object({
-        stats: z.string(),
+        stats: StatSchema
       }),
     },
     glob: {
