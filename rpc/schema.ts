@@ -55,6 +55,18 @@ export default {
         files: z.array(z.string()),
       }),
     },
+    searchWorkspaceFiles: {
+      type: "query",
+      input: z.object({
+        provider: z.string(),
+        query: z.string().default(""),
+        limit: z.number().int().positive().default(48),
+      }),
+      result: z.object({
+        files: z.array(z.string()),
+        totalMatches: z.number(),
+      }),
+    },
     listDirectory: {
       type: "query",
       input: z.object({

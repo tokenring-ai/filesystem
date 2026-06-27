@@ -5,6 +5,7 @@ import { encode8601dates } from "@tokenring-ai/utility/date/transform8601Dates";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
 import fallbackGlob from "../util/fallbackGlob.ts";
+import { invalidateWorkspaceFileIndex, listWorkspaceFiles } from "../util/workspaceFileIndex.ts";
 import FileSystemRpcSchema from "./schema.ts";
 
 export default createRPCEndpoint(FileSystemRpcSchema, {
@@ -43,6 +44,37 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     return { files };
   },
 
+  async searchWorkspaceFiles(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    const globOptions = { ignoreFilter: () => false };
+    const allFiles = await listWorkspaceFiles(args.provider, provider, globOptions);
+
+    const query = args.query.trim().toLowerCase();
+    let matches = allFiles;
+    if (query) {
+      matches = allFiles.filter((filePath) => filePath.toLowerCase().includes(query));
+    }
+
+    const depth = (filePath: string) => (filePath.match(/\//g) ?? []).length;
+    matches.sort((left, right) => {
+      const depthDiff = depth(left) - depth(right);
+      if (depthDiff !== 0) {
+        return depthDiff;
+      }
+      const baseLeft = left.split("/").pop() ?? left;
+      const baseRight = right.split("/").pop() ?? right;
+      const baseCmp = baseLeft.localeCompare(baseRight, undefined, { numeric: true, sensitivity: "base" });
+      if (baseCmp !== 0) {
+        return baseCmp;
+      }
+      return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+    });
+
+    const totalMatches = matches.length;
+    return { files: matches.slice(0, args.limit), totalMatches };
+  },
+
   async listDirectory(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
@@ -60,6 +92,7 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
     await provider.writeFile(args.path, args.content);
+    invalidateWorkspaceFileIndex(args.provider);
     return { success: true };
   },
 
@@ -74,6 +107,7 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
     await provider.deleteFile(args.path);
+    invalidateWorkspaceFileIndex(args.provider);
     return { success: true };
   },
 
@@ -81,6 +115,7 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
     await provider.rename(args.oldPath, args.newPath);
+    invalidateWorkspaceFileIndex(args.provider);
     return { success: true };
   },
 
@@ -88,6 +123,7 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
     await provider.createDirectory(args.path, { recursive: args.recursive });
+    invalidateWorkspaceFileIndex(args.provider);
     return { success: true };
   },
 
@@ -97,6 +133,7 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     await provider.copy(args.source, args.destination, {
       overwrite: args.overwrite,
     });
+    invalidateWorkspaceFileIndex(args.provider);
     return { success: true };
   },
 
