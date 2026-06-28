@@ -20,7 +20,7 @@ export function invalidateWorkspaceFileIndex(providerName?: string) {
   indexByProvider.clear();
 }
 
-/** Cached `**/*` listing used by `searchWorkspaceFiles`. */
+/** Cached `**\/*` listing used by `searchWorkspaceFiles`. */
 export async function listWorkspaceFiles(
   providerName: string,
   provider: FileSystemProvider,
