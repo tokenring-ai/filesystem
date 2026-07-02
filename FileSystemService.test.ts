@@ -1,5 +1,5 @@
-import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent";
-import createTestingApp from "@tokenring-ai/app/test/createTestingApp";
+import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent.test";
+import createTestingApp from "@tokenring-ai/app/test/createTestingApp.test";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import FileSystemService from "./FileSystemService.ts";

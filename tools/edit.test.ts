@@ -1,5 +1,5 @@
-import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent";
-import createTestingApp from "@tokenring-ai/app/test/createTestingApp";
+import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent.test";
+import createTestingApp from "@tokenring-ai/app/test/createTestingApp.test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemConfigSchema } from "../schema.ts";
