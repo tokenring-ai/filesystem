@@ -4,7 +4,7 @@
   "description": "Unified API for file operations including reading, writing, and smart patching.",
   "dependencies": {
     "@tokenring-ai/app": "workspace:*",
-    "zod": "^4.3.6",
+    "zod": "^4.4.3",
     "@tokenring-ai/chat": "workspace:*",
     "@tokenring-ai/agent": "workspace:*",
     "@tokenring-ai/utility": "workspace:*",
@@ -12,7 +12,7 @@
     "@tokenring-ai/scripting": "workspace:*",
     "@tokenring-ai/rpc": "workspace:*",
     "ignore": "^7.0.5",
-    "diff": "^8.0.4",
+    "diff": "^9.0.0",
     "mime-types": "^3.0.2"
   },
   "devDependencies": {

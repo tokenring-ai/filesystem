@@ -1,5 +1,6 @@
 import { AgentManager } from "@tokenring-ai/agent";
 import type TokenRingApp from "@tokenring-ai/app";
+import { createAgentStateSliceStream } from "@tokenring-ai/rpc/createAgentStateStream";
 import { createRPCEndpoint } from "@tokenring-ai/rpc/createRPCEndpoint";
 import { encode8601dates } from "@tokenring-ai/utility/date/transform8601Dates";
 import FileSystemService from "../FileSystemService.ts";
@@ -7,6 +8,18 @@ import { FileSystemState } from "../state/fileSystemState.ts";
 import fallbackGlob from "../util/fallbackGlob.ts";
 import { invalidateWorkspaceFileIndex, listWorkspaceFiles } from "../util/workspaceFileIndex.ts";
 import FileSystemRpcSchema from "./schema.ts";
+
+const streamFilesystemState = createAgentStateSliceStream({
+  SliceClass: FileSystemState,
+  project: state => ({
+    status: "success" as const,
+    provider: state.providerName ?? "",
+    workingDirectory: state.workingDirectory,
+    selectedFiles: Array.from(state.selectedFiles),
+    readFiles: Object.fromEntries(state.readFiles),
+    dirty: state.dirty,
+  }),
+});
 
 export default createRPCEndpoint(FileSystemRpcSchema, {
   getFilesystemProviders(_args, app: TokenRingApp) {
@@ -152,6 +165,8 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
       dirty: state.dirty,
     });
   },
+
+  streamFilesystemState,
 
   async addFileToChat(args, app: TokenRingApp) {
     const agent = app.requireService(AgentManager).getAgent(args.agentId);

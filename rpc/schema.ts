@@ -162,6 +162,23 @@ export default {
         AgentNotFoundSchema,
       ]),
     },
+    streamFilesystemState: {
+      type: "stream",
+      input: z.object({
+        agentId: z.string(),
+      }),
+      result: z.discriminatedUnion("status", [
+        z.object({
+          status: z.literal("success"),
+          provider: z.string(),
+          workingDirectory: z.string(),
+          selectedFiles: z.array(z.string()),
+          readFiles: z.record(z.string(), z.number()),
+          dirty: z.boolean(),
+        }),
+        AgentNotFoundSchema,
+      ]),
+    },
     addFileToChat: {
       type: "mutation",
       input: z.object({
