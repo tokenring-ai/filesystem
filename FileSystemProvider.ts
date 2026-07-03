@@ -2,21 +2,21 @@ import type { MaybePromise } from "bun";
 
 export type StatLike =
   | {
-  path: string;
-  absolutePath?: string;
-  exists: true;
-  isFile?: boolean;
-  isDirectory?: boolean;
-  isSymbolicLink?: boolean;
-  size?: number;
-  created?: Date;
-  modified?: Date;
-  accessed?: Date;
-}
+      path: string;
+      absolutePath?: string;
+      exists: true;
+      isFile?: boolean;
+      isDirectory?: boolean;
+      isSymbolicLink?: boolean;
+      size?: number;
+      created?: Date;
+      modified?: Date;
+      accessed?: Date;
+    }
   | {
-  path: string;
-  exists: false;
-};
+      path: string;
+      exists: false;
+    };
 
 export interface GrepResult {
   file: string;

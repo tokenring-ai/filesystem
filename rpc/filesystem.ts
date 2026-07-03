@@ -66,7 +66,7 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     const query = args.query.trim().toLowerCase();
     let matches = allFiles;
     if (query) {
-      matches = allFiles.filter((filePath) => filePath.toLowerCase().includes(query));
+      matches = allFiles.filter(filePath => filePath.toLowerCase().includes(query));
     }
 
     const depth = (filePath: string) => (filePath.match(/\//g) ?? []).length;

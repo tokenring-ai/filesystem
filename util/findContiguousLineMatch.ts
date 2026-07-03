@@ -32,20 +32,20 @@ export function calculateLevenshteinSimilarity(left: string, right: string): num
   const previousRow = Array.from({ length: right.length + 1 }, (_value, index) => index);
 
   for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
-    let previousDiagonal = previousRow[0];
+    let previousDiagonal = previousRow[0]!;
     previousRow[0] = leftIndex;
 
     for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
-      const current = previousRow[rightIndex];
+      const current = previousRow[rightIndex]!;
       const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
 
-      previousRow[rightIndex] = Math.min(previousRow[rightIndex] + 1, previousRow[rightIndex - 1] + 1, previousDiagonal + substitutionCost);
+      previousRow[rightIndex] = Math.min(previousRow[rightIndex]! + 1, previousRow[rightIndex - 1]! + 1, previousDiagonal + substitutionCost);
 
       previousDiagonal = current;
     }
   }
 
-  const distance = previousRow[right.length];
+  const distance = previousRow[right.length]!;
   return 1 - distance / Math.max(left.length, right.length);
 }
 
@@ -85,7 +85,7 @@ export default function findContiguousLineMatch(
 
   if (exactMatches.length === 1) {
     return {
-      match: exactMatches[0],
+      match: exactMatches[0]!,
       exactMatches,
       fuzzyMatches: [],
     };
@@ -137,10 +137,10 @@ export default function findContiguousLineMatch(
     return left.startLineIndex - right.startLineIndex;
   });
 
-  const hasUniqueBestMatch = fuzzyMatches.length === 1 || (fuzzyMatches.length > 1 && fuzzyMatches[0].similarity > fuzzyMatches[1].similarity);
+  const hasUniqueBestMatch = fuzzyMatches.length === 1 || (fuzzyMatches.length > 1 && fuzzyMatches[0]!.similarity > fuzzyMatches[1]!.similarity);
 
   return {
-    match: hasUniqueBestMatch ? fuzzyMatches[0] : null,
+    match: hasUniqueBestMatch ? fuzzyMatches[0]! : null,
     exactMatches,
     fuzzyMatches,
   };

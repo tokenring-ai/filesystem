@@ -63,11 +63,11 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     const matchedLines = new Set<number>();
     for (const pattern of searchPatterns) {
       if (typeof pattern === "string") {
-        for (let i = 0; i < lowerCaseLines.length; i++) {
-          if (lowerCaseLines[i].includes(pattern)) {
+        lowerCaseLines.forEach((line, i) => {
+          if (line.includes(pattern)) {
             matchedLines.add(i);
           }
-        }
+        });
       } else {
         pattern.lastIndex = 0;
 

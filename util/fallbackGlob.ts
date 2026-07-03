@@ -172,11 +172,11 @@ function convertSegmentToRegex(segment: string): string {
   let result = "";
 
   for (let i = 0; i < segment.length; i++) {
-    const char = segment[i];
+    const char = segment[i]!;
 
     if (char === "\\") {
       if (i + 1 < segment.length) {
-        result += escapeRegexLiteral(segment[i + 1]);
+        result += escapeRegexLiteral(segment[i + 1]!);
         i++;
       } else {
         result += "\\\\";

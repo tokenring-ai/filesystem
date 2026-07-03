@@ -8,7 +8,7 @@ export default function findWordMatches(content: string, find: string): WordMatc
   if (trimmed.length === 0) return [];
 
   const words = trimmed.split(/\s+/);
-  const firstWord = words[0];
+  const firstWord = words[0]!;
   const matches: WordMatch[] = [];
 
   let searchFrom = 0;
@@ -21,8 +21,8 @@ export default function findWordMatches(content: string, find: string): WordMatc
     let matched = true;
 
     for (let i = 1; i < words.length; i++) {
-      while (pos < content.length && /\s/.test(content[pos])) pos++;
-      const word = words[i];
+      while (pos < content.length && /\s/.test(content[pos]!)) pos++;
+      const word = words[i]!;
       if (content.slice(pos, pos + word.length) !== word) {
         matched = false;
         break;

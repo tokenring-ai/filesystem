@@ -1,4 +1,5 @@
-import { AgentNotFoundSchema } from "@tokenring-ai/agent/schema";
+import { AgentNotFoundSchema } from "@tokenring-ai/rpc/types";
+import { SuccessSchema } from "@tokenring-ai/rpc/types";
 import type { RPCSchema } from "@tokenring-ai/rpc/types";
 import { z } from "zod";
 import { StatSchema } from "../schema.ts";
@@ -42,7 +43,7 @@ export default {
         path: z.string(),
       }),
       result: z.object({
-        stats: StatSchema
+        stats: StatSchema,
       }),
     },
     glob: {
@@ -151,8 +152,7 @@ export default {
         agentId: z.string(),
       }),
       result: z.discriminatedUnion("status", [
-        z.object({
-          status: z.literal("success"),
+        SuccessSchema.extend({
           provider: z.string(),
           workingDirectory: z.string(),
           selectedFiles: z.array(z.string()),
@@ -168,8 +168,7 @@ export default {
         agentId: z.string(),
       }),
       result: z.discriminatedUnion("status", [
-        z.object({
-          status: z.literal("success"),
+        SuccessSchema.extend({
           provider: z.string(),
           workingDirectory: z.string(),
           selectedFiles: z.array(z.string()),
@@ -186,8 +185,7 @@ export default {
         file: z.string(),
       }),
       result: z.discriminatedUnion("status", [
-        z.object({
-          status: z.literal("success"),
+        SuccessSchema.extend({
           success: z.boolean(),
         }),
         AgentNotFoundSchema,
@@ -200,8 +198,7 @@ export default {
         file: z.string(),
       }),
       result: z.discriminatedUnion("status", [
-        z.object({
-          status: z.literal("success"),
+        SuccessSchema.extend({
           success: z.boolean(),
         }),
         AgentNotFoundSchema,

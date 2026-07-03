@@ -21,20 +21,14 @@ export function invalidateWorkspaceFileIndex(providerName?: string) {
 }
 
 /** Cached `**\/*` listing used by `searchWorkspaceFiles`. */
-export async function listWorkspaceFiles(
-  providerName: string,
-  provider: FileSystemProvider,
-  globOptions: GlobOptions,
-): Promise<string[]> {
+export async function listWorkspaceFiles(providerName: string, provider: FileSystemProvider, globOptions: GlobOptions): Promise<string[]> {
   const now = Date.now();
   const cached = indexByProvider.get(providerName);
   if (cached && now - cached.builtAt < INDEX_TTL_MS) {
     return cached.files;
   }
 
-  const files = provider.glob
-    ? await provider.glob("**/*", globOptions)
-    : await fallbackGlob(provider, "**/*", globOptions);
+  const files = provider.glob ? await provider.glob("**/*", globOptions) : await fallbackGlob(provider, "**/*", globOptions);
 
   indexByProvider.set(providerName, { files, builtAt: now });
   return files;

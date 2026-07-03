@@ -63,9 +63,9 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     const matchedLines = new Set<number>();
     for (const pattern of searchPatterns) {
       if (typeof pattern === "string") {
-        for (let i = 0; i < lowerCaseLines.length; i++) {
-          if (lowerCaseLines[i].includes(pattern)) matchedLines.add(i);
-        }
+        lowerCaseLines.forEach((line, index) => {
+          if (line.includes(pattern)) matchedLines.add(index);
+        });
       } else {
         pattern.lastIndex = 0;
         let result: RegExpExecArray | null = null;

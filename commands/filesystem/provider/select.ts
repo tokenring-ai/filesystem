@@ -9,7 +9,7 @@ async function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Pr
   const fileSystemService = agent.requireServiceByType(FileSystemService);
   const available = fileSystemService.getFilesystemProviderNames();
   if (available.length === 0) return "No filesystem providers are registered.";
-  if (available.length === 1) {
+  if (available.length === 1 && available[0]) {
     fileSystemService.setActiveFileSystem(available[0], agent);
     return `Only one provider configured, auto-selecting: ${available[0]}`;
   }
@@ -32,7 +32,7 @@ async function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Pr
     },
   });
 
-  if (selection) {
+  if (selection?.[0]) {
     fileSystemService.setActiveFileSystem(selection[0], agent);
     return `Active provider set to: ${selection[0]}`;
   }

@@ -2,25 +2,25 @@ import type { Agent } from "@tokenring-ai/agent";
 import type { ParsedCodeBaseResource } from "@tokenring-ai/codebase/schema";
 import FileSystemService from "./FileSystemService.ts";
 
-type ItemMatch = { path: string, include: RegExp | undefined, exclude: RegExp | undefined }
+type ItemMatch = { path: string; include: RegExp | undefined; exclude: RegExp | undefined };
 
 /**
  * Class representing a file tree context extending DirectoryService.
  */
 export default class FileMatchResource {
-  readonly itemMatches: ItemMatch[]
+  readonly itemMatches: ItemMatch[];
   constructor(private readonly options: ParsedCodeBaseResource) {
     this.itemMatches = options.items.map(item => ({
       path: item.path,
       include: item.include ? new RegExp(item.include) : undefined,
-      exclude: item.exclude ? new RegExp(item.exclude) : undefined
-    }))
+      exclude: item.exclude ? new RegExp(item.exclude) : undefined,
+    }));
   }
 
   /**
    * Asynchronously gets matched files
    */
-  async* getMatchedFiles(agent: Agent): AsyncGenerator<string> {
+  async *getMatchedFiles(agent: Agent): AsyncGenerator<string> {
     const fileSystem = agent.requireServiceByType(FileSystemService);
 
     for (const { path, include, exclude } of this.itemMatches) {
