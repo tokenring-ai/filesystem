@@ -43,6 +43,13 @@ export interface WatchOptions {
   stabilityThreshold?: number | undefined;
 }
 
+export interface FileSystemWatcher {
+  on(event: "add" | "change" | "unlink", listener: (filePath: string) => void): this;
+  on(event: "error", listener: (error: Error) => void): this;
+  on(event: string, listener: (...args: unknown[]) => void): this;
+  close(): void;
+}
+
 export interface GrepOptions {
   ignoreFilter: (path: string) => boolean;
   includeContent?: { linesBefore?: number | undefined; linesAfter?: number | undefined };
@@ -78,7 +85,7 @@ export interface FileSystemProvider {
 
   glob?(absolutePattern: string, options?: GlobOptions): MaybePromise<string[]>;
 
-  watch?(absoluteDir: string, options?: WatchOptions): MaybePromise<any>;
+  watch?(absoluteDir: string, options?: WatchOptions): MaybePromise<FileSystemWatcher>;
 
   grep?(searchString: string | string[], options?: GrepOptions): MaybePromise<GrepResult[]>;
 }
