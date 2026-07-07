@@ -11,27 +11,24 @@ const inputSchema = {
   },
 } as const satisfies AgentCommandInputSchema;
 
-function execute({ remainder, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+function execute({ remainder, agent }: AgentCommandInputType<typeof inputSchema>): string {
   const filesystem = agent.requireServiceByType(FileSystemService);
   const filesToRemove = remainder.split(/\s+/);
   let removedCount = 0;
-  const errors: string[] = [];
 
   for (const file of filesToRemove) {
     try {
       filesystem.removeFileFromChat(file, agent);
       removedCount++;
-    } catch (error: unknown) {
-      errors.push(`Failed to remove file ${file}: ${Error.isError(error) ? error.message : String(error)}`);
+    } catch (err) {
+      throw new CommandFailedError(`Failed to remove file ${file}`, { cause: err });
     }
   }
 
   if (removedCount > 0) {
-    const msg = `Successfully removed ${removedCount} file(s) from the chat session.`;
-    return Promise.resolve(errors.length > 0 ? msg + "\n" + errors.join("\n") : msg);
+    return `Successfully removed ${removedCount} file(s) from the chat session.`;
   }
-  if (errors.length > 0) throw new CommandFailedError(errors.join("\n"));
-  return Promise.resolve("No files removed.");
+  return "No files removed.";
 }
 
 export default {

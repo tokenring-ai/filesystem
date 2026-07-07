@@ -1,6 +1,7 @@
 import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
@@ -14,10 +15,10 @@ async function execute({ path: filePath, content }: z.output<typeof inputSchema>
   const fileSystem = agent.requireServiceByType(FileSystemService);
 
   if (!filePath) {
-    throw new Error(`[${name}] 'path' parameter is required`);
+    throw new ToolCallError(name, `'path' parameter is required`);
   }
   if (!content) {
-    throw new Error(`[${name}] 'content' parameter is required`);
+    throw new ToolCallError(name, `'content' parameter is required`);
   }
   const curFileContents = await fileSystem.readTextFile(filePath, agent);
   const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);

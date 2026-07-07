@@ -1,5 +1,6 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
+import formatError from "@tokenring-ai/utility/error/formatError";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
@@ -33,16 +34,16 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
             if (retrievedFiles.has(dirFile)) break;
             const contents = await fileSystem.readTextFile(file, agent);
             if (contents) retrievedFiles.set(file, contents);
-            else agent.infoMessage(`[${name}] Couldn't read file ${file}`);
+            else agent.warningMessage(`[${name}] Couldn't read file ${file}`);
           }
         } else {
           const contents = await fileSystem.readTextFile(file, agent);
           if (contents) retrievedFiles.set(file, contents);
-          else agent.infoMessage(`[${name}] Couldn't read file ${file}`);
+          else agent.warningMessage(`[${name}] Couldn't read file ${file}`);
         }
       }
-    } catch (err: any) {
-      agent.infoMessage(`[${name}] Error reading file ${file}: ${err.message}`);
+    } catch (err) {
+      agent.warningMessage(`[${name}] Error reading file ${file}: ${formatError(err)}`);
     }
   }
 
@@ -71,7 +72,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
       } else {
         pattern.lastIndex = 0;
 
-        let result: RegExpExecArray | null = null;
+        let result: RegExpExecArray | null;
         while ((result = pattern.exec(fileContent))) {
           const prefix = fileContent.substring(0, result.length - 1);
           const lineNumber = prefix.split("\n").length - 1;

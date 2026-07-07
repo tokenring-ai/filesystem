@@ -1,6 +1,7 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
 import { isBinaryData } from "@tokenring-ai/utility/buffer/isBinaryData";
+import formatError from "@tokenring-ai/utility/error/formatError";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
@@ -26,9 +27,8 @@ async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): P
       } else {
         matchedFiles.add(filePattern);
       }
-    } catch (err: any) {
-      // Treat pattern resolution errors as informational
-      agent.infoMessage(`[${name}] Error resolving pattern ${filePattern}: ${err.message}`);
+    } catch (err) {
+      agent.warningMessage(`[${name}] Error resolving pattern ${filePattern}: ${formatError(err)}`);
     }
   }
 

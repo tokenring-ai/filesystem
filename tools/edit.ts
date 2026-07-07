@@ -1,5 +1,6 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
@@ -26,8 +27,9 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
   const { enabled } = agent.getState(FileSystemState).fileEdit;
 
   if (!enabled) {
-    throw new Error(
-      `[${name}] File modification is disabled for this session; use the file_write tool instead for all other file updating operations, and do not use file_edit again`,
+    throw new ToolCallError(
+      name,
+      "File modification is disabled for this session; use the file_write tool instead for all other file updating operations, and do not use file_edit again",
     );
   }
 
@@ -35,7 +37,7 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
   const originalContent = await fileSystem.readTextFile(filePath, agent);
 
   if (originalContent === null) {
-    throw new Error(`[${name}] Failed to read file content: ${filePath}`);
+    throw new ToolCallError(name, `Failed to read file content: ${filePath}`);
   }
 
   const matches = findWordMatches(originalContent, find);
@@ -49,8 +51,9 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
         agent.warningMessage(`[${name}] File modification tool has been disabled due to ${disableAfterConsecutiveFailures} consecutive failures.`);
       }
     });
-    throw new Error(
-      `[${name}] Could not find the requested text in file ${filePath}. Matching is word-based: the first word must appear verbatim, and remaining words must follow in order, separated by any whitespace.`,
+    throw new ToolCallError(
+      name,
+      `Could not find the requested text in file ${filePath}. Matching is word-based: the first word must appear verbatim, and remaining words must follow in order, separated by any whitespace.`,
     );
   }
 

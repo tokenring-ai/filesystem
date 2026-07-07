@@ -15,22 +15,19 @@ async function execute({ remainder, agent }: AgentCommandInputType<typeof inputS
   const filesystem = agent.requireServiceByType(FileSystemService);
   const filesToAdd = remainder.split(/\s+/);
   let addedCount = 0;
-  const errors: string[] = [];
 
   for (const file of filesToAdd) {
     try {
       await filesystem.addFileToChat(file, agent);
       addedCount++;
-    } catch (error: unknown) {
-      errors.push(`Failed to add file ${file}: ${Error.isError(error) ? error.message : String(error)}`);
+    } catch (err) {
+      throw new CommandFailedError(`Failed to add file ${file}`, { cause: err });
     }
   }
 
   if (addedCount > 0) {
-    const msg = `Successfully added ${addedCount} file(s) to the chat session.`;
-    return errors.length > 0 ? msg + "\n" + errors.join("\n") : msg;
+    return `Successfully added ${addedCount} file(s) to the chat session.`;
   }
-  if (errors.length > 0) throw new CommandFailedError(errors.join("\n"));
   return "No files added.";
 }
 

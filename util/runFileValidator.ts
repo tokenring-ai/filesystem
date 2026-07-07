@@ -32,7 +32,7 @@ export default async function runFileValidator(filePath: string, content: string
   const validations = await lifecycleService.executeHooks(new FileValidatonAfterFileWrite(filePath, ext, content), agent);
 
   const results: string[] = [];
-  for (const validation of validations ?? []) {
+  for (const validation of validations) {
     if (validation && !validation.valid) {
       results.push(`Validation (${ext}):\n${validation.result}`);
     }

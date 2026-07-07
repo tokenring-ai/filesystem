@@ -32,7 +32,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     super("FileSystemState", serializationSchema);
     this.reset();
     this.selectedFiles = new Set(initialConfig.selectedFiles);
-    this.providerName = initialConfig.provider ?? null;
+    this.providerName = initialConfig.provider;
     this.workingDirectory = initialConfig.workingDirectory;
     this.fileRead = deepClone(initialConfig.fileRead);
     this.fileWrite = deepClone(initialConfig.fileWrite);
@@ -41,7 +41,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
   }
 
   reset(): void {
-    this.providerName = this.initialConfig.provider ?? null;
+    this.providerName = this.initialConfig.provider;
     this.workingDirectory = this.initialConfig.workingDirectory;
     this.selectedFiles = new Set(this.initialConfig.selectedFiles);
 

@@ -17,7 +17,6 @@ function normalizeGlobPath(inputPath: string, { stripTrailingSeparator = false }
 
 function hasGlobMagic(pattern: string): boolean {
   let escaped = false;
-  let inCharacterClass = false;
 
   for (const char of pattern) {
     if (escaped) {
@@ -30,17 +29,7 @@ function hasGlobMagic(pattern: string): boolean {
       continue;
     }
 
-    if (char === "[") {
-      inCharacterClass = true;
-      return true;
-    }
-
-    if (char === "]") {
-      inCharacterClass = false;
-      continue;
-    }
-
-    if (!inCharacterClass && (char === "*" || char === "?" || char === "{")) {
+    if (char === "[" || char === "*" || char === "?" || char === "{") {
       return true;
     }
   }
@@ -50,7 +39,6 @@ function hasGlobMagic(pattern: string): boolean {
 
 function findFirstMagicIndex(pattern: string): number {
   let escaped = false;
-  let inCharacterClass = false;
 
   for (let i = 0; i < pattern.length; i++) {
     const char = pattern[i];
@@ -64,18 +52,7 @@ function findFirstMagicIndex(pattern: string): number {
       continue;
     }
 
-    if (char === "[") {
-      return i;
-    }
-
-    if (char === "]") {
-      inCharacterClass = false;
-      continue;
-    }
-
-    if (inCharacterClass) continue;
-
-    if (char === "*" || char === "?" || char === "{") {
+    if (char === "[" || char === "*" || char === "?" || char === "{") {
       return i;
     }
   }

@@ -1,9 +1,9 @@
-import deepClone from "@tokenring-ai/utility/object/deepClone";
 import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { AgentCreationContext } from "@tokenring-ai/agent/types";
 import type { TokenRingService } from "@tokenring-ai/app/types";
 import type { JSONValue } from "@tokenring-ai/utility/json/safeParse";
+import deepClone from "@tokenring-ai/utility/object/deepClone";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import type { MaybePromise } from "bun";
 import type { z } from "zod";
