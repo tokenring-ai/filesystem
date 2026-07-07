@@ -54,17 +54,3 @@ export default function createFileWriteResult(
     attachments,
   };
 }
-
-/*
-
-  return {
-    type: "text",
-    text: "File successfully created." + validationSuffix,
-    artifact: {
-      name: filePath,
-      encoding: "text",
-      mimeType: mime.lookup(filePath) || "text/plain",
-      body: nextContent,
-    },
-  };
-}*/
