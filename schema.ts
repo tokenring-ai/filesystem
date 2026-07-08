@@ -1,5 +1,13 @@
 import z from "zod";
 
+export const FileMatchSchema = z.object({
+  path: z.string(),
+  include: z.string().exactOptional(),
+  exclude: z.string().exactOptional(),
+});
+
+export type ParsedFileMatch = z.output<typeof FileMatchSchema>;
+
 export const StatExistsSchema = z.object({
   path: z.string(),
   absolutePath: z.string().exactOptional(),

@@ -1,6 +1,6 @@
 import type { Agent } from "@tokenring-ai/agent";
-import type { ParsedCodeBaseResource } from "@tokenring-ai/codebase/schema";
 import FileSystemService from "./FileSystemService.ts";
+import type { ParsedFileMatch } from "./schema.ts";
 
 type ItemMatch = { path: string; include: RegExp | undefined; exclude: RegExp | undefined };
 
@@ -9,8 +9,9 @@ type ItemMatch = { path: string; include: RegExp | undefined; exclude: RegExp | 
  */
 export default class FileMatchResource {
   readonly itemMatches: ItemMatch[];
-  constructor(private readonly options: ParsedCodeBaseResource) {
-    this.itemMatches = options.items.map(item => ({
+
+  constructor(items: ParsedFileMatch[]) {
+    this.itemMatches = items.map(item => ({
       path: item.path,
       include: item.include ? new RegExp(item.include) : undefined,
       exclude: item.exclude ? new RegExp(item.exclude) : undefined,
