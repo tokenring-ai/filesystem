@@ -1,6 +1,6 @@
 import { AgentManager } from "@tokenring-ai/agent";
+import { createAgentStateSliceStream } from "@tokenring-ai/agent/rpc/createAgentStateStream";
 import type TokenRingApp from "@tokenring-ai/app";
-import { createAgentStateSliceStream } from "@tokenring-ai/rpc/createAgentStateStream";
 import { createRPCEndpoint } from "@tokenring-ai/rpc/createRPCEndpoint";
 import { encode8601dates } from "@tokenring-ai/utility/date/transform8601Dates";
 import FileSystemService from "../FileSystemService.ts";
