@@ -50,7 +50,7 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
       }
     },
     async writeFile(absolutePath: string, content: string | Buffer) {
-      files.set(absolutePath, Buffer.isBuffer(content) ? content : Buffer.from(content));
+      files.set(absolutePath, (Buffer.isBuffer(content) ? content : Buffer.from(content)) as Buffer<ArrayBuffer>);
       return true;
     },
     async appendFile(absolutePath: string, content: string | Buffer) {
