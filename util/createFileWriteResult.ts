@@ -1,4 +1,4 @@
-import { BaseAttachmentSchema } from "@tokenring-ai/agent/AgentEvents";
+import { ToolCallAttachmentSchema } from "@tokenring-ai/agent/AgentEvents";
 import type { TokenRingFullToolResult } from "@tokenring-ai/chat/schema";
 import { createPatch } from "diff";
 import mime from "mime-types";
@@ -13,7 +13,7 @@ export default function createFileWriteResult(
   const attachments: TokenRingFullToolResult["attachments"] = [];
 
   if (previousContent) {
-    const mimeType = BaseAttachmentSchema.shape.mimeType.safeParse(mime.lookup(filePath));
+    const mimeType = ToolCallAttachmentSchema.shape.mimeType.safeParse(mime.lookup(filePath));
     if (mimeType.success) {
       attachments.push({
         name: filePath,
