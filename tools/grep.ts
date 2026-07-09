@@ -113,6 +113,23 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
   }
 
+  if (results.size > options.maxMatchedFiles) {
+    agent.infoMessage(`[${name}] Too many files were matched (${results.size}). Returning directory summary.`);
+    const directoryCounts = summarizeMatchesByDirectory(Array.from(results.keys()), options.summaryDepth);
+    const summaryLines = Array.from(directoryCounts.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dir, count]) => `- ${dir}: ${count} file${count === 1 ? "" : "s"}`);
+
+    return `
+The grep operation matched ${results.size} files, which is higher than the configured limit of ${options.maxMatchedFiles}.
+Matches are summarized by directory (depth ${options.summaryDepth}) with the number of matched files per directory.
+
+BEGIN DIRECTORY SUMMARY
+${summaryLines.join("\n")}
+END DIRECTORY SUMMARY
+`.trim();
+  }
+
   if (results.size > options.maxSnippetCount) {
     agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
     const fileNames = Array.from(results.keys()).sort();
@@ -129,11 +146,30 @@ END DIRECTORY LISTING
   return Array.from(results.values()).join("\n\n");
 }
 
+/**
+ * Groups matched file paths by directory, truncated to `depth` path segments.
+ * e.g. depth 2: "pkg/filesystem/tools/grep.ts" → "pkg/filesystem"
+ */
+function summarizeMatchesByDirectory(filePaths: string[], depth: number): Map<string, number> {
+  const counts = new Map<string, number>();
+  const effectiveDepth = Math.max(1, depth);
+
+  for (const filePath of filePaths) {
+    const parts = filePath.split("/").filter(Boolean);
+    const dirParts = parts.slice(0, -1); // drop filename
+    const key = dirParts.length === 0 ? "." : dirParts.slice(0, effectiveDepth).join("/");
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
 const description = `
 Search for text patterns within files. Supports plain string and regex patterns.
 - File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
 - Searches are OR-based across multiple patterns (any match counts).
-- Automatically returns complete file contents, directory listings, or grep-style snippets based on match count.
+- Automatically returns complete file contents, directory listings, directory summaries, or grep-style snippets based on match count.
+- When more files match than the configured limit, returns a per-directory match count summary instead of individual files.
 `.trim();
 
 const inputSchema = z

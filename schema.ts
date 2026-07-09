@@ -52,6 +52,8 @@ export const FileSystemAgentConfigSchema = z
         maxSnippetSizePercent: z.number().exactOptional(),
         snippetLinesBefore: z.number().exactOptional(),
         snippetLinesAfter: z.number().exactOptional(),
+        maxMatchedFiles: z.number().exactOptional(),
+        summaryDepth: z.number().exactOptional(),
       })
       .exactOptional(),
     fileEdit: z
@@ -92,6 +94,8 @@ export const FileSystemConfigSchema = z
           maxSnippetSizePercent: z.number().default(0.3),
           snippetLinesBefore: z.number().default(5),
           snippetLinesAfter: z.number().default(5),
+          maxMatchedFiles: z.number().default(250),
+          summaryDepth: z.number().default(2),
         })
         .prefault({}),
       fileEdit: z
