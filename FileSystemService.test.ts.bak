@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it } from "bun:test";
-import path from "node:path";
 import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent.test";
 import createTestingApp from "@tokenring-ai/app/test/createTestingApp.test";
+import path from "node:path";
+import { beforeEach, describe, expect, it } from "bun:test";
 import FileSystemService from "./FileSystemService.ts";
 import { FileSystemConfigSchema } from "./schema.ts";
 
 function createMockFileSystemProvider(initialFiles: Record<string, string>) {
-  const files = new Map(Object.entries(initialFiles).map(([filePath, content]) => [filePath, Buffer.from(content)]));
+  const files = new Map(
+    Object.entries(initialFiles).map(([filePath, content]) => [filePath, Buffer.from(content)]),
+  );
 
   const listDirectories = () => {
     const directories = new Set<string>();
@@ -21,7 +23,7 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
   };
 
   return {
-    async *getDirectoryTree(absolutePath: string, { ignoreFilter, recursive = true }: { ignoreFilter: (path: string) => boolean; recursive?: boolean }) {
+    async* getDirectoryTree(absolutePath: string, { ignoreFilter, recursive = true }: { ignoreFilter: (path: string) => boolean; recursive?: boolean }) {
       const entries = new Set<string>();
       const normalizedRoot = absolutePath === "/" ? "/" : absolutePath.replace(/\/+$/, "");
 
@@ -127,30 +129,28 @@ describe("FileSystemService glob fallback", () => {
     "/repo/src/components/Button.tsx": "export function Button() {}\n",
     "/repo/assets/logo.png": "png",
   });
-  const fileSystemService = new FileSystemService(
-    FileSystemConfigSchema.parse({
-      agentDefaults: {
-        provider: "mock",
-        workingDirectory: "/repo",
-        selectedFiles: [],
-        fileWrite: {
-          requireReadBeforeWrite: true,
-          maxReturnedDiffSize: 10_000,
-          validateWrittenFiles: false,
-        },
-        fileRead: {
-          maxFileReadCount: 10,
-          maxFileSize: 128 * 1024,
-        },
-        fileSearch: {
-          maxSnippetCount: 10,
-          maxSnippetSizePercent: 0.3,
-          snippetLinesBefore: 5,
-          snippetLinesAfter: 5,
-        },
+  const fileSystemService = new FileSystemService(FileSystemConfigSchema.parse({
+    agentDefaults: {
+      provider: "mock",
+      workingDirectory: "/repo",
+      selectedFiles: [],
+      fileWrite: {
+        requireReadBeforeWrite: true,
+        maxReturnedDiffSize: 10_000,
+        validateWrittenFiles: false,
       },
-    }),
-  );
+      fileRead: {
+        maxFileReadCount: 10,
+        maxFileSize: 128 * 1024,
+      },
+      fileSearch: {
+        maxSnippetCount: 10,
+        maxSnippetSizePercent: 0.3,
+        snippetLinesBefore: 5,
+        snippetLinesAfter: 5,
+      },
+    },
+  }));
 
   fileSystemService.registerFileSystemProvider("mock", provider as any);
   app.addServices(fileSystemService);
@@ -164,14 +164,17 @@ describe("FileSystemService glob fallback", () => {
   });
 
   it("matches files when the provider does not implement glob", async () => {
-    expect(fileSystemService.glob("src/*.{ts,js}", {}, agent)).resolves.toEqual(["src/example.ts", "src/index.js"]);
+    await expect(fileSystemService.glob("src/*.{ts,js}", {}, agent))
+      .resolves.toEqual(["src/example.ts", "src/index.js"]);
   });
 
   it("matches directories when includeDirectories is enabled", async () => {
-    expect(fileSystemService.glob("src/*", { includeDirectories: true }, agent)).resolves.toEqual(["src/components", "src/example.ts", "src/index.js"]);
+    await expect(fileSystemService.glob("src/*", { includeDirectories: true }, agent))
+      .resolves.toEqual(["src/components", "src/example.ts", "src/index.js"]);
   });
 
   it("supports exact directory matches without provider glob support", async () => {
-    expect(fileSystemService.glob("src/components", { includeDirectories: true }, agent)).resolves.toEqual(["src/components"]);
+    await expect(fileSystemService.glob("src/components", { includeDirectories: true }, agent))
+      .resolves.toEqual(["src/components"]);
   });
 });

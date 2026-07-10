@@ -17,7 +17,6 @@
   },
   "devDependencies": {
     "@types/mime-types": "^3.0.1",
-    "vitest": "^4.1.1",
     "typescript": "^6.0.2"
   },
   "exports": {
@@ -26,9 +25,9 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
     "test:integration": "vitest run bash.integration.test.ts",
     "test:e2e": "vitest run bash.e2e.test.ts",
     "test:all": "vitest run && node test/integration-runner.ts",
