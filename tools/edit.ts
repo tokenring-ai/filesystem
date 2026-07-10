@@ -114,14 +114,11 @@ function adjustActivation(enabled: boolean, agent: Agent) {
   return enabled && agent.getState(FileSystemState).fileEdit.enabled;
 }
 
-const requiredContextHandlers = ["selected-files"];
-
 export default {
   name,
   displayName,
   description,
   inputSchema,
   execute,
-  requiredContextHandlers,
   adjustActivation,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

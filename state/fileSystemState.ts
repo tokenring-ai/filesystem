@@ -14,6 +14,7 @@ const serializationSchema = z.object({
   fileWrite: FileSystemConfigSchema.shape.agentDefaults.shape.fileWrite,
   fileEdit: FileSystemConfigSchema.shape.agentDefaults.shape.fileEdit,
   readFiles: z.record(z.string(), z.number()),
+  hasInjectedRelatedFiles: z.boolean(),
 });
 
 export class FileSystemState extends AgentStateSlice<typeof serializationSchema> {
@@ -22,6 +23,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
   workingDirectory: string;
   dirty: boolean = false;
   readFiles: Map<string, number> = new Map();
+  hasInjectedRelatedFiles: boolean = false;
 
   fileWrite: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileWrite"];
   fileRead: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileRead"];
@@ -49,6 +51,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     this.fileWrite = deepClone(this.initialConfig.fileWrite);
     this.fileGrep = deepClone(this.initialConfig.fileGrep);
     this.fileEdit = deepClone(this.initialConfig.fileEdit);
+    this.hasInjectedRelatedFiles = false;
 
     this.dirty = false;
     this.readFiles.clear();
@@ -65,6 +68,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
       fileWrite: this.fileWrite,
       fileEdit: this.fileEdit,
       readFiles: Object.fromEntries(this.readFiles),
+      hasInjectedRelatedFiles: this.hasInjectedRelatedFiles,
     };
   }
 
@@ -78,6 +82,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     this.fileWrite = data.fileWrite;
     this.fileEdit = data.fileEdit;
     this.readFiles = new Map(Object.entries(data.readFiles).map(([k, v]) => [k, Number(v)]));
+    this.hasInjectedRelatedFiles = data.hasInjectedRelatedFiles;
   }
 
   show(): string {
@@ -86,6 +91,7 @@ Working Directory: ${this.workingDirectory}
 Dirty: ${this.dirty}
 Selected Files and Directories: ${this.selectedFiles.size}
 Read Files with modification times: ${this.readFiles.size}
+Has Injected Related Files: ${this.hasInjectedRelatedFiles}
 ${markdownList(Array.from(this.readFiles.entries()).map(([file, timestamp]) => `${file}: ${new Date(timestamp).toISOString()}`))}`;
   }
 }

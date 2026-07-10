@@ -7,8 +7,8 @@ import { ScriptingService } from "@tokenring-ai/scripting";
 import type { ScriptingThis } from "@tokenring-ai/scripting/ScriptingService";
 import { z } from "zod";
 import agentCommands from "./commands.ts";
-import contextHandlers from "./contextHandlers.ts";
 import FileSystemService from "./FileSystemService.ts";
+import addRelatedFiles from "./hooks/addRelatedFiles.ts";
 import clearReadFiles from "./hooks/clearReadFiles.ts";
 import packageJSON from "./package.json" with { type: "json" };
 import filesystemRPC from "./rpc/filesystem.ts";
@@ -64,10 +64,9 @@ export default {
       });
       app.waitForService(ChatService, chatService => {
         chatService.addTools(...tools);
-        chatService.registerContextHandlers(contextHandlers);
       });
 
-      app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles));
+      app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles, addRelatedFiles));
       app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(agentCommands));
       app.addServices(new FileSystemService(config.filesystem));
 

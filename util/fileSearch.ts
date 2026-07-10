@@ -1,12 +1,13 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type { ContextHandlerOptions, ContextItem } from "@tokenring-ai/chat/schema";
-import { z } from "zod";
 import type { GrepResult } from "../FileSystemProvider.ts";
-import FileSystemService from "../FileSystemService.ts";
+import type FileSystemService from "../FileSystemService.ts";
 
-const FileSearchContextSchema = z.object({
-  maxResults: z.number().default(25),
-});
+export interface FileSearchMatch {
+  filePath: string;
+  score: number;
+  matchType: "filename" | "content" | "both";
+  lineMatches: Array<{ line: number; content: string }>;
+}
 
 // Common stop words to filter out from search queries
 const STOP_WORDS = new Set([
@@ -129,17 +130,10 @@ const STOP_WORDS = new Set([
 // Common file extensions to detect
 const FILE_EXTENSION_PATTERN = /\.[a-zA-Z0-9]{1,10}$/;
 
-interface FileMatch {
-  filePath: string;
-  score: number;
-  matchType: "filename" | "content" | "both";
-  lineMatches: Array<{ line: number; content: string }>;
-}
-
 /**
  * Extract meaningful keywords from user input
  */
-function extractKeywords(input: string): string[] {
+export function extractKeywords(input: string): string[] {
   const keywords: string[] = [];
 
   // Extract quoted phrases first (exact matches)
@@ -210,7 +204,7 @@ function extractKeywords(input: string): string[] {
 /**
  * Extract potential file extensions mentioned in input
  */
-function extractFileExtensions(input: string): string[] {
+export function extractFileExtensions(input: string): string[] {
   const extensions: string[] = [];
 
   // Direct extension mentions like ".ts" or "ts files"
@@ -252,7 +246,7 @@ function extractFileExtensions(input: string): string[] {
 /**
  * Calculate fuzzy match score between two strings (0-1)
  */
-function fuzzyScore(needle: string, haystack: string): number {
+export function fuzzyScore(needle: string, haystack: string): number {
   const lowerNeedle = needle.toLowerCase();
   const lowerHaystack = haystack.toLowerCase();
 
@@ -297,7 +291,7 @@ function fuzzyScore(needle: string, haystack: string): number {
 /**
  * Score a file path against search keywords
  */
-function scoreFilePath(filePath: string, keywords: string[], extensions: string[]): number {
+export function scoreFilePath(filePath: string, keywords: string[], extensions: string[]): number {
   let score = 0;
   const fileName = filePath.split("/").pop() || "";
   const fileNameWithoutExt = fileName.replace(FILE_EXTENSION_PATTERN, "");
@@ -345,7 +339,7 @@ function scoreFilePath(filePath: string, keywords: string[], extensions: string[
 /**
  * Aggregate grep results by file
  */
-function aggregateGrepResults(grepResults: GrepResult[]): Map<string, Array<{ line: number; content: string }>> {
+export function aggregateGrepResults(grepResults: GrepResult[]): Map<string, Array<{ line: number; content: string }>> {
   const fileMatches = new Map<string, Array<{ line: number; content: string }>>();
 
   for (const result of grepResults) {
@@ -371,16 +365,16 @@ function aggregateGrepResults(grepResults: GrepResult[]): Map<string, Array<{ li
 }
 
 /**
- * Search for files matching the user's query
+ * Search for files matching the user's query, returning structured match data.
  */
-async function searchFiles(
+export async function searchFiles(
   fileSystemService: FileSystemService,
   keywords: string[],
   extensions: string[],
   maxResults: number,
   agent: Agent,
-): Promise<FileMatch[]> {
-  const results: Map<string, FileMatch> = new Map();
+): Promise<FileSearchMatch[]> {
+  const results: Map<string, FileSearchMatch> = new Map();
 
   // Strategy 1: Filename/path matching via glob
   const allFiles = await fileSystemService.glob("**/*", {}, agent);
@@ -433,65 +427,3 @@ async function searchFiles(
     .sort((a, b) => b.score - a.score)
     .slice(0, maxResults);
 }
-
-/**
- * Format search results as human-readable text
- */
-function formatResults(results: FileMatch[], keywords: string[]): string {
-  if (results.length === 0) {
-    return `No files found matching keywords: ${keywords.join(", ")}`;
-  }
-
-  const lines: string[] = [`Found ${results.length} file(s) matching keywords: ${keywords.join(", ")}`, ""];
-
-  for (const result of results) {
-    const matchTypeLabel = result.matchType === "both" ? "(filename + content)" : result.matchType === "content" ? "(content)" : "(filename)";
-
-    lines.push(`## ${result.filePath} ${matchTypeLabel}`);
-
-    if (result.lineMatches.length > 0) {
-      lines.push("");
-      lines.push("Matching lines:");
-      for (const match of result.lineMatches.slice(0, 5)) {
-        // Limit to 5 lines per file
-        const trimmedContent = match.content.trim();
-        lines.push(`  Line ${match.line}: ${trimmedContent}`);
-      }
-      if (result.lineMatches.length > 5) {
-        lines.push(`  ... and ${result.lineMatches.length - 5} more matches`);
-      }
-    }
-
-    lines.push("");
-  }
-
-  return lines.join("\n");
-}
-
-/**
- * Main context provider function
- */
-export default async function* getContextItems({ input, sourceConfig, agent }: ContextHandlerOptions): AsyncGenerator<ContextItem> {
-  const { maxResults } = FileSearchContextSchema.parse(sourceConfig);
-
-  const fileSystemService = agent.requireServiceByType(FileSystemService);
-
-  const keywords = extractKeywords(input);
-  const extensions = extractFileExtensions(input);
-
-  if (keywords.length === 0) {
-    return;
-  }
-
-  const searchResults = await searchFiles(fileSystemService, keywords, extensions, maxResults, agent);
-
-  const formattedContent = formatResults(searchResults, keywords);
-
-  yield {
-    role: "user",
-    content: formattedContent,
-  };
-}
-
-// Export utilities for testing
-export { aggregateGrepResults, extractFileExtensions, extractKeywords, formatResults, fuzzyScore, scoreFilePath, searchFiles };

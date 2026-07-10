@@ -65,13 +65,10 @@ const inputSchema = z.object({
   content: z.string().describe("Content to write to the file. ALWAYS include the ENTIRE file contents to avoid data loss."),
 });
 
-const requiredContextHandlers = ["selected-files"];
-
 export default {
   name,
   displayName,
   description,
   inputSchema,
   execute,
-  requiredContextHandlers,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

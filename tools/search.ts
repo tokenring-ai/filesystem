@@ -171,13 +171,10 @@ const inputSchema = z
   })
   .strict();
 
-const requiredContextHandlers = ["selected-files"];
-
 export default {
   name,
   displayName,
   description,
   inputSchema,
   execute,
-  requiredContextHandlers,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

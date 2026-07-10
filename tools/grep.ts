@@ -186,14 +186,11 @@ function adjustActivation(enabled: boolean, agent: Agent): boolean | Promise<boo
   return enabled && supportsGrep;
 }
 
-const requiredContextHandlers = ["selected-files"];
-
 export default {
   name,
   displayName,
   description,
   inputSchema,
   execute,
-  requiredContextHandlers,
   adjustActivation,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;
