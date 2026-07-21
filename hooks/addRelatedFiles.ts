@@ -118,6 +118,8 @@ async function addSelectedFilesFromChat(data: AfterInputReceived, state: FileSys
 }
 
 async function addRelatedFiles(data: AfterInputReceived, agent: Agent) {
+  if (data.input.message.startsWith("/") && ! data.input.message.match(/^\s*\/chat\s*send/)) return;
+
   const fileSystemService = agent.requireServiceByType(FileSystemService);
 
   const state = agent.getState(FileSystemState);
