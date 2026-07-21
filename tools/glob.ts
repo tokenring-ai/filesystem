@@ -2,6 +2,8 @@ import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
+import { FileSystemState } from "../state/fileSystemState.ts";
+import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirectory.ts";
 
 const name = "file_glob";
 const displayName = "Filesystem/glob";
@@ -20,6 +22,19 @@ async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent
     return `No files were found that matched the glob patterns`;
   }
 
+  const { settings } = agent.getState(FileSystemState);
+
+  if (matchedFiles.size > settings.maxGlobbedFiles) {
+    agent.infoMessage(`[${name}] Too many files were matched (${matchedFiles.size}). Returning directory summary.`);
+    return buildDirectorySummaryResponse({
+      operationLabel: "glob operation",
+      matchCount: matchedFiles.size,
+      maxMatchedFiles: settings.maxGlobbedFiles,
+      summaryDepth: settings.globSummaryDepth,
+      filePaths: Array.from(matchedFiles),
+    });
+  }
+
   const fileNames = Array.from(matchedFiles).sort();
   return `BEGIN DIRECTORY LISTING\n${fileNames.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`;
 }
@@ -27,6 +42,7 @@ async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent
 const description = `
 List files matching glob patterns relative to the project root folder.
 - File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
+- When more files match than the configured limit, returns a per-directory match count summary instead of individual files.
 `.trim();
 
 const inputSchema = z

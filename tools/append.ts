@@ -23,9 +23,9 @@ async function execute({ path: filePath, content }: z.output<typeof inputSchema>
   const curFileContents = await fileSystem.readTextFile(filePath, agent);
   const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
 
-  const state = agent.getState(FileSystemState);
-  const previouslyReadTime = state.readFiles.get(filePath) ?? 0;
-  if (curFileContents && state.fileWrite.requireReadBeforeWrite) {
+  const { settings, readFiles } = agent.getState(FileSystemState);
+  const previouslyReadTime = readFiles.get(filePath) ?? 0;
+  if (curFileContents && settings.requireReadBeforeWrite) {
     if (fileModificationTime === null) {
       agent.infoMessage(`[${name}] Could not get the modification time for file ${filePath}: Cannot enforce read before write policy`);
     } else if (fileModificationTime > previouslyReadTime) {
@@ -65,9 +65,9 @@ ${curFileContents}`.trim();
     state.readFiles.set(filePath, Date.now());
   });
 
-  const validationSuffix = state.fileWrite.validateWrittenFiles ? await runFileValidator(filePath, newFileContents, agent) : null;
+  const validationSuffix = settings.validateWrittenFiles ? await runFileValidator(filePath, newFileContents, agent) : null;
 
-  return createFileWriteResult(filePath, curFileContents, newFileContents, state.fileWrite.maxReturnedDiffSize, validationSuffix);
+  return createFileWriteResult(filePath, curFileContents, newFileContents, settings.maxReturnedDiffSize, validationSuffix);
 }
 
 const description =

@@ -11,7 +11,7 @@ const displayName = "Filesystem/read";
 
 async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): Promise<string> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
-  const { maxFileReadCount, maxFileSize } = agent.getState(FileSystemState).fileRead;
+  const { maxFileReadCount, maxFileReadSize } = agent.getState(FileSystemState).settings;
 
   const matchedFiles = new Set<string>();
 
@@ -48,7 +48,7 @@ async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): P
       for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
         await retrieveFile(dirFile);
       }
-    } else if (maxFileSize > 0 && stat.size && stat.size > maxFileSize) {
+    } else if (maxFileReadSize > 0 && stat.size && stat.size > maxFileReadSize) {
       retrievedFiles.set(file, { contents: "[File is too large to retrieve]" });
     } else {
       const contents = await fileSystem.readFile(file, agent);

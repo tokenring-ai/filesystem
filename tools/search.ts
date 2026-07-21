@@ -4,6 +4,7 @@ import formatError from "@tokenring-ai/utility/error/formatError";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirectory.ts";
 
 const name = "file_search";
 const displayName = "Filesystem/search";
@@ -22,7 +23,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     return `No files were found that matched the search criteria`;
   }
 
-  const options = agent.getState(FileSystemState).fileGrep;
+  const { settings } = agent.getState(FileSystemState);
 
   const retrievedFiles = new Map<string, string>();
   for (const file of matchedFiles) {
@@ -83,7 +84,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
 
     // The set is copied into an array since we are going to update it
     for (const lineNumber of Array.from(matchedLines.values())) {
-      for (let i = lineNumber - options.snippetLinesBefore; i < lineNumber + options.snippetLinesAfter; i++) {
+      for (let i = lineNumber - settings.searchSnippetLinesBefore; i < lineNumber + settings.searchSnippetLinesAfter; i++) {
         if (i >= 0 && i < lines.length) {
           matchedLines.add(i);
         }
@@ -95,7 +96,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
       continue;
     }
 
-    if (results.size > options.maxSnippetCount) {
+    if (results.size > settings.maxSearchSnippetCount) {
       // We have already matched too many files, so we will not bother creating the snippet content,
       // we will just add the filename to the set, since it will not be returned
       results.set(file, "");
@@ -120,7 +121,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     if (snippets.length > 0) {
       const snippetString = snippets.join("\n");
       // If there are too many snippets, send the whole file
-      if (snippetString.length > fileContent.length * options.maxSnippetSizePercent) {
+      if (snippetString.length > fileContent.length * settings.maxSearchSnippetSizePercent) {
         results.set(file, `BEGIN FILE ATTACHMENT: ${file}\n${fileContent}\nEND FILE ATTACHMENT`);
         continue;
       }
@@ -129,13 +130,24 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
   }
 
-  if (results.size > options.maxSnippetCount) {
+  if (results.size > settings.maxGlobbedFiles) {
+    agent.infoMessage(`[${name}] Too many files were matched (${results.size}). Returning directory summary.`);
+    return buildDirectorySummaryResponse({
+      operationLabel: "file search operation",
+      matchCount: results.size,
+      maxMatchedFiles: settings.maxGlobbedFiles,
+      summaryDepth: settings.globSummaryDepth,
+      filePaths: Array.from(results.keys()),
+    });
+  }
+
+  if (results.size > settings.maxSearchSnippetCount) {
     agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
 
     const fileNames = Array.from(results.keys()).sort();
 
     return `
-The file search operation matched ${results.size} files, which is higher than the user specified limit of ${options.maxSnippetCount}.
+The file search operation matched ${results.size} files, which is higher than the user specified limit of ${settings.maxSearchSnippetCount}.
 The list of matched files will be returned as a directory listing instead.
 
 BEGIN DIRECTORY LISTING
@@ -152,7 +164,8 @@ Search for text patterns in files. Supports searching across all files or within
 - The search will be run inside the root folder the user has designated for the project
 - File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
 - Searches are OR-based across multiple patterns (any match counts).
-- The search system will automatically decide whether to return complete file contents, directory listings, or grep-style file/line snippets based on the number of matches.
+- Automatically returns complete file contents, directory listings, directory summaries, or grep-style snippets based on match count.
+- When more files match than the configured limit, returns a per-directory match count summary instead of individual files.
 `.trim();
 
 const inputSchema = z

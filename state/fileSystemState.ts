@@ -2,19 +2,17 @@ import { AgentStateSlice } from "@tokenring-ai/agent/types";
 import deepClone from "@tokenring-ai/utility/object/deepClone";
 import markdownList from "@tokenring-ai/utility/string/markdownList";
 import { z } from "zod";
-import { FileSystemConfigSchema } from "../schema.ts";
+import { type FileSystemConfigSchema, FileSystemToolSettingsSchema } from "../schema.ts";
 
 const serializationSchema = z.object({
   selectedFiles: z.array(z.string()),
   activeFileSystemProviderName: z.string().nullable(),
   workingDirectory: z.string(),
   dirty: z.boolean(),
-  fileRead: FileSystemConfigSchema.shape.agentDefaults.shape.fileRead,
-  fileGrep: FileSystemConfigSchema.shape.agentDefaults.shape.fileGrep,
-  fileWrite: FileSystemConfigSchema.shape.agentDefaults.shape.fileWrite,
-  fileEdit: FileSystemConfigSchema.shape.agentDefaults.shape.fileEdit,
+  settings: FileSystemToolSettingsSchema,
   readFiles: z.record(z.string(), z.number()),
   hasInjectedRelatedFiles: z.boolean(),
+  fileEditFailureCount: z.number(),
 });
 
 export class FileSystemState extends AgentStateSlice<typeof serializationSchema> {
@@ -24,37 +22,16 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
   dirty: boolean = false;
   readFiles: Map<string, number> = new Map();
   hasInjectedRelatedFiles: boolean = false;
+  fileEditFailureCount: number = 0;
 
-  fileWrite: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileWrite"];
-  fileRead: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileRead"];
-  fileGrep: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileGrep"];
-  fileEdit: z.output<typeof FileSystemConfigSchema>["agentDefaults"]["fileEdit"];
+  settings: z.output<typeof FileSystemToolSettingsSchema>;
 
   constructor(readonly initialConfig: z.output<typeof FileSystemConfigSchema>["agentDefaults"]) {
     super("FileSystemState", serializationSchema);
-    this.reset();
     this.selectedFiles = new Set(initialConfig.selectedFiles);
     this.providerName = initialConfig.provider;
     this.workingDirectory = initialConfig.workingDirectory;
-    this.fileRead = deepClone(initialConfig.fileRead);
-    this.fileWrite = deepClone(initialConfig.fileWrite);
-    this.fileGrep = deepClone(initialConfig.fileGrep);
-    this.fileEdit = deepClone(initialConfig.fileEdit);
-  }
-
-  reset(): void {
-    this.providerName = this.initialConfig.provider;
-    this.workingDirectory = this.initialConfig.workingDirectory;
-    this.selectedFiles = new Set(this.initialConfig.selectedFiles);
-
-    this.fileRead = deepClone(this.initialConfig.fileRead);
-    this.fileWrite = deepClone(this.initialConfig.fileWrite);
-    this.fileGrep = deepClone(this.initialConfig.fileGrep);
-    this.fileEdit = deepClone(this.initialConfig.fileEdit);
-    this.hasInjectedRelatedFiles = false;
-
-    this.dirty = false;
-    this.readFiles.clear();
+    this.settings = deepClone(initialConfig.settings);
   }
 
   serialize(): z.output<typeof serializationSchema> {
@@ -63,12 +40,10 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
       activeFileSystemProviderName: this.providerName,
       workingDirectory: this.workingDirectory,
       dirty: this.dirty,
-      fileRead: this.fileRead,
-      fileGrep: this.fileGrep,
-      fileWrite: this.fileWrite,
-      fileEdit: this.fileEdit,
+      settings: this.settings,
       readFiles: Object.fromEntries(this.readFiles),
       hasInjectedRelatedFiles: this.hasInjectedRelatedFiles,
+      fileEditFailureCount: this.fileEditFailureCount,
     };
   }
 
@@ -77,12 +52,10 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     this.providerName = data.activeFileSystemProviderName;
     this.workingDirectory = data.workingDirectory;
     this.dirty = data.dirty;
-    this.fileRead = data.fileRead;
-    this.fileGrep = data.fileGrep;
-    this.fileWrite = data.fileWrite;
-    this.fileEdit = data.fileEdit;
+    this.settings = data.settings;
     this.readFiles = new Map(Object.entries(data.readFiles).map(([k, v]) => [k, Number(v)]));
     this.hasInjectedRelatedFiles = data.hasInjectedRelatedFiles;
+    this.fileEditFailureCount = data.fileEditFailureCount;
   }
 
   show(): string {
@@ -92,6 +65,7 @@ Dirty: ${this.dirty}
 Selected Files and Directories: ${this.selectedFiles.size}
 Read Files with modification times: ${this.readFiles.size}
 Has Injected Related Files: ${this.hasInjectedRelatedFiles}
+File Edit Failure Count: ${this.fileEditFailureCount}
 ${markdownList(Array.from(this.readFiles.entries()).map(([file, timestamp]) => `${file}: ${new Date(timestamp).toISOString()}`))}`;
   }
 }

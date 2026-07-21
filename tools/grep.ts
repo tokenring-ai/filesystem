@@ -4,6 +4,7 @@ import formatError from "@tokenring-ai/utility/error/formatError";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirectory.ts";
 
 const name = "file_grep";
 const displayName = "Filesystem/grep";
@@ -22,7 +23,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     return `No files were found that matched the search criteria`;
   }
 
-  const options = agent.getState(FileSystemState).fileGrep;
+  const { settings } = agent.getState(FileSystemState);
 
   const retrievedFiles = new Map<string, string>();
   for (const file of matchedFiles) {
@@ -79,14 +80,14 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
 
     for (const lineNumber of Array.from(matchedLines.values())) {
-      for (let i = lineNumber - options.snippetLinesBefore; i < lineNumber + options.snippetLinesAfter; i++) {
+      for (let i = lineNumber - settings.searchSnippetLinesBefore; i < lineNumber + settings.searchSnippetLinesAfter; i++) {
         if (i >= 0 && i < lines.length) matchedLines.add(i);
       }
     }
 
     if (matchedLines.size === 0) continue;
 
-    if (results.size > options.maxSnippetCount) {
+    if (results.size > settings.maxSearchSnippetCount) {
       results.set(file, "");
       continue;
     }
@@ -105,7 +106,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
 
     if (snippets.length > 0) {
       const snippetString = snippets.join("\n");
-      if (snippetString.length > fileContent.length * options.maxSnippetSizePercent) {
+      if (snippetString.length > fileContent.length * settings.maxSearchSnippetSizePercent) {
         results.set(file, `BEGIN FILE ATTACHMENT: ${file}\n${fileContent}\nEND FILE ATTACHMENT`);
         continue;
       }
@@ -113,28 +114,22 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
   }
 
-  if (results.size > options.maxMatchedFiles) {
+  if (results.size > settings.maxGlobbedFiles) {
     agent.infoMessage(`[${name}] Too many files were matched (${results.size}). Returning directory summary.`);
-    const directoryCounts = summarizeMatchesByDirectory(Array.from(results.keys()), options.summaryDepth);
-    const summaryLines = Array.from(directoryCounts.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([dir, count]) => `- ${dir}: ${count} file${count === 1 ? "" : "s"}`);
-
-    return `
-The grep operation matched ${results.size} files, which is higher than the configured limit of ${options.maxMatchedFiles}.
-Matches are summarized by directory (depth ${options.summaryDepth}) with the number of matched files per directory.
-
-BEGIN DIRECTORY SUMMARY
-${summaryLines.join("\n")}
-END DIRECTORY SUMMARY
-`.trim();
+    return buildDirectorySummaryResponse({
+      operationLabel: "grep operation",
+      matchCount: results.size,
+      maxMatchedFiles: settings.maxGlobbedFiles,
+      summaryDepth: settings.globSummaryDepth,
+      filePaths: Array.from(results.keys()),
+    });
   }
 
-  if (results.size > options.maxSnippetCount) {
+  if (results.size > settings.maxSearchSnippetCount) {
     agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
     const fileNames = Array.from(results.keys()).sort();
     return `
-The grep operation matched ${results.size} files, which is higher than the user specified limit of ${options.maxSnippetCount}.
+The grep operation matched ${results.size} files, which is higher than the user specified limit of ${settings.maxSearchSnippetCount}.
 The list of matched files will be returned as a directory listing instead.
 
 BEGIN DIRECTORY LISTING
@@ -144,24 +139,6 @@ END DIRECTORY LISTING
   }
 
   return Array.from(results.values()).join("\n\n");
-}
-
-/**
- * Groups matched file paths by directory, truncated to `depth` path segments.
- * e.g. depth 2: "pkg/filesystem/tools/grep.ts" → "pkg/filesystem"
- */
-function summarizeMatchesByDirectory(filePaths: string[], depth: number): Map<string, number> {
-  const counts = new Map<string, number>();
-  const effectiveDepth = Math.max(1, depth);
-
-  for (const filePath of filePaths) {
-    const parts = filePath.split("/").filter(Boolean);
-    const dirParts = parts.slice(0, -1); // drop filename
-    const key = dirParts.length === 0 ? "." : dirParts.slice(0, effectiveDepth).join("/");
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-
-  return counts;
 }
 
 const description = `

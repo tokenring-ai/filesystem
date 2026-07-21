@@ -24,7 +24,7 @@ function describeMatch(content: string, match: WordMatch, index: number): string
 }
 
 async function execute({ path: filePath, find, replace, multiple }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const { enabled } = agent.getState(FileSystemState).fileEdit;
+  const { enabled } = agent.getState(FileSystemState).settings.fileEdit;
 
   if (!enabled) {
     throw new ToolCallError(
@@ -44,10 +44,9 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
 
   if (matches.length === 0) {
     agent.mutateState(FileSystemState, state => {
-      state.fileEdit.consecutiveFailureCount += 1;
-      const { consecutiveFailureCount, disableAfterConsecutiveFailures } = state.fileEdit;
-      if (consecutiveFailureCount >= disableAfterConsecutiveFailures) {
-        state.fileEdit.enabled = false;
+      const { disableAfterConsecutiveFailures } = state.settings.fileEdit;
+      if (++state.fileEditFailureCount >= disableAfterConsecutiveFailures) {
+        state.settings.fileEdit.enabled = false;
         agent.warningMessage(`[${name}] File modification tool has been disabled due to ${disableAfterConsecutiveFailures} consecutive failures.`);
       }
     });
@@ -59,7 +58,7 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
 
   if (matches.length > 1 && !multiple) {
     agent.mutateState(FileSystemState, state => {
-      state.fileEdit.consecutiveFailureCount = 0;
+      state.fileEditFailureCount = 0;
     });
     const summary = matches.map((match, index) => describeMatch(originalContent, match, index)).join("\n\n");
     return (
@@ -70,7 +69,7 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
   }
 
   agent.mutateState(FileSystemState, state => {
-    state.fileEdit.consecutiveFailureCount = 0;
+    state.fileEditFailureCount = 0;
   });
 
   let updatedContent = "";
@@ -87,9 +86,9 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
     await fileSystem.writeFile(filePath, updatedContent, agent);
   }
 
-  const validationSuffix = state.fileWrite.validateWrittenFiles ? await runFileValidator(filePath, updatedContent, agent) : null;
+  const validationSuffix = state.settings.validateWrittenFiles ? await runFileValidator(filePath, updatedContent, agent) : null;
 
-  return createFileWriteResult(filePath, originalContent, updatedContent, state.fileWrite.maxReturnedDiffSize, validationSuffix);
+  return createFileWriteResult(filePath, originalContent, updatedContent, state.settings.maxReturnedDiffSize, validationSuffix);
 }
 
 const description = `
@@ -111,7 +110,7 @@ const inputSchema = z.object({
 });
 
 function adjustActivation(enabled: boolean, agent: Agent) {
-  return enabled && agent.getState(FileSystemState).fileEdit.enabled;
+  return enabled && agent.getState(FileSystemState).settings.fileEdit.enabled;
 }
 
 export default {
