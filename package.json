@@ -28,9 +28,6 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
-    "test:integration": "vitest run bash.integration.test.ts",
-    "test:e2e": "vitest run bash.e2e.test.ts",
-    "test:all": "vitest run && node test/integration-runner.ts",
     "build": "tsc --noEmit"
   },
   "type": "module"

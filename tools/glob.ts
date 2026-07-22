@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
+import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
@@ -8,35 +8,52 @@ import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirecto
 const name = "file_glob";
 const displayName = "Filesystem/glob";
 
-async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent): Promise<string> {
+async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
+
+  const matchCounts: Record<string, number> = {};
 
   const matchedFiles = new Set<string>();
   for (const filePattern of filePaths) {
-    for (const file of await fileSystem.glob(filePattern, {}, agent)) {
+    const matches = await fileSystem.glob(filePattern, {}, agent);
+    matchCounts[filePattern] = matches.length;
+
+    for (const file of matches) {
       matchedFiles.add(file);
     }
   }
 
   if (matchedFiles.size === 0) {
-    return `No files were found that matched the glob patterns`;
+    return {
+      failed: true,
+      message: `**File Glob** Found no matches`,
+      actions: filePaths.map(p => `Glob ${p} - 0 matches`),
+      result: `No files were found that matched the glob patterns`,
+    };
   }
 
   const { settings } = agent.getState(FileSystemState);
 
   if (matchedFiles.size > settings.maxGlobbedFiles) {
-    agent.infoMessage(`[${name}] Too many files were matched (${matchedFiles.size}). Returning directory summary.`);
-    return buildDirectorySummaryResponse({
-      operationLabel: "glob operation",
-      matchCount: matchedFiles.size,
-      maxMatchedFiles: settings.maxGlobbedFiles,
-      summaryDepth: settings.globSummaryDepth,
-      filePaths: Array.from(matchedFiles),
-    });
+    return {
+      message: `**File Glob** Found ${matchedFiles.size} matches (overflow, summarizing)`,
+      actions: Object.entries(matchCounts).map(m => `Glob ${m[0]} - ${m[1]} matches`),
+      result: buildDirectorySummaryResponse({
+        operationLabel: "glob operation",
+        matchCount: matchedFiles.size,
+        maxMatchedFiles: settings.maxGlobbedFiles,
+        summaryDepth: settings.globSummaryDepth,
+        filePaths: Array.from(matchedFiles),
+      }),
+    };
   }
 
   const fileNames = Array.from(matchedFiles).sort();
-  return `BEGIN DIRECTORY LISTING\n${fileNames.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`;
+  return {
+    message: `**File Glob** Found ${matchedFiles.size} matches`,
+    actions: Object.entries(matchCounts).map(m => `Glob ${m[0]} - ${m[1]} matches`),
+    result: `BEGIN DIRECTORY LISTING\n${fileNames.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`,
+  };
 }
 
 const description = `

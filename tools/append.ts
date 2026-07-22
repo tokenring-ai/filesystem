@@ -33,7 +33,10 @@ async function execute({ path: filePath, content }: z.output<typeof inputSchema>
         state.readFiles.set(filePath, fileModificationTime);
       });
 
-      return `
+      return {
+        failed: true,
+        message: `**File Append** Couldn't append to ${filePath} (precondition: file not previously read)`,
+        result: `
 Cannot append to ${filePath}: The tool policy requires that all files must be read before they can be written.
 
 To expedite this process, we have read the file, and included the file contents below, and marked it as read, so that it can now be written.
@@ -41,11 +44,10 @@ It is not required that you re-read the file. Verify the file contents below and
 
 ${filePath}:\n\n
 
-${curFileContents}`.trim();
+${curFileContents}`.trim(),
+      };
     }
   }
-
-  agent.infoMessage(`[${name}] Appending to file ${filePath}`);
 
   // Ensure parent directory exists
   const dirPath = path.dirname(filePath);
@@ -67,7 +69,14 @@ ${curFileContents}`.trim();
 
   const validationSuffix = settings.validateWrittenFiles ? await runFileValidator(filePath, newFileContents, agent) : null;
 
-  return createFileWriteResult(filePath, curFileContents, newFileContents, settings.maxReturnedDiffSize, validationSuffix);
+  return createFileWriteResult(
+    filePath,
+    curFileContents,
+    newFileContents,
+    settings.maxReturnedDiffSize,
+    validationSuffix,
+    `**File Append** Appended to ${filePath}`,
+  );
 }
 
 const description =

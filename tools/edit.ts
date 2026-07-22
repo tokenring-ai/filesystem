@@ -60,12 +60,15 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
     agent.mutateState(FileSystemState, state => {
       state.fileEditFailureCount = 0;
     });
-    const summary = matches.map((match, index) => describeMatch(originalContent, match, index)).join("\n\n");
-    return (
-      `[${name}] Found ${matches.length} matches for the requested text in ${filePath}. ` +
-      `Pass multiple=true to replace all, or refine the find string to match a single location.\n\n` +
-      summary
-    );
+    const matchSummary = matches.map((match, index) => describeMatch(originalContent, match, index)).join("\n\n");
+    return {
+      failed: true,
+      message: `**File Edit** Invalid edit to ${filePath} (multiple matches)`,
+      result:
+        `[${name}] Found ${matches.length} matches for the requested text in ${filePath}. ` +
+        `Pass multiple=true to replace all, or refine the find string to match a single location.\n\n` +
+        matchSummary,
+    };
   }
 
   agent.mutateState(FileSystemState, state => {
@@ -88,7 +91,14 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
 
   const validationSuffix = state.settings.validateWrittenFiles ? await runFileValidator(filePath, updatedContent, agent) : null;
 
-  return createFileWriteResult(filePath, originalContent, updatedContent, state.settings.maxReturnedDiffSize, validationSuffix);
+  return createFileWriteResult(
+    filePath,
+    originalContent,
+    updatedContent,
+    state.settings.maxReturnedDiffSize,
+    validationSuffix,
+    `**File Edit** Edited ${filePath}`,
+  );
 }
 
 const description = `

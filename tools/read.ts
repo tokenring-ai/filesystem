@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
+import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { isBinaryData } from "@tokenring-ai/utility/buffer/isBinaryData";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { z } from "zod";
@@ -9,7 +9,7 @@ import { FileSystemState } from "../state/fileSystemState.ts";
 const name = "file_read";
 const displayName = "Filesystem/read";
 
-async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): Promise<string> {
+async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
   const { maxFileReadCount, maxFileReadSize } = agent.getState(FileSystemState).settings;
 
@@ -35,7 +35,11 @@ async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): P
   //agent.infoMessage(`[${name}] files=${files.join(", ")} matchedFiles=${matchedFiles.size}`);
 
   if (matchedFiles.size === 0) {
-    return `No files were found that matched the search criteria`;
+    return {
+      failed: true,
+      message: `**File Read** Read 0 files`,
+      result: `No files were found that matched the search criteria`,
+    };
   }
 
   const retrievedFiles = new Map<string, { contents: string; modificationTime?: number | undefined }>();
@@ -73,19 +77,22 @@ async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): P
     await retrieveFile(file);
   }
 
+  const fileNames = Array.from(retrievedFiles.keys()).sort();
+
   if (retrievedFiles.size > maxFileReadCount) {
     agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
 
-    const fileNames = Object.keys(retrievedFiles).sort();
-
-    return `
+    return {
+      message: `**File Read** Read ${retrievedFiles.size} files (overflow, summarizing)`,
+      result: `
 The file read operation matched ${retrievedFiles.size} files, which is higher than the user specified limit of ${maxFileReadCount}.
 The list of matched files will be returned as a directory listing instead. To retrieve the files, you will need to request no more than ${maxFileReadCount} files at a time
 
 >> BEGIN DIRECTORY LISTING <<
 ${fileNames.map(f => `- ${f}`).join("\n")}
 >> END DIRECTORY LISTING <<
-`.trim();
+`.trim(),
+    };
   }
 
   agent.mutateState(FileSystemState, state => {
@@ -96,13 +103,16 @@ ${fileNames.map(f => `- ${f}`).join("\n")}
     }
   });
 
-  return `
+  return {
+    message: `**File Read** Read ${retrievedFiles.size} files`,
+    result: `
 The file read operation matched ${retrievedFiles.size} files, the file contents are provided below, between the BEGIN|END FILE ATTACHMENT block headers
   
 ${Array.from(retrievedFiles.entries())
   .map(([file, { contents }]) => `BEGIN FILE ATTACHMENT: ${file}\n${contents}\nEND FILE ATTACHMENT`)
   .join("\n\n")}
-`.trim();
+`.trim(),
+  };
 }
 
 const description = `

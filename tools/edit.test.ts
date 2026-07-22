@@ -156,8 +156,9 @@ describe("file_findReplace", () => {
       agent,
     );
 
-    expect(typeof result).toBe("string");
-    expect(result as string).toContain("Found 2 matches");
+    expect(typeof result).not.toBe("string");
+    expect((result as any).message).toContain("**File Edit**");
+    expect((result as any).result).toContain("Found 2 matches");
     expect(provider.files.get("/repo/src/example.ts")?.toString("utf-8")).toContain("alpha beta");
   });
 

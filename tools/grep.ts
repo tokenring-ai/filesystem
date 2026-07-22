@@ -1,6 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
-import formatError from "@tokenring-ai/utility/error/formatError";
+import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
@@ -9,8 +8,13 @@ import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirecto
 const name = "file_grep";
 const displayName = "Filesystem/grep";
 
-async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>, agent: Agent): Promise<string> {
+async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
+
+  const matchCounts: Record<string, number> = {};
+  for (const term of searchTerms) {
+    matchCounts[term] = 0;
+  }
 
   const matchedFiles = new Set<string>();
   for (const filePattern of filePaths) {
@@ -20,12 +24,18 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
   }
 
   if (matchedFiles.size === 0) {
-    return `No files were found that matched the search criteria`;
+    return {
+      failed: true,
+      message: `**File Grep** Found no matches`,
+      actions: searchTerms.map(t => `Grep ${t} - 0 matches`),
+      result: `No files were found that matched the search criteria`,
+    };
   }
 
   const { settings } = agent.getState(FileSystemState);
 
   const retrievedFiles = new Map<string, string>();
+  let failedReadCount = 0;
   for (const file of matchedFiles) {
     try {
       const stat = await fileSystem.stat(file, agent);
@@ -35,16 +45,16 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
             if (retrievedFiles.has(dirFile)) break;
             const contents = await fileSystem.readTextFile(file, agent);
             if (contents) retrievedFiles.set(file, contents);
-            else agent.infoMessage(`[${name}] Couldn't read file ${file}`);
+            else ++failedReadCount;
           }
         } else {
           const contents = await fileSystem.readTextFile(file, agent);
           if (contents) retrievedFiles.set(file, contents);
-          else agent.infoMessage(`[${name}] Couldn't read file ${file}`);
+          else ++failedReadCount;
         }
       }
-    } catch (err) {
-      agent.warningMessage(`[${name}] Error reading file ${file}: ${formatError(err)}`);
+    } catch {
+      ++failedReadCount;
     }
   }
 
@@ -63,10 +73,16 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     const lowerCaseLines = lines.map(l => l.toLowerCase());
 
     const matchedLines = new Set<number>();
-    for (const pattern of searchPatterns) {
+    for (const [pi, pattern] of searchPatterns.entries()) {
+      const term = searchTerms[pi]!;
+      let termMatched = false;
+
       if (typeof pattern === "string") {
         lowerCaseLines.forEach((line, index) => {
-          if (line.includes(pattern)) matchedLines.add(index);
+          if (line.includes(pattern)) {
+            matchedLines.add(index);
+            termMatched = true;
+          }
         });
       } else {
         pattern.lastIndex = 0;
@@ -75,7 +91,12 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
           const prefix = fileContent.substring(0, result.length - 1);
           const lineNumber = prefix.split("\n").length - 1;
           matchedLines.add(lineNumber);
+          termMatched = true;
         }
+      }
+
+      if (termMatched) {
+        matchCounts[term]!++;
       }
     }
 
@@ -114,31 +135,44 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
   }
 
+  const actions = Object.entries(matchCounts).map(m => `Grep ${m[0]} - ${m[1]} matches`);
+  if (failedReadCount > 0) actions.push(`Failed to read ${failedReadCount} files`);
+
   if (results.size > settings.maxGlobbedFiles) {
-    agent.infoMessage(`[${name}] Too many files were matched (${results.size}). Returning directory summary.`);
-    return buildDirectorySummaryResponse({
-      operationLabel: "grep operation",
-      matchCount: results.size,
-      maxMatchedFiles: settings.maxGlobbedFiles,
-      summaryDepth: settings.globSummaryDepth,
-      filePaths: Array.from(results.keys()),
-    });
+    return {
+      message: `**File Grep** Found ${results.size} matches (overflow, summarizing)`,
+      actions,
+      result: buildDirectorySummaryResponse({
+        operationLabel: "grep operation",
+        matchCount: results.size,
+        maxMatchedFiles: settings.maxGlobbedFiles,
+        summaryDepth: settings.globSummaryDepth,
+        filePaths: Array.from(results.keys()),
+      }),
+    };
   }
 
   if (results.size > settings.maxSearchSnippetCount) {
-    agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
     const fileNames = Array.from(results.keys()).sort();
-    return `
+    return {
+      message: `**File Grep** Found ${results.size} matches (overflow, summarizing)`,
+      actions,
+      result: `
 The grep operation matched ${results.size} files, which is higher than the user specified limit of ${settings.maxSearchSnippetCount}.
 The list of matched files will be returned as a directory listing instead.
 
 BEGIN DIRECTORY LISTING
 ${fileNames.map(f => `- ${f}`).join("\n")}
 END DIRECTORY LISTING
-`.trim();
+`.trim(),
+    };
   }
 
-  return Array.from(results.values()).join("\n\n");
+  return {
+    message: `**File Grep** Found ${results.size} matches`,
+    actions,
+    result: Array.from(results.values()).join("\n\n"),
+  };
 }
 
 const description = `

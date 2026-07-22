@@ -1,5 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
-import type { TokenRingToolDefinition } from "@tokenring-ai/chat/schema";
+import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
@@ -9,8 +9,13 @@ import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirecto
 const name = "file_search";
 const displayName = "Filesystem/search";
 
-async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>, agent: Agent): Promise<string> {
+async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
+
+  const matchCounts: Record<string, number> = {};
+  for (const term of searchTerms) {
+    matchCounts[term] = 0;
+  }
 
   const matchedFiles = new Set<string>();
   for (const filePattern of filePaths) {
@@ -20,7 +25,12 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
   }
 
   if (matchedFiles.size === 0) {
-    return `No files were found that matched the search criteria`;
+    return {
+      failed: true,
+      message: `**File** Search for ${searchTerms.join(", ")} in ${filePaths.join(", ")} - 0 matches`,
+      actions: searchTerms.map(t => `Search ${t} - 0 matches`),
+      result: `No files were found that matched the search criteria`,
+    };
   }
 
   const { settings } = agent.getState(FileSystemState);
@@ -63,11 +73,15 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     const lowerCaseLines = lines.map(l => l.toLowerCase());
 
     const matchedLines = new Set<number>();
-    for (const pattern of searchPatterns) {
+    for (const [pi, pattern] of searchPatterns.entries()) {
+      const term = searchTerms[pi]!;
+      let termMatched = false;
+
       if (typeof pattern === "string") {
         lowerCaseLines.forEach((line, i) => {
           if (line.includes(pattern)) {
             matchedLines.add(i);
+            termMatched = true;
           }
         });
       } else {
@@ -78,7 +92,12 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
           const prefix = fileContent.substring(0, result.length - 1);
           const lineNumber = prefix.split("\n").length - 1;
           matchedLines.add(lineNumber);
+          termMatched = true;
         }
+      }
+
+      if (termMatched) {
+        matchCounts[term]!++;
       }
     }
 
@@ -130,15 +149,20 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
   }
 
+  const actions = Object.entries(matchCounts).map(m => `Search ${m[0]} - ${m[1]} matches`);
+
   if (results.size > settings.maxGlobbedFiles) {
-    agent.infoMessage(`[${name}] Too many files were matched (${results.size}). Returning directory summary.`);
-    return buildDirectorySummaryResponse({
-      operationLabel: "file search operation",
-      matchCount: results.size,
-      maxMatchedFiles: settings.maxGlobbedFiles,
-      summaryDepth: settings.globSummaryDepth,
-      filePaths: Array.from(results.keys()),
-    });
+    return {
+      message: `**File** Search for ${searchTerms.join(", ")} in ${filePaths.join(", ")} - ${results.size} matches (overflow, summarizing)`,
+      actions,
+      result: buildDirectorySummaryResponse({
+        operationLabel: "file search operation",
+        matchCount: results.size,
+        maxMatchedFiles: settings.maxGlobbedFiles,
+        summaryDepth: settings.globSummaryDepth,
+        filePaths: Array.from(results.keys()),
+      }),
+    };
   }
 
   if (results.size > settings.maxSearchSnippetCount) {
@@ -146,17 +170,25 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
 
     const fileNames = Array.from(results.keys()).sort();
 
-    return `
+    return {
+      message: `**File** Search for ${searchTerms.join(", ")} in ${filePaths.join(", ")} - ${results.size} matches (overflow, summarizing)`,
+      actions,
+      result: `
 The file search operation matched ${results.size} files, which is higher than the user specified limit of ${settings.maxSearchSnippetCount}.
 The list of matched files will be returned as a directory listing instead.
 
 BEGIN DIRECTORY LISTING
 ${fileNames.map(f => `- ${f}`).join("\n")}
 END DIRECTORY LISTING
-`.trim();
+`.trim(),
+    };
   }
 
-  return Array.from(results.values()).join("\n\n");
+  return {
+    message: `**File** Search for ${searchTerms.join(", ")} in ${filePaths.join(", ")} - ${results.size} matches`,
+    actions,
+    result: Array.from(results.values()).join("\n\n"),
+  };
 }
 
 const description = `

@@ -9,6 +9,7 @@ export default function createFileWriteResult(
   nextContent: string,
   maxReturnedDiffSize: number,
   validationSuffix: string | null,
+  message: string,
 ): TokenRingFullToolResult {
   const attachments: TokenRingFullToolResult["attachments"] = [];
 
@@ -50,6 +51,7 @@ export default function createFileWriteResult(
     results.push(`[${filePath}] File Validation Results:`, validationSuffix);
   }
   return {
+    message,
     result: results.join("\n"),
     attachments,
   };

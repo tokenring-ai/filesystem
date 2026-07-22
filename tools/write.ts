@@ -27,7 +27,10 @@ async function execute({ path: filePath, content }: z.output<typeof inputSchema>
         state.readFiles.set(filePath, fileModificationTime);
       });
 
-      return `
+      return {
+        failed: true,
+        message: `**File Write** Couldn't write to ${filePath} (precondition: file not previously read)`,
+        result: `
 Cannot write to ${filePath}: The tool policy requires that all files must be read before they can be written.
 
 To expedite this process, we have read the file, and included the file contents below, and marked it as read, so that it can now be written.
@@ -35,7 +38,8 @@ It is not required that you re-read the file. Verify the file contents below and
 
 ${filePath}:\n\n
 
-${curFileContents}`.trim();
+${curFileContents}`.trim(),
+      };
     }
   }
 
@@ -54,7 +58,7 @@ ${curFileContents}`.trim();
 
   const validationSuffix = state.settings.validateWrittenFiles ? await runFileValidator(filePath, content, agent) : null;
 
-  return createFileWriteResult(filePath, curFileContents, content, state.settings.maxReturnedDiffSize, validationSuffix);
+  return createFileWriteResult(filePath, curFileContents, content, state.settings.maxReturnedDiffSize, validationSuffix, `**File Write** Wrote ${filePath}`);
 }
 
 const description =
