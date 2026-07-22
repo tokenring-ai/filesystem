@@ -1292,13 +1292,12 @@ pkg/filesystem/
 ├── hooks.ts                         # Hook exports
 ├── hooks/
 │   └── clearReadFiles.ts            # clearReadFiles hook
-├── vitest.config.ts                 # Test configuration
 └── README.md                        # Package README
 ```
 
 ## Testing
 
-The package uses `vitest` for testing. Test files follow the `*.test.ts` naming convention.
+The package uses `bun test` for testing. Test files follow the `*.test.ts` naming convention.
 
 **Available Test Files:**
 
@@ -1342,7 +1341,6 @@ bun build
 | Package             | Version | Description         |
 |---------------------|---------|---------------------|
 | `@types/mime-types` | ^3.0.1  | TypeScript types    |
-| `vitest`            | ^4.1.1  | Testing framework   |
 | `typescript`        | ^6.0.2  | TypeScript compiler |
 
 ## License
