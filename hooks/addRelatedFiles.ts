@@ -75,7 +75,18 @@ async function addRAGFiles(data: AfterInputReceived, agent: Agent, fileSystemSer
 
 async function addSelectedFilesFromChat(data: AfterInputReceived, state: FileSystemState, agent: Agent, fileSystem: FileSystemService) {
   const attachments = (data.input.attachments ??= []);
-  for (const filePath of state.selectedFiles) {
+  const filePathsToAttach = new Set(state.selectedFiles);
+
+  // Extract mentioned paths from input message (tokens containing '/')
+  const mentionedMatches = data.input.message.match(/(?:@)?\S*\/\S*/g);
+  if (mentionedMatches) {
+    for (const match of mentionedMatches) {
+      const cleanPath = match.startsWith("@") ? match.slice(1) : match;
+      filePathsToAttach.add(cleanPath);
+    }
+  }
+
+  for (const filePath of filePathsToAttach) {
     if (state.readFiles.has(filePath)) continue;
 
     const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
