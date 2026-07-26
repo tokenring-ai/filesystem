@@ -1,8 +1,10 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import EnhancedSet from "@tokenring-ai/utility/set/enhancedSet";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import fileListing from "../util/fileListing.ts";
 import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirectory.ts";
 
 const name = "file_glob";
@@ -13,7 +15,7 @@ async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent
 
   const matchCounts: Record<string, number> = {};
 
-  const matchedFiles = new Set<string>();
+  const matchedFiles = new EnhancedSet<string>();
   for (const filePattern of filePaths) {
     const matches = await fileSystem.glob(filePattern, {}, agent);
     matchCounts[filePattern] = matches.length;
@@ -43,16 +45,15 @@ async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent
         matchCount: matchedFiles.size,
         maxMatchedFiles: settings.maxGlobbedFiles,
         summaryDepth: settings.globSummaryDepth,
-        filePaths: Array.from(matchedFiles),
+        filePaths: matchedFiles,
       }),
     };
   }
 
-  const fileNames = Array.from(matchedFiles).sort();
   return {
     message: `**File Glob** Found ${matchedFiles.size} matches`,
     actions: Object.entries(matchCounts).map(m => `Glob ${m[0]} - ${m[1]} matches`),
-    result: `BEGIN DIRECTORY LISTING\n${fileNames.map(f => `- ${f}`).join("\n")}\nEND DIRECTORY LISTING`,
+    result: fileListing(matchedFiles.values()),
   };
 }
 

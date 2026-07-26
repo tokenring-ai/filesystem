@@ -1,4 +1,6 @@
 import path from "node:path";
+import { dedupe } from "@tokenring-ai/utility/array/dedupe";
+import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
 import type { FileSystemProvider, GlobOptions } from "../FileSystemProvider.js";
 
 type GlobCapableProvider = Pick<FileSystemProvider, "getDirectoryTree" | "stat">;
@@ -322,8 +324,8 @@ export default async function fallbackGlob(provider: GlobCapableProvider, patter
   }
 
   const matchers = expandedPatterns.map(globPatternToRegExp);
-  const traversalRoots = [...new Set(expandedPatterns.map(getTraversalRoot))];
-  const candidates = new Map<string, GlobCandidate>();
+  const traversalRoots = dedupe(expandedPatterns.map(getTraversalRoot));
+  const candidates = new EnhancedMap<string, GlobCandidate>();
 
   for (const traversalRoot of traversalRoots) {
     const rootStat = await provider.stat(traversalRoot);
@@ -345,7 +347,8 @@ export default async function fallbackGlob(provider: GlobCapableProvider, patter
     }
   }
 
-  return [...candidates.values()]
+  return candidates
+    .valuesArray()
     .filter(candidate => options.includeDirectories || !candidate.isDirectory)
     .filter(candidate => !options.ignoreFilter(candidate.path))
     .filter(candidate => matchers.some(matcher => matcher.test(candidate.path)))

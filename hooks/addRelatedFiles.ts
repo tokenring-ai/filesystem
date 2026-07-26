@@ -2,9 +2,9 @@ import { AfterInputReceived } from "@tokenring-ai/agent";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { HookSubscription } from "@tokenring-ai/lifecycle/types";
 import { HookCallback } from "@tokenring-ai/lifecycle/util/hooks";
-import markdownList from "@tokenring-ai/utility/string/markdownList";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import directoryListing from "../util/directoryListing.ts";
 import type { FileSearchMatch } from "../util/fileSearch.ts";
 import { extractFileExtensions, extractKeywords, searchFiles } from "../util/fileSearch.ts";
 
@@ -110,16 +110,14 @@ async function addSelectedFilesFromChat(data: AfterInputReceived, state: FileSys
       }
     } else {
       try {
-        const directoryListing = fileSystem.getDirectoryTree(filePath, {}, agent);
-
-        const files = await Array.fromAsync(directoryListing);
+        const files = await Array.fromAsync(fileSystem.getDirectoryTree(filePath, {}, agent));
 
         attachments.push({
           name: filePath,
-          description: `Attached directory listing: ${filePath}`,
+          description: `Directory listing for ${filePath}`,
           encoding: "text",
           mimeType: "text/plain",
-          body: `BEGIN DIRECTORY LISTING:\n${filePath}\n${markdownList(files, 2)}\nEND DIRECTORY LISTING`,
+          body: directoryListing(filePath, files),
         });
       } catch {
         // The file does not exist, or is not a directory

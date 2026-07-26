@@ -1,9 +1,11 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import formatError from "@tokenring-ai/utility/error/formatError";
+import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import fileListing from "../util/fileListing.ts";
 import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirectory.ts";
 
 const name = "file_search";
@@ -66,9 +68,9 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
   });
 
-  const results = new Map<string, string>();
+  const results = new EnhancedMap<string, string>();
 
-  for (const [file, fileContent] of retrievedFiles.entries()) {
+  for (const [file, fileContent] of retrievedFiles) {
     const lines = fileContent.split("\n");
     const lowerCaseLines = lines.map(l => l.toLowerCase());
 
@@ -102,7 +104,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
 
     // The set is copied into an array since we are going to update it
-    for (const lineNumber of Array.from(matchedLines.values())) {
+    for (const lineNumber of matchedLines) {
       for (let i = lineNumber - settings.searchSnippetLinesBefore; i < lineNumber + settings.searchSnippetLinesAfter; i++) {
         if (i >= 0 && i < lines.length) {
           matchedLines.add(i);
@@ -160,7 +162,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
         matchCount: results.size,
         maxMatchedFiles: settings.maxGlobbedFiles,
         summaryDepth: settings.globSummaryDepth,
-        filePaths: Array.from(results.keys()),
+        filePaths: results.keys(),
       }),
     };
   }
@@ -168,18 +170,14 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
   if (results.size > settings.maxSearchSnippetCount) {
     agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
 
-    const fileNames = Array.from(results.keys()).sort();
-
     return {
       message: `**File** Search for ${searchTerms.join(", ")} in ${filePaths.join(", ")} - ${results.size} matches (overflow, summarizing)`,
       actions,
       result: `
 The file search operation matched ${results.size} files, which is higher than the user specified limit of ${settings.maxSearchSnippetCount}.
-The list of matched files will be returned as a directory listing instead.
+The list of matched files will be returned as a file listing instead.
 
-BEGIN DIRECTORY LISTING
-${fileNames.map(f => `- ${f}`).join("\n")}
-END DIRECTORY LISTING
+${fileListing(results.keys())}
 `.trim(),
     };
   }
@@ -187,7 +185,7 @@ END DIRECTORY LISTING
   return {
     message: `**File** Search for ${searchTerms.join(", ")} in ${filePaths.join(", ")} - ${results.size} matches`,
     actions,
-    result: Array.from(results.values()).join("\n\n"),
+    result: results.valuesArray().join("\n\n"),
   };
 }
 
@@ -196,7 +194,7 @@ Search for text patterns in files. Supports searching across all files or within
 - The search will be run inside the root folder the user has designated for the project
 - File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
 - Searches are OR-based across multiple patterns (any match counts).
-- Automatically returns complete file contents, directory listings, directory summaries, or grep-style snippets based on match count.
+- Automatically returns complete file contents, file listings, or grep-style snippets based on match count.
 - When more files match than the configured limit, returns a per-directory match count summary instead of individual files.
 `.trim();
 

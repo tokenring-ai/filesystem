@@ -1,9 +1,11 @@
+import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
+
 /**
  * Groups matched file paths by directory, truncated to `depth` path segments.
  * e.g. depth 2: "pkg/filesystem/tools/grep.ts" → "pkg/filesystem"
  */
-export function summarizeMatchesByDirectory(filePaths: string[], depth: number): Map<string, number> {
-  const counts = new Map<string, number>();
+export function summarizeMatchesByDirectory(filePaths: Iterable<string>, depth: number): EnhancedMap<string, number> {
+  const counts = new EnhancedMap<string, number>();
   const effectiveDepth = Math.max(1, depth);
 
   for (const filePath of filePaths) {
@@ -20,10 +22,10 @@ export function summarizeMatchesByDirectory(filePaths: string[], depth: number):
  * Formats directory match counts as a sorted bullet list.
  * e.g. "- pkg/filesystem: 12 files"
  */
-export function formatDirectoryMatchSummary(filePaths: string[], depth: number): string {
+export function formatDirectoryMatchSummary(filePaths: Iterable<string>, depth: number): string {
   const directoryCounts = summarizeMatchesByDirectory(filePaths, depth);
-  return Array.from(directoryCounts.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
+  return directoryCounts
+    .sortedEntries(([a], [b]) => a.localeCompare(b))
     .map(([dir, count]) => `- ${dir}: ${count} file${count === 1 ? "" : "s"}`)
     .join("\n");
 }
@@ -36,7 +38,7 @@ export function buildDirectorySummaryResponse(params: {
   matchCount: number;
   maxMatchedFiles: number;
   summaryDepth: number;
-  filePaths: string[];
+  filePaths: Iterable<string>;
 }): string {
   const summaryLines = formatDirectoryMatchSummary(params.filePaths, params.summaryDepth);
 

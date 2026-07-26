@@ -2,9 +2,9 @@ import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { AgentCreationContext } from "@tokenring-ai/agent/types";
 import type { TokenRingService } from "@tokenring-ai/app/types";
-
 import deepClone from "@tokenring-ai/utility/object/deepClone";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
+import EnhancedSet from "@tokenring-ai/utility/set/enhancedSet";
 import type { MaybePromise } from "bun";
 import type { z } from "zod";
 import type {
@@ -55,7 +55,7 @@ export default class FileSystemService implements TokenRingService {
     const config = deepClone(this.options.agentDefaults, agent.getAgentConfigSlice("filesystem", FileSystemAgentConfigSchema));
     const initialState = agent.initializeState(FileSystemState, config);
     if (config.selectedFiles.length > 0) {
-      creationContext.items.push(`Selected Files: ${Array.from(initialState.selectedFiles).join(", ")}`);
+      creationContext.items.push(`Selected Files: ${initialState.selectedFiles.join(", ")}`);
     }
     creationContext.items.push(`Working Directory: ${initialState.workingDirectory}`);
   }
@@ -261,7 +261,7 @@ export default class FileSystemService implements TokenRingService {
     });
   }
 
-  getFilesInChat(agent: Agent): Set<string> {
+  getFilesInChat(agent: Agent): EnhancedSet<string> {
     return agent.getState(FileSystemState).selectedFiles;
   }
 
@@ -272,7 +272,7 @@ export default class FileSystemService implements TokenRingService {
       }
     }
     agent.mutateState(FileSystemState, (state: FileSystemState) => {
-      state.selectedFiles = new Set(files);
+      state.selectedFiles = new EnhancedSet(files);
     });
   }
 

@@ -1,4 +1,6 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import { dedupe } from "@tokenring-ai/utility/array/dedupe";
+import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
 import type { GrepResult } from "../FileSystemProvider.ts";
 import type FileSystemService from "../FileSystemService.ts";
 
@@ -198,7 +200,7 @@ export function extractKeywords(input: string): string[] {
   }
 
   // Deduplicate while preserving order
-  return [...new Set(keywords)].filter(k => k.length > 1);
+  return dedupe(keywords).filter(k => k.length > 1);
 }
 
 /**
@@ -240,7 +242,7 @@ export function extractFileExtensions(input: string): string[] {
     }
   }
 
-  return [...new Set(extensions)];
+  return dedupe(extensions);
 }
 
 /**
@@ -374,7 +376,7 @@ export async function searchFiles(
   maxResults: number,
   agent: Agent,
 ): Promise<FileSearchMatch[]> {
-  const results: Map<string, FileSearchMatch> = new Map();
+  const results = new EnhancedMap<string, FileSearchMatch>();
 
   // Strategy 1: Filename/path matching via glob
   const allFiles = await fileSystemService.glob("**/*", {}, agent);
@@ -423,7 +425,5 @@ export async function searchFiles(
     }
   }
 
-  return Array.from(results.values())
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxResults);
+  return results.sortedValues((a, b) => b.score - a.score).slice(0, maxResults);
 }

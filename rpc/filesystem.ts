@@ -15,8 +15,8 @@ const streamFilesystemState = createAgentStateSliceStream({
     status: "success" as const,
     provider: state.providerName ?? "",
     workingDirectory: state.workingDirectory,
-    selectedFiles: Array.from(state.selectedFiles),
-    readFiles: Object.fromEntries(state.readFiles),
+    selectedFiles: state.selectedFiles.valuesArray(),
+    readFiles: state.readFiles.toPlainObject(),
     dirty: state.dirty,
   }),
 });
@@ -160,8 +160,8 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
       status: "success",
       provider: state.providerName ?? "",
       workingDirectory: state.workingDirectory,
-      selectedFiles: Array.from(state.selectedFiles),
-      readFiles: Object.fromEntries(state.readFiles),
+      selectedFiles: state.selectedFiles.valuesArray(),
+      readFiles: state.readFiles.toPlainObject(),
       dirty: state.dirty,
     });
   },

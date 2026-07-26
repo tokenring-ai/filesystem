@@ -48,11 +48,16 @@ export const FileSystemToolSettingsSchema = z.object({
     .min(1)
     .default(10)
     .meta({ description: "Most files a single read request may return" } satisfies ConfigFieldMeta),
-  maxFileReadSize: z
+  maxTextFileReadSize: z
     .number()
     .min(1024)
     .default(128 * 1024) // 128KB default
-    .meta({ unit: "bytes", description: "Largest file the agent will read in full" } satisfies ConfigFieldMeta),
+    .meta({ unit: "bytes", description: "Largest text file the agent will read in full" } satisfies ConfigFieldMeta),
+  imageFileMaxResolution: z
+    .number()
+    .min(1)
+    .default(1024 * 1024)
+    .meta({ unit: "pixels", description: "Largest image resolution the agent will read in full without downsampling" } satisfies ConfigFieldMeta),
   maxSearchSnippetCount: z
     .number()
     .min(1)

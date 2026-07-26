@@ -10,7 +10,7 @@ async function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Pr
     question: {
       type: "fileSelect",
       label: "File Selection",
-      defaultValue: Array.from(filesystem.getFilesInChat(agent)),
+      defaultValue: filesystem.getFilesInChat(agent).valuesArray(),
       allowDirectories: true,
       allowFiles: true,
     },

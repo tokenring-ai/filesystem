@@ -1,17 +1,33 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import type { ImageMimeTypes, TextMimeTypes } from "@tokenring-ai/agent/AgentEvents";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { isBinaryData } from "@tokenring-ai/utility/buffer/isBinaryData";
 import formatError from "@tokenring-ai/utility/error/formatError";
+import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import detectMimeType from "../util/detectMimeType.ts";
+import fileListing from "../util/fileListing.ts";
 
 const name = "file_read";
 const displayName = "Filesystem/read";
 
+async function downsampleImageTo(contents: Buffer<ArrayBufferLike>, imageFileMaxResolution: number) {
+  const image = new Bun.Image(contents);
+
+  const ratio = imageFileMaxResolution / (image.height * image.width);
+  if (ratio < 1) {
+    const width = Math.floor(image.width * ratio);
+    const height = Math.floor(image.height * ratio);
+    return await image.resize(width, height).toBuffer();
+  }
+  return contents;
+}
+
 async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireServiceByType(FileSystemService);
-  const { maxFileReadCount, maxFileReadSize } = agent.getState(FileSystemState).settings;
+  const { maxFileReadCount, maxTextFileReadSize, imageFileMaxResolution } = agent.getState(FileSystemState).settings;
 
   const matchedFiles = new Set<string>();
 
@@ -42,33 +58,76 @@ async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): P
     };
   }
 
-  const retrievedFiles = new Map<string, { contents: string; modificationTime?: number | undefined }>();
+  const retrievedFiles = new EnhancedMap<
+    string,
+    {
+      mimeType: TextMimeTypes | ImageMimeTypes;
+      contents: string;
+      encoding: "text" | "base64";
+      modificationTime?: number | undefined;
+    }
+  >();
 
   async function retrieveFile(file: string) {
     const stat = await fileSystem.stat(file, agent);
     if (!stat.exists) {
-      retrievedFiles.set(file, { contents: "[File does not exist]" });
+      retrievedFiles.set(file, { mimeType: "text/plain", encoding: "text", contents: "[File does not exist]" });
+      return;
     } else if (stat.isDirectory) {
       for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
         await retrieveFile(dirFile);
       }
-    } else if (maxFileReadSize > 0 && stat.size && stat.size > maxFileReadSize) {
-      retrievedFiles.set(file, { contents: "[File is too large to retrieve]" });
-    } else {
-      const contents = await fileSystem.readFile(file, agent);
-      if (contents) {
-        if (isBinaryData(contents)) {
-          retrievedFiles.set(file, {
-            contents: "[File is binary and cannot be displayed]",
-          });
-        } else {
-          retrievedFiles.set(file, {
-            contents: contents.toString("utf-8"),
-            modificationTime: stat.modified?.getTime(),
-          });
+    }
+
+    const mimeType = detectMimeType(file);
+    switch (mimeType) {
+      case "image/jpeg":
+      case "image/png":
+      case "image/webp":
+        {
+          const contents = await fileSystem.readFile(file, agent);
+          if (!contents) {
+            agent.warningMessage(`[${name}] Failed to read image file ${file}`);
+            break;
+          }
+          try {
+            const downsampledImage = await downsampleImageTo(contents, imageFileMaxResolution);
+            retrievedFiles.set(file, {
+              encoding: "base64",
+              contents: downsampledImage.toBase64(),
+              mimeType,
+              modificationTime: stat.modified?.getTime(),
+            });
+          } catch (err) {
+            agent.warningMessage(`[${name}] Failed to downsample image file ${file}`, err);
+          }
         }
-      } else {
-        agent.infoMessage(`[${name}] Couldn't read file ${file}`);
+        break;
+      default: {
+        // TODO: everything else is interpreted as text types
+        if (maxTextFileReadSize > 0 && stat.size && stat.size > maxTextFileReadSize) {
+          retrievedFiles.set(file, { mimeType: "text/plain", encoding: "text", contents: "[File is too large to retrieve]" });
+        } else {
+          const contents = await fileSystem.readFile(file, agent);
+          if (contents) {
+            if (isBinaryData(contents)) {
+              retrievedFiles.set(file, {
+                mimeType: "text/plain",
+                encoding: "text",
+                contents: "[File is binary and cannot be displayed]",
+              });
+            } else {
+              retrievedFiles.set(file, {
+                mimeType: "text/plain",
+                encoding: "text",
+                contents: contents.toString("utf-8"),
+                modificationTime: stat.modified?.getTime(),
+              });
+            }
+          } else {
+            agent.infoMessage(`[${name}] Couldn't read file ${file}`);
+          }
+        }
       }
     }
   }
@@ -77,26 +136,23 @@ async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): P
     await retrieveFile(file);
   }
 
-  const fileNames = Array.from(retrievedFiles.keys()).sort();
-
   if (retrievedFiles.size > maxFileReadCount) {
     agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
 
     return {
-      message: `**File Read** Read ${retrievedFiles.size} files (overflow, summarizing)`,
+      message: `**File Read** Read ${retrievedFiles.size} files`,
+      actions: [`Too many files matched, summarizing results...`],
       result: `
 The file read operation matched ${retrievedFiles.size} files, which is higher than the user specified limit of ${maxFileReadCount}.
 The list of matched files will be returned as a directory listing instead. To retrieve the files, you will need to request no more than ${maxFileReadCount} files at a time
 
->> BEGIN DIRECTORY LISTING <<
-${fileNames.map(f => `- ${f}`).join("\n")}
->> END DIRECTORY LISTING <<
+${fileListing(retrievedFiles.keys())}
 `.trim(),
     };
   }
 
   agent.mutateState(FileSystemState, state => {
-    for (const [fileName, { modificationTime }] of retrievedFiles.entries()) {
+    for (const [fileName, { modificationTime }] of retrievedFiles) {
       if (modificationTime) {
         state.readFiles.set(fileName, modificationTime);
       }
@@ -105,13 +161,15 @@ ${fileNames.map(f => `- ${f}`).join("\n")}
 
   return {
     message: `**File Read** Read ${retrievedFiles.size} files`,
-    result: `
-The file read operation matched ${retrievedFiles.size} files, the file contents are provided below, between the BEGIN|END FILE ATTACHMENT block headers
-  
-${Array.from(retrievedFiles.entries())
-  .map(([file, { contents }]) => `BEGIN FILE ATTACHMENT: ${file}\n${contents}\nEND FILE ATTACHMENT`)
-  .join("\n\n")}
-`.trim(),
+    actions: retrievedFiles.mapKeys(file => `Read ${file}`),
+    result: `The file read operation matched ${retrievedFiles.size} files, the file contents are provided below`,
+    attachments: retrievedFiles.mapEntries(([file, { mimeType, contents, encoding }]) => ({
+      name: file,
+      encoding,
+      body: contents,
+      mimeType,
+      sendToLLM: true,
+    })),
   };
 }
 

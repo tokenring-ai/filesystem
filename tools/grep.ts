@@ -1,8 +1,10 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
+import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import fileListing from "../util/fileListing.ts";
 import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirectory.ts";
 
 const name = "file_grep";
@@ -66,9 +68,9 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
   });
 
-  const results = new Map<string, string>();
+  const results = new EnhancedMap<string, string>();
 
-  for (const [file, fileContent] of retrievedFiles.entries()) {
+  for (const [file, fileContent] of retrievedFiles) {
     const lines = fileContent.split("\n");
     const lowerCaseLines = lines.map(l => l.toLowerCase());
 
@@ -100,7 +102,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
       }
     }
 
-    for (const lineNumber of Array.from(matchedLines.values())) {
+    for (const lineNumber of matchedLines) {
       for (let i = lineNumber - settings.searchSnippetLinesBefore; i < lineNumber + settings.searchSnippetLinesAfter; i++) {
         if (i >= 0 && i < lines.length) matchedLines.add(i);
       }
@@ -147,23 +149,20 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
         matchCount: results.size,
         maxMatchedFiles: settings.maxGlobbedFiles,
         summaryDepth: settings.globSummaryDepth,
-        filePaths: Array.from(results.keys()),
+        filePaths: results.keys(),
       }),
     };
   }
 
   if (results.size > settings.maxSearchSnippetCount) {
-    const fileNames = Array.from(results.keys()).sort();
     return {
       message: `**File Grep** Found ${results.size} matches (overflow, summarizing)`,
       actions,
       result: `
 The grep operation matched ${results.size} files, which is higher than the user specified limit of ${settings.maxSearchSnippetCount}.
-The list of matched files will be returned as a directory listing instead.
+The list of matched files will be returned as a file listing instead.
 
-BEGIN DIRECTORY LISTING
-${fileNames.map(f => `- ${f}`).join("\n")}
-END DIRECTORY LISTING
+${fileListing(results.keys())}
 `.trim(),
     };
   }
@@ -171,7 +170,7 @@ END DIRECTORY LISTING
   return {
     message: `**File Grep** Found ${results.size} matches`,
     actions,
-    result: Array.from(results.values()).join("\n\n"),
+    result: results.valuesArray().join("\n\n"),
   };
 }
 
