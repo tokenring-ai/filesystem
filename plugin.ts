@@ -24,55 +24,58 @@ export default {
   displayName: "Filesystem Abstraction",
   version: packageJSON.version,
   description: packageJSON.description,
-  install(app, config) {
+  install(app) {
+    app.waitForService(ScriptingService, (scriptingService: ScriptingService) => {
+      scriptingService.registerFunction("createFile", {
+        type: "native",
+        params: ["path", "content"],
+        async execute(this: ScriptingThis, path: string, content: string): Promise<string> {
+          await this.agent.requireServiceByType(FileSystemService).writeFile(path, content, this.agent);
+          return `Created file: ${path}`;
+        },
+      });
+
+      scriptingService.registerFunction("deleteFile", {
+        type: "native",
+        params: ["path"],
+        async execute(this: ScriptingThis, path: string): Promise<string> {
+          await this.agent.requireServiceByType(FileSystemService).deleteFile(path, this.agent);
+          return `Deleted file: ${path}`;
+        },
+      });
+
+      scriptingService.registerFunction("globFiles", {
+        type: "native",
+        params: ["pattern"],
+        async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
+          return await this.agent.requireServiceByType(FileSystemService).glob(pattern, {}, this.agent);
+        },
+      });
+
+      scriptingService.registerFunction("searchFiles", {
+        type: "native",
+        params: ["searchString"],
+        async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
+          const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString], {}, this.agent);
+          return results.map(r => `${r.file}:${r.line}: ${r.match}`);
+        },
+      });
+    });
+    app.waitForService(ChatService, chatService => {
+      chatService.addTools(...tools);
+    });
+
+    app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles, addRelatedFiles));
+    app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(agentCommands));
+    app.addServices(new FileSystemService());
+
+    app.waitForService(RpcService, rpcService => {
+      rpcService.registerEndpoint(filesystemRPC);
+    });
+  },
+  reconfigure(app, config) {
     if (config.filesystem) {
-      app.waitForService(ScriptingService, (scriptingService: ScriptingService) => {
-        scriptingService.registerFunction("createFile", {
-          type: "native",
-          params: ["path", "content"],
-          async execute(this: ScriptingThis, path: string, content: string): Promise<string> {
-            await this.agent.requireServiceByType(FileSystemService).writeFile(path, content, this.agent);
-            return `Created file: ${path}`;
-          },
-        });
-
-        scriptingService.registerFunction("deleteFile", {
-          type: "native",
-          params: ["path"],
-          async execute(this: ScriptingThis, path: string): Promise<string> {
-            await this.agent.requireServiceByType(FileSystemService).deleteFile(path, this.agent);
-            return `Deleted file: ${path}`;
-          },
-        });
-
-        scriptingService.registerFunction("globFiles", {
-          type: "native",
-          params: ["pattern"],
-          async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
-            return await this.agent.requireServiceByType(FileSystemService).glob(pattern, {}, this.agent);
-          },
-        });
-
-        scriptingService.registerFunction("searchFiles", {
-          type: "native",
-          params: ["searchString"],
-          async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
-            const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString], {}, this.agent);
-            return results.map(r => `${r.file}:${r.line}: ${r.match}`);
-          },
-        });
-      });
-      app.waitForService(ChatService, chatService => {
-        chatService.addTools(...tools);
-      });
-
-      app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles, addRelatedFiles));
-      app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(agentCommands));
-      app.addServices(new FileSystemService(config.filesystem));
-
-      app.waitForService(RpcService, rpcService => {
-        rpcService.registerEndpoint(filesystemRPC);
-      });
+      app.requireService(FileSystemService).reconfigure(config.filesystem);
     }
   },
   configSchema: packageConfigSchema,
