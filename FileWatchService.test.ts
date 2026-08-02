@@ -118,7 +118,6 @@ describe("FileWatchService", () => {
 
     fileSystemService.reconfigure(config);
     await fileWatchService.reconfigure(config);
-    await fileWatchService.start();
   });
 
   it("opens a watcher for each configured watch entry", () => {

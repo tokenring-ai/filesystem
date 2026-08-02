@@ -58,7 +58,6 @@ export default class FileWatchService implements TokenRingService {
     this.options = options;
   }
 
-
   stop(): void {
     this.activeWatches.mapValues(active => active.watcher.close());
     this.activeWatches.clear();
