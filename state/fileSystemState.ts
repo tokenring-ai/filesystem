@@ -13,7 +13,7 @@ const serializationSchema = z.object({
   dirty: z.boolean(),
   settings: FileSystemToolSettingsSchema,
   readFiles: z.record(z.string(), z.number()),
-  hasInjectedRelatedFiles: z.boolean(),
+  hasInjectedSimilarFiles: z.boolean(),
   fileEditFailureCount: z.number(),
 });
 
@@ -23,7 +23,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
   workingDirectory: string;
   dirty: boolean = false;
   readFiles = new EnhancedMap<string, number>();
-  hasInjectedRelatedFiles: boolean = false;
+  hasInjectedSimilarFiles: boolean = false;
   fileEditFailureCount: number = 0;
 
   settings: z.output<typeof FileSystemToolSettingsSchema>;
@@ -44,7 +44,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
       dirty: this.dirty,
       settings: this.settings,
       readFiles: this.readFiles.toPlainObject(),
-      hasInjectedRelatedFiles: this.hasInjectedRelatedFiles,
+      hasInjectedSimilarFiles: this.hasInjectedSimilarFiles,
       fileEditFailureCount: this.fileEditFailureCount,
     };
   }
@@ -56,7 +56,7 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     this.dirty = data.dirty;
     this.settings = data.settings;
     this.readFiles = EnhancedMap.fromPlainObject(data.readFiles);
-    this.hasInjectedRelatedFiles = data.hasInjectedRelatedFiles;
+    this.hasInjectedSimilarFiles = data.hasInjectedSimilarFiles;
     this.fileEditFailureCount = data.fileEditFailureCount;
   }
 
@@ -66,7 +66,7 @@ Working Directory: ${this.workingDirectory}
 Dirty: ${this.dirty}
 Selected Files and Directories: ${this.selectedFiles.size}
 Read Files with modification times: ${this.readFiles.size}
-Has Injected Related Files: ${this.hasInjectedRelatedFiles}
+Has Injected Related Files: ${this.hasInjectedSimilarFiles}
 File Edit Failure Count: ${this.fileEditFailureCount}
 ${markdownList(this.readFiles.mapEntries(([file, timestamp]) => `${file}: ${new Date(timestamp).toISOString()}`))}`;
   }

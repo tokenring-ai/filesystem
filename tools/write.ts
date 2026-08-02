@@ -12,7 +12,7 @@ const name = "file_write";
 const displayName = "Filesystem/write";
 
 async function execute({ path: filePath, content }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const fileSystem = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireService(FileSystemService);
 
   const curFileContents = await fileSystem.readTextFile(filePath, agent);
   const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);

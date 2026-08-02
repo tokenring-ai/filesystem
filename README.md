@@ -463,7 +463,7 @@ The tool supports dynamic activation based on filesystem provider support:
 
 ```typescript
 function adjustActivation(enabled: boolean, agent: Agent): boolean {
-  const supportsGrep = agent.requireServiceByType(FileSystemService).supportsGrep(agent);
+  const supportsGrep = agent.requireService(FileSystemService).supportsGrep(agent);
   return enabled && supportsGrep;
 }
 ```
@@ -918,7 +918,7 @@ Tracks filesystem-related state for agents.
 | `workingDirectory` | `string` | Working directory for path resolution |
 | `dirty` | `boolean` | Whether files have been modified |
 | `readFiles` | `Map<string, number>` | Files that have been read (path -> modification time in ms) |
-| `hasInjectedRelatedFiles` | `boolean` | Whether RAG-related files have been injected |
+| `hasInjectedSimilarFiles` | `boolean` | Whether RAG-related files have been injected |
 | `fileEditFailureCount` | `number` | Consecutive edit failure count |
 | `settings` | `FileSystemToolSettingsSchema` | Current tool settings |
 | `initialConfig` | `object` | Initial configuration from agent defaults |
@@ -1002,20 +1002,20 @@ const callbacks = [
 - Resets `state.dirty` to false
 - Subscribes to `AfterChatCompaction` and `AfterChatClear` lifecycle events
 
-### addRelatedFiles
+### addSelectedFiles
 
 Searches the filesystem for files relevant to the user's input and attaches matching filenames and chunks to the chat message.
 
-**File:** `plugin/filesystem/hooks/addRelatedFiles.ts`
+**File:** `hooks/addSelectedFiles.ts`
 
 **Hook Subscription:**
 
 ```typescript
-const name = "addRelatedFiles";
+const name = "addSelectedFiles";
 const displayName = "Filesystem/Add related files to chat";
 const description = "Searches the filesystem for files relevant to the user's input and attaches the matching filenames and chunks to the chat message";
 
-const callbacks = [new HookCallback(AfterInputReceived, addRelatedFiles)];
+const callbacks = [new HookCallback(AfterInputReceived, addSelectedFiles)];
 ```
 
 **Behavior:**
@@ -1308,7 +1308,7 @@ plugin/filesystem/
 │   └── schema.ts                    # RPC schema definitions
 ├── hooks/
 │   ├── clearReadFiles.ts            # clearReadFiles hook
-│   └── addRelatedFiles.ts           # addRelatedFiles hook (RAG search)
+│   └── addSelectedFiles.ts           # addSelectedFiles hook (RAG search)
 └── README.md                        # Package README
 ```
 

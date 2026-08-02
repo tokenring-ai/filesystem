@@ -6,7 +6,7 @@ import { FileSystemState } from "../../../state/fileSystemState.ts";
 const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
 async function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
-  const fileSystemService = agent.requireServiceByType(FileSystemService);
+  const fileSystemService = agent.requireService(FileSystemService);
   const available = fileSystemService.getFilesystemProviderNames();
   if (available.length === 0) return "No filesystem providers are registered.";
   if (available.length === 1 && available[0]) {

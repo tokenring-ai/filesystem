@@ -3,8 +3,14 @@ import z from "zod";
 
 export const FileMatchSchema = z.object({
   path: z.string(),
-  include: z.string().exactOptional(),
-  exclude: z.string().exactOptional(),
+  include: z
+    .string()
+    .exactOptional()
+    .meta({ uiType: "regex", description: "Regex matched against relative file paths to include" } satisfies ConfigFieldMeta),
+  exclude: z
+    .string()
+    .exactOptional()
+    .meta({ uiType: "regex", description: "Regex matched against relative file paths to exclude" } satisfies ConfigFieldMeta),
 });
 
 export type ParsedFileMatch = z.output<typeof FileMatchSchema>;
@@ -95,17 +101,6 @@ export const FileSystemToolSettingsSchema = z.object({
         .boolean()
         .default(true)
         .meta({ description: "Allow agents to use the in-place file edit tool" } satisfies ConfigFieldMeta),
-      fuzzyMatchSimilarity: z
-        .number()
-        .min(0.7)
-        .max(1)
-        .default(0.85)
-        .meta({ uiType: "slider", description: "Similarity threshold for fuzzy-matching edit targets" } satisfies ConfigFieldMeta),
-      minimumMatchedCharacters: z
-        .number()
-        .min(1)
-        .default(15)
-        .meta({ description: "Fewest characters an edit target may match" } satisfies ConfigFieldMeta),
       disableAfterConsecutiveFailures: z
         .number()
         .min(1)
@@ -115,6 +110,32 @@ export const FileSystemToolSettingsSchema = z.object({
     .prefault({})
     .meta({ label: "File Edit", advanced: true, description: "Behavior of the in-place file edit tool" } satisfies ConfigFieldMeta),
 });
+
+const AddToQueueActionSchema = z.object({
+  action: z.literal("addToQueue"),
+  queue: z.string().meta({ description: "Name of the queue to submit the file to" } satisfies ConfigFieldMeta),
+});
+
+const TriggeredActionSchema = z.discriminatedUnion("action", [AddToQueueActionSchema]);
+
+export const FileWatchSchema = FileMatchSchema.extend({
+  provider: z
+    .string()
+    .exactOptional()
+    .meta({ description: "Filesystem provider to watch (defaults to agentDefaults.provider)" } satisfies ConfigFieldMeta),
+  contentIncludes: z
+    .string()
+    .exactOptional()
+    .meta({ uiType: "regex", description: "Regex pattern matched against the content" } satisfies ConfigFieldMeta),
+  stabilityThreshold: z
+    .number()
+    .default(5000)
+    .meta({ unit: "ms", description: "Quiet time required before a changed file is considered stable" } satisfies ConfigFieldMeta),
+  actions: z.array(TriggeredActionSchema).meta({ description: "Actions to run when a matching file stabilizes after a change" } satisfies ConfigFieldMeta),
+});
+
+export type ParsedFileWatch = z.output<typeof FileWatchSchema>;
+export type ParsedTriggeredAction = z.output<typeof TriggeredActionSchema>;
 
 export const FileSystemAgentConfigSchema = z
   .object({
@@ -139,6 +160,10 @@ export const FileSystemConfigSchema = z
         settings: FileSystemToolSettingsSchema.meta({ label: "Filesystem Tool Settings" } satisfies ConfigFieldMeta).prefault({}),
       })
       .meta({ label: "Agent Defaults", description: "Filesystem behavior applied to newly created agents" } satisfies ConfigFieldMeta),
+    watch: z
+      .record(z.string(), FileWatchSchema)
+      .default({})
+      .meta({ label: "File Watching", description: "Automatically trigger actions when files change" } satisfies ConfigFieldMeta),
   })
   .strict()
   .meta({ label: "Filesystem", description: "Filesystem access for agents" } satisfies ConfigFieldMeta);

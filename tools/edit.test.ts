@@ -110,7 +110,7 @@ describe("file_findReplace", () => {
     );
 
     fileSystemService.registerFileSystemProvider("mock", provider as any);
-    app.addServices(fileSystemService);
+    app.addService(fileSystemService);
     fileSystemService.start();
 
     agent = createTestingAgent(app);

@@ -8,7 +8,7 @@ const inputSchema = {} as const satisfies AgentCommandInputSchema;
 function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
   const initialProvider = agent.getState(FileSystemState).initialConfig.provider;
   if (!initialProvider) throw new CommandFailedError("No initial provider configured");
-  agent.requireServiceByType(FileSystemService).setActiveFileSystem(initialProvider, agent);
+  agent.requireService(FileSystemService).setActiveFileSystem(initialProvider, agent);
   return Promise.resolve(`Provider reset to ${initialProvider}`);
 }
 

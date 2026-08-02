@@ -12,7 +12,7 @@ const name = "file_search";
 const displayName = "Filesystem/search";
 
 async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const fileSystem = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireService(FileSystemService);
 
   const matchCounts: Record<string, number> = {};
   for (const term of searchTerms) {

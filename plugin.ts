@@ -8,7 +8,9 @@ import type { ScriptingThis } from "@tokenring-ai/scripting/ScriptingService";
 import { z } from "zod";
 import agentCommands from "./commands.ts";
 import FileSystemService from "./FileSystemService.ts";
-import addRelatedFiles from "./hooks/addRelatedFiles.ts";
+import FileWatchService from "./FileWatchService.ts";
+import addSelectedFiles from "./hooks/addSelectedFiles.ts";
+import addSimilarFiles from "./hooks/addSimilarFiles.ts";
 import clearReadFiles from "./hooks/clearReadFiles.ts";
 import packageJSON from "./package.json" with { type: "json" };
 import filesystemRPC from "./rpc/filesystem.ts";
@@ -30,7 +32,7 @@ export default {
         type: "native",
         params: ["path", "content"],
         async execute(this: ScriptingThis, path: string, content: string): Promise<string> {
-          await this.agent.requireServiceByType(FileSystemService).writeFile(path, content, this.agent);
+          await this.agent.requireService(FileSystemService).writeFile(path, content, this.agent);
           return `Created file: ${path}`;
         },
       });
@@ -39,7 +41,7 @@ export default {
         type: "native",
         params: ["path"],
         async execute(this: ScriptingThis, path: string): Promise<string> {
-          await this.agent.requireServiceByType(FileSystemService).deleteFile(path, this.agent);
+          await this.agent.requireService(FileSystemService).deleteFile(path, this.agent);
           return `Deleted file: ${path}`;
         },
       });
@@ -48,7 +50,7 @@ export default {
         type: "native",
         params: ["pattern"],
         async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
-          return await this.agent.requireServiceByType(FileSystemService).glob(pattern, {}, this.agent);
+          return await this.agent.requireService(FileSystemService).glob(pattern, {}, this.agent);
         },
       });
 
@@ -56,26 +58,28 @@ export default {
         type: "native",
         params: ["searchString"],
         async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
-          const results = await this.agent.requireServiceByType(FileSystemService).grep([searchString], {}, this.agent);
+          const results = await this.agent.requireService(FileSystemService).grep([searchString], {}, this.agent);
           return results.map(r => `${r.file}:${r.line}: ${r.match}`);
         },
       });
     });
     app.waitForService(ChatService, chatService => {
-      chatService.addTools(...tools);
+      chatService.addTools(tools);
     });
 
-    app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles, addRelatedFiles));
+    app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles, addSelectedFiles, addSimilarFiles));
     app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(agentCommands));
-    app.addServices(new FileSystemService());
+    app.addService(new FileSystemService());
+    app.addService(new FileWatchService(app));
 
     app.waitForService(RpcService, rpcService => {
       rpcService.registerEndpoint(filesystemRPC);
     });
   },
-  reconfigure(app, config) {
+  async reconfigure(app, config) {
     if (config.filesystem) {
       app.requireService(FileSystemService).reconfigure(config.filesystem);
+      await app.requireService(FileWatchService).reconfigure(config.filesystem);
     }
   },
   configSchema: packageConfigSchema,

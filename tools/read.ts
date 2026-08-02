@@ -26,7 +26,7 @@ async function downsampleImageTo(contents: Buffer<ArrayBufferLike>, imageFileMax
 }
 
 async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const fileSystem = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireService(FileSystemService);
   const { maxFileReadCount, maxTextFileReadSize, imageFileMaxResolution } = agent.getState(FileSystemState).settings;
 
   const matchedFiles = new Set<string>();

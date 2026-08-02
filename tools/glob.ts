@@ -11,7 +11,7 @@ const name = "file_glob";
 const displayName = "Filesystem/glob";
 
 async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const fileSystem = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireService(FileSystemService);
 
   const matchCounts: Record<string, number> = {};
 

@@ -12,7 +12,7 @@ const inputSchema = {
 } as const satisfies AgentCommandInputSchema;
 
 function execute({ remainder, agent }: AgentCommandInputType<typeof inputSchema>): string {
-  const filesystem = agent.requireServiceByType(FileSystemService);
+  const filesystem = agent.requireService(FileSystemService);
   const filesToRemove = remainder.split(/\s+/);
   let removedCount = 0;
 

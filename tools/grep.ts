@@ -11,7 +11,7 @@ const name = "file_grep";
 const displayName = "Filesystem/grep";
 
 async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
-  const fileSystem = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireService(FileSystemService);
 
   const matchCounts: Record<string, number> = {};
   for (const term of searchTerms) {
@@ -192,7 +192,7 @@ const inputSchema = z
   .strict();
 
 function adjustActivation(enabled: boolean, agent: Agent): boolean | Promise<boolean> {
-  const supportsGrep = agent.requireServiceByType(FileSystemService).supportsGrep(agent);
+  const supportsGrep = agent.requireService(FileSystemService).supportsGrep(agent);
   return enabled && supportsGrep;
 }
 

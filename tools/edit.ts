@@ -33,7 +33,7 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
     );
   }
 
-  const fileSystem = agent.requireServiceByType(FileSystemService);
+  const fileSystem = agent.requireService(FileSystemService);
   const originalContent = await fileSystem.readTextFile(filePath, agent);
 
   if (originalContent === null) {

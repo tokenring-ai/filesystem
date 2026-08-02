@@ -22,7 +22,7 @@ export default class FileMatchResource {
    * Asynchronously gets matched files
    */
   async *getMatchedFiles(agent: Agent): AsyncGenerator<string> {
-    const fileSystem = agent.requireServiceByType(FileSystemService);
+    const fileSystem = agent.requireService(FileSystemService);
 
     for (const { path, include, exclude } of this.itemMatches) {
       for await (const relPath of fileSystem.getDirectoryTree(path, {}, agent)) {

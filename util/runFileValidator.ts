@@ -26,7 +26,7 @@ export class FileValidatonAfterFileWrite implements Hook<typeof FileValidationRe
 
 export default async function runFileValidator(filePath: string, content: string, agent: Agent): Promise<string> {
   const ext = path.extname(filePath);
-  const lifecycleService = agent.getServiceByType(AgentLifecycleService);
+  const lifecycleService = agent.getService(AgentLifecycleService);
   if (!lifecycleService) return "";
 
   const validations = await lifecycleService.executeHooks(new FileValidatonAfterFileWrite(filePath, ext, content), agent);

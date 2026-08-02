@@ -4,7 +4,7 @@ import FileSystemService from "../../FileSystemService.ts";
 const inputSchema = {} as const satisfies AgentCommandInputSchema;
 
 async function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
-  const filesystem = agent.requireServiceByType(FileSystemService);
+  const filesystem = agent.requireService(FileSystemService);
   const selectedFiles = await agent.askQuestion({
     message: "Select a file or directory:",
     question: {

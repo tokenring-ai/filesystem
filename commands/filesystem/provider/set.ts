@@ -13,9 +13,9 @@ const inputSchema = {
   ],
 } as const satisfies AgentCommandInputSchema;
 
-function execute({ positionals, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
-  const fileSystemService = agent.requireServiceByType(FileSystemService);
-  const providerName = positionals.name.trim();
+function execute({ args, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
+  const fileSystemService = agent.requireService(FileSystemService);
+  const providerName = args.name.trim();
   if (!providerName) throw new CommandFailedError("Usage: /filesystem provider set <name>");
   const available = fileSystemService.getFilesystemProviderNames();
   if (available.includes(providerName)) {

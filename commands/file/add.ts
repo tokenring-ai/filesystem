@@ -12,7 +12,7 @@ const inputSchema = {
 } as const satisfies AgentCommandInputSchema;
 
 async function execute({ remainder, agent }: AgentCommandInputType<typeof inputSchema>): Promise<string> {
-  const filesystem = agent.requireServiceByType(FileSystemService);
+  const filesystem = agent.requireService(FileSystemService);
   const filesToAdd = remainder.split(/\s+/);
   let addedCount = 0;
 
