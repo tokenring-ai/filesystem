@@ -1,6 +1,7 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { ToolCallError } from "@tokenring-ai/chat/util/tokenRingTool";
+import { diffLines } from "diff";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
@@ -91,14 +92,24 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
 
   const validationSuffix = state.settings.validateWrittenFiles ? await runFileValidator(filePath, updatedContent, agent) : null;
 
-  return createFileWriteResult(
-    filePath,
-    originalContent,
-    updatedContent,
-    state.settings.maxReturnedDiffSize,
-    validationSuffix,
-    `**File Edit** Edited ${filePath}`,
-  );
+  let linesRemoved = 0;
+  let linesAdded = 0;
+  for (const part of diffLines(originalContent, updatedContent)) {
+    if (part.added) linesAdded += part.count;
+    else if (part.removed) linesRemoved += part.count;
+  }
+
+  return {
+    ...createFileWriteResult(
+      filePath,
+      originalContent,
+      updatedContent,
+      state.settings.maxReturnedDiffSize,
+      validationSuffix,
+      `**File Edit** Edited ${filePath}`,
+    ),
+    actions: [`Edited ${filePath} - ${linesRemoved} lines removed, ${linesAdded} lines added`],
+  };
 }
 
 const description = `

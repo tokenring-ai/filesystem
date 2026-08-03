@@ -58,7 +58,13 @@ ${curFileContents}`.trim(),
 
   const validationSuffix = state.settings.validateWrittenFiles ? await runFileValidator(filePath, content, agent) : null;
 
-  return createFileWriteResult(filePath, curFileContents, content, state.settings.maxReturnedDiffSize, validationSuffix, `**File Write** Wrote ${filePath}`);
+  const lineCount = content.split("\n").length;
+  const sizeKb = (Buffer.byteLength(content, "utf8") / 1024).toFixed(1);
+
+  return {
+    ...createFileWriteResult(filePath, curFileContents, content, state.settings.maxReturnedDiffSize, validationSuffix, `**File Write** Wrote ${filePath}`),
+    actions: [`Wrote ${filePath} - ${lineCount} lines, ${sizeKb} KB`],
+  };
 }
 
 const description =
