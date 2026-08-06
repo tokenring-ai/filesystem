@@ -17,7 +17,7 @@ import type {
   StatLike,
   WatchOptions,
 } from "./FileSystemProvider.js";
-import { FileSystemAgentConfigSchema, type FileSystemConfigSchema } from "./schema.ts";
+import { FileSystemAgentConfigSchema, FileSystemConfigSchema } from "./schema.ts";
 import { FileSystemState } from "./state/fileSystemState.ts";
 import createIgnoreFilter from "./util/createIgnoreFilter.ts";
 import fallbackGlob from "./util/fallbackGlob.ts";
@@ -41,7 +41,7 @@ export default class FileSystemService implements TokenRingService {
   requireFileSystemProviderByName = this.fileSystemProviderRegistry.require;
   getFilesystemProviderNames = this.fileSystemProviderRegistry.keysArray;
 
-  private options: z.output<typeof FileSystemConfigSchema> | undefined;
+  private options: z.output<typeof FileSystemConfigSchema> = FileSystemConfigSchema.parse({});
 
   constructor(options?: z.output<typeof FileSystemConfigSchema>) {
     if (options) this.options = options;
@@ -51,21 +51,17 @@ export default class FileSystemService implements TokenRingService {
     this.options = options;
   }
 
-  private requireOptions(): z.output<typeof FileSystemConfigSchema> {
-    if (!this.options) {
-      throw new Error("FileSystemService is not configured");
-    }
-    return this.options;
-  }
-
   start(): void {
     // Throws an error if the default provider is not registered, since this is most likely a mistake
-    this.defaultProvider = this.fileSystemProviderRegistry.require(this.requireOptions().agentDefaults.provider);
+    this.defaultProvider = this.fileSystemProviderRegistry.require(this.options.agentDefaults.provider);
   }
 
   attach(agent: Agent, creationContext: AgentCreationContext): void {
-    const config = deepClone(this.requireOptions().agentDefaults, agent.getAgentConfigSlice("filesystem", FileSystemAgentConfigSchema));
-    const initialState = agent.initializeState(FileSystemState, config);
+    const { workingDirectory, ...config } = deepClone(this.options.agentDefaults, agent.getAgentConfigSlice("filesystem", FileSystemAgentConfigSchema));
+    const initialState = agent.initializeState(FileSystemState, {
+      workingDirectory: agent.app.getWorkingDirectoryResolvedPath(workingDirectory),
+      ...config,
+    });
     if (config.selectedFiles.length > 0) {
       creationContext.items.push(`Selected Files: ${initialState.selectedFiles.join(", ")}`);
     }

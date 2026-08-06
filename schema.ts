@@ -151,14 +151,21 @@ export const FileSystemConfigSchema = z
   .object({
     agentDefaults: z
       .object({
-        provider: z.string().meta({ description: "Filesystem provider new agents use by default (e.g. posix)" } satisfies ConfigFieldMeta),
-        workingDirectory: z.string().meta({ hidden: true } satisfies ConfigFieldMeta), // injected from --projectDirectory at launch
+        provider: z
+          .string()
+          .default("posix")
+          .meta({ description: "Filesystem provider new agents use by default (e.g. posix)" } satisfies ConfigFieldMeta),
+        workingDirectory: z
+          .string()
+          .default(".")
+          .meta({ description: "Working directory new agents use by default, either relative to workspace or absolute" } satisfies ConfigFieldMeta),
         selectedFiles: z
           .array(z.string())
           .default([])
           .meta({ description: "Files preselected into new agents' context" } satisfies ConfigFieldMeta),
         settings: FileSystemToolSettingsSchema.meta({ label: "Filesystem Tool Settings" } satisfies ConfigFieldMeta).prefault({}),
       })
+      .prefault({})
       .meta({ label: "Agent Defaults", description: "Filesystem behavior applied to newly created agents" } satisfies ConfigFieldMeta),
     watch: z
       .record(z.string(), FileWatchSchema)
@@ -166,4 +173,5 @@ export const FileSystemConfigSchema = z
       .meta({ label: "File Watching", description: "Automatically trigger actions when files change" } satisfies ConfigFieldMeta),
   })
   .strict()
+  .prefault({})
   .meta({ label: "Filesystem", description: "Filesystem access for agents" } satisfies ConfigFieldMeta);
