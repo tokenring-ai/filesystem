@@ -12,6 +12,7 @@
     "@tokenring-ai/scripting": "workspace:*",
     "@tokenring-ai/rpc": "workspace:*",
     "@tokenring-ai/queue": "workspace:*",
+    "@tokenring-ai/web-host": "workspace:*",
     "ignore": "^7.0.6",
     "diff": "^9.0.0",
     "mime-types": "^3.0.2"

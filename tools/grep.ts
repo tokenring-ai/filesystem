@@ -44,9 +44,9 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
       if (stat.exists) {
         if (stat.isDirectory) {
           for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
-            if (retrievedFiles.has(dirFile)) break;
-            const contents = await fileSystem.readTextFile(file, agent);
-            if (contents) retrievedFiles.set(file, contents);
+            if (retrievedFiles.has(dirFile)) continue;
+            const contents = await fileSystem.readTextFile(dirFile, agent);
+            if (contents) retrievedFiles.set(dirFile, contents);
             else ++failedReadCount;
           }
         } else {
@@ -90,7 +90,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
         pattern.lastIndex = 0;
         let result: RegExpExecArray | null;
         while ((result = pattern.exec(fileContent))) {
-          const prefix = fileContent.substring(0, result.length - 1);
+          const prefix = fileContent.substring(0, result.index);
           const lineNumber = prefix.split("\n").length - 1;
           matchedLines.add(lineNumber);
           termMatched = true;
@@ -140,14 +140,14 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
   const actions = Object.entries(matchCounts).map(m => `Grep ${m[0]} - ${m[1]} matches`);
   if (failedReadCount > 0) actions.push(`Failed to read ${failedReadCount} files`);
 
-  if (results.size > settings.maxGlobbedFiles) {
+  if (results.size > settings.maxGrepResults) {
     return {
       message: `**File Grep** Found ${results.size} matches (overflow, summarizing)`,
       actions,
       result: buildDirectorySummaryResponse({
         operationLabel: "grep operation",
         matchCount: results.size,
-        maxMatchedFiles: settings.maxGlobbedFiles,
+        maxMatchedFiles: settings.maxGrepResults,
         summaryDepth: settings.globSummaryDepth,
         filePaths: results.keys(),
       }),

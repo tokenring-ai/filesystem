@@ -13,7 +13,7 @@ export const FileValidationResultSchema = z
 
 export type FileValidationResult = z.infer<typeof FileValidationResultSchema>;
 
-export class FileValidatonAfterFileWrite implements Hook<typeof FileValidationResultSchema> {
+export class FileValidationAfterFileWrite implements Hook<typeof FileValidationResultSchema> {
   readonly type = "hook";
   readonly returnType = FileValidationResultSchema;
 
@@ -24,12 +24,15 @@ export class FileValidatonAfterFileWrite implements Hook<typeof FileValidationRe
   ) {}
 }
 
+/** @deprecated Use FileValidationAfterFileWrite */
+export const FileValidatonAfterFileWrite = FileValidationAfterFileWrite;
+
 export default async function runFileValidator(filePath: string, content: string, agent: Agent): Promise<string> {
   const ext = path.extname(filePath);
   const lifecycleService = agent.getService(AgentLifecycleService);
   if (!lifecycleService) return "";
 
-  const validations = await lifecycleService.executeHooks(new FileValidatonAfterFileWrite(filePath, ext, content), agent);
+  const validations = await lifecycleService.executeHooks(new FileValidationAfterFileWrite(filePath, ext, content), agent);
 
   const results: string[] = [];
   for (const validation of validations) {

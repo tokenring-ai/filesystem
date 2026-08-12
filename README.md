@@ -1020,7 +1020,7 @@ const callbacks = [new HookCallback(AfterInputReceived, addSelectedFiles)];
 
 **Behavior:**
 
-- Triggered after input is received via `AfterInputReceived` lifecycle event
+- Triggered after input is received via `BeforeInputReceived` lifecycle event
 - Performs two operations:
   1. **RAG File Search**: Extracts keywords from user input, searches filesystem for relevant files, and attaches results as markdown artifact
   2. **Selected Files Injection**: Attaches contents of files in `state.selectedFiles` and any files mentioned in the input message (paths containing `/`)

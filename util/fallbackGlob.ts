@@ -223,7 +223,8 @@ function globPatternToRegExp(pattern: string): RegExp {
       if (index === segments.length - 1) {
         return ".*";
       }
-      return `(?:[^/]+/)*${buildRegex(index + 1)}`;
+      // Match zero or more directories so patterns like src/**/file.ts also match src/file.ts
+      return `(?:.*/)?${buildRegex(index + 1)}`;
     }
 
     if (index === segments.length - 1) {

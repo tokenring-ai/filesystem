@@ -1,7 +1,8 @@
-import { AfterInputReceived } from "@tokenring-ai/agent";
+import { BeforeInputReceived } from "@tokenring-ai/agent";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { HookSubscription } from "@tokenring-ai/lifecycle/types";
 import { HookCallback } from "@tokenring-ai/lifecycle/util/hooks";
+import formatError from "@tokenring-ai/utility/error/formatError";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
 import directoryListing from "../util/directoryListing.ts";
@@ -10,7 +11,7 @@ const name = "addSelectedFiles";
 const displayName = "Filesystem/Add selected files to chat";
 const description = "Attaches mentioned or selected files to the chat message";
 
-async function addSelectedFiles(data: AfterInputReceived, agent: Agent) {
+async function addSelectedFiles(data: BeforeInputReceived, agent: Agent) {
   if (data.input.message.startsWith("/") && !data.input.message.match(/^\s*\/chat\s*send/)) return;
 
   const fileSystem = agent.requireService(FileSystemService);
@@ -66,13 +67,13 @@ async function addSelectedFiles(data: AfterInputReceived, agent: Agent) {
           body: directoryListing(filePath, files),
         });
       }
-    } catch {
-      // Errors are intentionally ignored
+    } catch (err) {
+      agent.warningMessage(`[${name}] Failed to attach file ${filePath}: ${formatError(err)}`);
     }
   }
 }
 
-const callbacks = [new HookCallback(AfterInputReceived, addSelectedFiles)];
+const callbacks = [new HookCallback(BeforeInputReceived, addSelectedFiles)];
 
 export default {
   name,

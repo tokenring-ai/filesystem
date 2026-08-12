@@ -34,7 +34,7 @@ async function execute({ path: filePath, content }: z.output<typeof inputSchema>
 Cannot write to ${filePath}: The tool policy requires that all files must be read before they can be written.
 
 To expedite this process, we have read the file, and included the file contents below, and marked it as read, so that it can now be written.
-It is not required that you re-read the file. Verify the file contents below and the changes you would like to make, and re-submit the file_append tool call to write the file.
+It is not required that you re-read the file. Verify the file contents below and the changes you would like to make, and re-submit the file_write tool call to write the file.
 
 ${filePath}:\n\n
 

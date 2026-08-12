@@ -5,8 +5,10 @@ import { AgentLifecycleService } from "@tokenring-ai/lifecycle";
 import { RpcService } from "@tokenring-ai/rpc";
 import { ScriptingService } from "@tokenring-ai/scripting";
 import type { ScriptingThis } from "@tokenring-ai/scripting/ScriptingService";
+import { WebHostService } from "@tokenring-ai/web-host";
 import { z } from "zod";
 import agentCommands from "./commands.ts";
+import FileSystemHttpResource from "./FileSystemHttpResource.ts";
 import FileSystemService from "./FileSystemService.ts";
 import FileWatchService from "./FileWatchService.ts";
 import addSelectedFiles from "./hooks/addSelectedFiles.ts";
@@ -74,6 +76,10 @@ export default {
 
     app.waitForService(RpcService, rpcService => {
       rpcService.registerEndpoint(filesystemRPC);
+    });
+
+    app.waitForService(WebHostService, webHostService => {
+      webHostService.registerResource("Workspace Filesystem", new FileSystemHttpResource(app));
     });
   },
   async reconfigure(app, config) {

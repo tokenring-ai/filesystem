@@ -25,6 +25,17 @@ export default {
         content: z.string().nullable(),
       }),
     },
+    /** Binary-safe file read for downloads (base64-encoded bytes). */
+    readFileBase64: {
+      type: "query",
+      input: z.object({
+        provider: z.string(),
+        path: z.string(),
+      }),
+      result: z.object({
+        contentBase64: z.string().nullable(),
+      }),
+    },
     exists: {
       type: "query",
       input: z.object({
@@ -85,6 +96,8 @@ export default {
         provider: z.string(),
         path: z.string(),
         content: z.string(),
+        /** How `content` is encoded. `base64` is decoded to raw bytes before writing. */
+        encoding: z.enum(["utf8", "base64"]).default("utf8"),
       }),
       result: z.object({
         success: z.boolean(),

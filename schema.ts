@@ -90,6 +90,11 @@ export const FileSystemToolSettingsSchema = z.object({
     .min(1)
     .default(250)
     .meta({ description: "Most files a single globbed file search may match" } satisfies ConfigFieldMeta),
+  maxGrepResults: z
+    .number()
+    .min(1)
+    .default(250)
+    .meta({ description: "Most file matches a single grep/search operation may return before summarizing by directory" } satisfies ConfigFieldMeta),
   globSummaryDepth: z
     .number()
     .min(0)

@@ -1,4 +1,4 @@
-import { AfterInputReceived } from "@tokenring-ai/agent";
+import { BeforeInputReceived } from "@tokenring-ai/agent";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { HookSubscription } from "@tokenring-ai/lifecycle/types";
 import { HookCallback } from "@tokenring-ai/lifecycle/util/hooks";
@@ -41,7 +41,7 @@ function formatRagResults(results: FileSearchMatch[], keywords: string[]): strin
   return lines.join("\n");
 }
 
-async function addSimilarFiles(data: AfterInputReceived, agent: Agent) {
+async function addSimilarFiles(data: BeforeInputReceived, agent: Agent) {
   if (data.input.message.startsWith("/") && !data.input.message.match(/^\s*\/chat\s*send/)) return;
 
   const fileSystemService = agent.requireService(FileSystemService);
@@ -80,7 +80,7 @@ async function addSimilarFiles(data: AfterInputReceived, agent: Agent) {
   ];
 }
 
-const callbacks = [new HookCallback(AfterInputReceived, addSimilarFiles)];
+const callbacks = [new HookCallback(BeforeInputReceived, addSimilarFiles)];
 
 export default {
   name,

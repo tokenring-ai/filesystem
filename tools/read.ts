@@ -16,13 +16,16 @@ const displayName = "Filesystem/read";
 async function downsampleImageTo(contents: Buffer<ArrayBufferLike>, imageFileMaxResolution: number) {
   const image = new Bun.Image(contents);
 
-  const ratio = imageFileMaxResolution / (image.height * image.width);
-  if (ratio < 1) {
-    const width = Math.floor(image.width * ratio);
-    const height = Math.floor(image.height * ratio);
-    return await image.resize(width, height).toBuffer();
+  const totalPixels = image.height * image.width;
+  if (totalPixels <= 0 || totalPixels <= imageFileMaxResolution) {
+    return contents;
   }
-  return contents;
+
+  // Scale each dimension by sqrt(ratio) so total pixels approach the max while preserving aspect ratio
+  const scale = Math.sqrt(imageFileMaxResolution / totalPixels);
+  const width = Math.max(1, Math.floor(image.width * scale));
+  const height = Math.max(1, Math.floor(image.height * scale));
+  return await image.resize(width, height).toBuffer();
 }
 
 async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {

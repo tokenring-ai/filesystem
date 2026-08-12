@@ -35,6 +35,13 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     return { content: content ? content.toString("utf-8") : null };
   },
 
+  async readFileBase64(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    const provider = fs.requireFileSystemProviderByName(args.provider);
+    const content = await provider.readFile(args.path);
+    return { contentBase64: content ? content.toString("base64") : null };
+  },
+
   async exists(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
@@ -104,7 +111,8 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
   async writeFile(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
-    await provider.writeFile(args.path, args.content);
+    const content = args.encoding === "base64" ? Buffer.from(args.content, "base64") : args.content;
+    await provider.writeFile(args.path, content);
     invalidateWorkspaceFileIndex(args.provider);
     return { success: true };
   },
