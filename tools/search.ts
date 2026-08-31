@@ -104,7 +104,7 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     }
 
     // The set is copied into an array since we are going to update it
-    for (const lineNumber of matchedLines) {
+    for (const lineNumber of Array.from(matchedLines)) {
       for (let i = lineNumber - settings.searchSnippetLinesBefore; i < lineNumber + settings.searchSnippetLinesAfter; i++) {
         if (i >= 0 && i < lines.length) {
           matchedLines.add(i);

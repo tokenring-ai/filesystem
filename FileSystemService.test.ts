@@ -153,7 +153,7 @@ describe("FileSystemService glob fallback", () => {
   );
 
   fileSystemService.registerFileSystemProvider("mock", provider as any);
-  app.addService(fileSystemService);
+  app.addService(FileSystemService, fileSystemService);
   fileSystemService.start();
 
   let agent: ReturnType<typeof createTestingAgent>;

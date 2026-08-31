@@ -97,9 +97,9 @@ describe("FileWatchService", () => {
       queues: { default: { agentType: "test" }, ingest: { agentType: "test" } },
     });
 
-    app.addService(fileSystemService);
-    app.addService(fileWatchService);
-    app.addService(queueService);
+    app.addService(FileSystemService, fileSystemService);
+    app.addService(FileWatchService, fileWatchService);
+    app.addService(QueueService, queueService);
 
     const config = FileSystemConfigSchema.parse({
       agentDefaults: {
@@ -139,7 +139,7 @@ describe("FileWatchService", () => {
     const pending = queueService.getPending("ingest");
     expect(pending).toHaveLength(1);
     expect(pending[0]!.name).toBe("notes/todo.md");
-    expect(pending[0]!.input.from).toBe("filesystem:watch:notes");
+    expect(pending[0]!.input.from).toBe("Filesystem Watch (notes)");
     expect(pending[0]!.input.message).toBe("File changed: notes/todo.md");
     expect(pending[0]!.input.attachments).toEqual([
       {

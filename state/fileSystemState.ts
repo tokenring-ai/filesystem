@@ -14,7 +14,7 @@ const serializationSchema = z.object({
   settings: FileSystemToolSettingsSchema,
   readFiles: z.record(z.string(), z.number()),
   hasInjectedSimilarFiles: z.boolean(),
-  fileEditFailureCount: z.number(),
+  fileEditFailureCount: z.number().default(0),
 });
 
 export class FileSystemState extends AgentStateSlice<typeof serializationSchema> {

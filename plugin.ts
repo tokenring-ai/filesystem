@@ -1,6 +1,6 @@
 import { AgentCommandService } from "@tokenring-ai/agent";
 import type { TokenRingPlugin } from "@tokenring-ai/app";
-import { ChatService } from "@tokenring-ai/chat";
+import { ChatService, ContextualSearchService } from "@tokenring-ai/chat";
 import { AgentLifecycleService } from "@tokenring-ai/lifecycle";
 import { RpcService } from "@tokenring-ai/rpc";
 import { ScriptingService } from "@tokenring-ai/scripting";
@@ -8,6 +8,7 @@ import type { ScriptingThis } from "@tokenring-ai/scripting/ScriptingService";
 import { WebHostService } from "@tokenring-ai/web-host";
 import { z } from "zod";
 import agentCommands from "./commands.ts";
+import FilesystemContextualSearchProvider from "./contextualSearch/FilesystemContextualSearchProvider.ts";
 import FileSystemHttpResource from "./FileSystemHttpResource.ts";
 import FileSystemService from "./FileSystemService.ts";
 import FileWatchService from "./FileWatchService.ts";
@@ -68,11 +69,14 @@ export default {
     app.waitForService(ChatService, chatService => {
       chatService.addTools(tools);
     });
+    app.waitForService(ContextualSearchService, service => {
+      service.registerProvider("file", new FilesystemContextualSearchProvider(app));
+    });
 
     app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles, addSelectedFiles, addSimilarFiles));
     app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(agentCommands));
-    app.addService(new FileSystemService());
-    app.addService(new FileWatchService(app));
+    app.addService(FileSystemService, new FileSystemService());
+    app.addService(FileWatchService, new FileWatchService(app));
 
     app.waitForService(RpcService, rpcService => {
       rpcService.registerEndpoint(filesystemRPC);

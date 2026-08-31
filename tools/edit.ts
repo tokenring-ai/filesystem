@@ -58,9 +58,6 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
   }
 
   if (matches.length > 1 && !multiple) {
-    agent.mutateState(FileSystemState, state => {
-      state.fileEditFailureCount = 0;
-    });
     const matchSummary = matches.map((match, index) => describeMatch(originalContent, match, index)).join("\n\n");
     return {
       failed: true,

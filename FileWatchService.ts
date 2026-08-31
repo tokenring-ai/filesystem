@@ -45,6 +45,7 @@ export default class FileWatchService implements TokenRingService {
    * providers have been registered); later reconfigures re-reconcile live watchers.
    */
   async reconfigure(options: FileSystemConfig): Promise<void> {
+    this.options = options;
     await this.activeWatches.reconcileAgainstAsync(options.watch, {
       creating: async (name, config) => this.openWatcher(name, config),
       deleting: async (_name, active) => {
@@ -55,7 +56,6 @@ export default class FileWatchService implements TokenRingService {
         return this.openWatcher(name, config);
       },
     });
-    this.options = options;
   }
 
   stop(): void {

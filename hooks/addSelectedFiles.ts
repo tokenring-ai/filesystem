@@ -24,7 +24,15 @@ async function addSelectedFiles(data: BeforeInputReceived, agent: Agent) {
   const mentionedMatches = data.input.message.match(/(?:@)?\S*\/\S*/g);
   if (mentionedMatches) {
     for (const match of mentionedMatches) {
-      const cleanPath = match.startsWith("@") ? match.slice(1) : match;
+      let cleanPath = match.startsWith("@") ? match.slice(1) : match;
+
+      // Strip trailing punctuation that is likely part of surrounding
+      // natural-language text rather than the actual file path
+      // (e.g. "plugin/audio/, and ..." -> "plugin/audio/")
+      cleanPath = cleanPath.replace(/[.,;:!?)\]}'"`]+$/, "");
+
+      if (!cleanPath) continue;
+
       filePathsToAttach.add(cleanPath);
     }
   }
