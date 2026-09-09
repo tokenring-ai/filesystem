@@ -3,6 +3,8 @@ import { dedupe } from "@tokenring-ai/utility/array/dedupe";
 import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
 import type { GrepResult } from "../FileSystemProvider.ts";
 import type FileSystemService from "../FileSystemService.ts";
+import { FileSystemState } from "../state/fileSystemState.ts";
+import { topLevelRoots } from "./allowedPaths.ts";
 
 export interface FileSearchMatch {
   filePath: string;
@@ -378,8 +380,13 @@ export async function searchFiles(
 ): Promise<FileSearchMatch[]> {
   const results = new EnhancedMap<string, FileSearchMatch>();
 
-  // Strategy 1: Filename/path matching via glob
-  const allFiles = await fileSystemService.glob("**/*", {}, agent);
+  const searchRoots = topLevelRoots(fileSystemService.getAllowedPaths(agent.getState(FileSystemState).providerName ?? undefined));
+
+  // Strategy 1: Filename/path matching via glob across every allowed root
+  const allFiles: string[] = [];
+  for (const root of searchRoots) {
+    allFiles.push(...(await fileSystemService.glob("**/*", { cwd: root.path }, agent)));
+  }
 
   for (const filePath of allFiles) {
     const score = scoreFilePath(filePath, keywords, extensions);
@@ -399,7 +406,10 @@ export async function searchFiles(
 
   if (grepKeywords.length > 0) {
     try {
-      const grepResults = await fileSystemService.grep(grepKeywords, {}, agent);
+      const grepResults: GrepResult[] = [];
+      for (const root of searchRoots) {
+        grepResults.push(...(await fileSystemService.grep(grepKeywords, { cwd: root.path }, agent)));
+      }
 
       const fileMatches = aggregateGrepResults(grepResults);
 

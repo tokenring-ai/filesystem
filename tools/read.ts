@@ -28,23 +28,21 @@ async function downsampleImageTo(contents: Buffer<ArrayBufferLike>, imageFileMax
   return await image.resize(width, height).toBuffer();
 }
 
-async function execute({ files }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+async function execute({ files, cwd }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);
   const { maxFileReadCount, maxTextFileReadSize, imageFileMaxResolution } = agent.getState(FileSystemState).settings;
 
   const matchedFiles = new Set<string>();
 
   // Handle glob patterns in files array
-  for (let filePattern of files) {
+  for (const filePattern of files) {
     try {
-      // Paths are relative to the filesystem root
-      if (filePattern.startsWith("/")) filePattern = filePattern.substring(1);
       if (filePattern.includes("*") || filePattern.includes("?")) {
-        for (const matchedFile of await fileSystem.glob(filePattern, { includeDirectories: true }, agent)) {
+        for (const matchedFile of await fileSystem.glob(filePattern, { includeDirectories: true, ...(cwd !== undefined && { cwd }) }, agent)) {
           matchedFiles.add(matchedFile);
         }
       } else {
-        matchedFiles.add(filePattern);
+        matchedFiles.add(fileSystem.resolvePath(filePattern));
       }
     } catch (err) {
       agent.warningMessage(`[${name}] Error resolving pattern ${filePattern}: ${formatError(err)}`);
@@ -178,13 +176,14 @@ ${fileListing(retrievedFiles.keys())}
 
 const description = `
 Read files from the filesystem. Retrieves file contents based on file paths or glob patterns.
-- The filesystem scope is the entire sandboxed root directory accessible by the FileSystemService (e.g., the project's root folder).
-- File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
+- File paths must be ABSOLUTE paths inside one of the allowed directories listed in your context (e.g. '/project/src/main.ts').
+- Glob patterns may be absolute ('/project/src/**/*.ts'), or relative when the 'cwd' argument names the absolute directory to search from.
 `.trim();
 
 const inputSchema = z
   .object({
-    files: z.array(z.string()).describe("List of file paths or glob patterns (e.g., '**/*.ts', 'path/to/file.txt')."),
+    files: z.array(z.string()).describe("List of absolute file paths or glob patterns (e.g., '/project/src/**/*.ts', '/project/README.md')."),
+    cwd: z.string().exactOptional().describe("Absolute, allowed directory that relative glob patterns are resolved against."),
   })
   .strict();
 
@@ -193,5 +192,6 @@ export default {
   displayName,
   description,
   inputSchema,
+  requiredContextHandlers: ["allowed-paths"],
   execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

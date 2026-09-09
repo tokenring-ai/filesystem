@@ -5,14 +5,16 @@ import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
 import createFileWriteResult from "../util/createFileWriteResult.ts";
+import requireAbsolutePath from "../util/requireAbsolutePath.ts";
 import runFileValidator from "../util/runFileValidator.ts";
 
 // Tool name export as required
 const name = "file_write";
 const displayName = "Filesystem/write";
 
-async function execute({ path: filePath, content }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+async function execute({ path: rawPath, content }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);
+  const filePath = requireAbsolutePath(name, rawPath);
 
   const curFileContents = await fileSystem.readTextFile(filePath, agent);
   const fileModificationTime = await fileSystem.getModifiedTimeNanos(filePath, agent);
@@ -68,10 +70,10 @@ ${curFileContents}`.trim(),
 }
 
 const description =
-  "Writes a file to the filesystem. Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the ENTIRE content of the file";
+  "Writes a file to the filesystem. Paths must be absolute and inside an allowed directory (e.g. '/project/src/main.ts'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the ENTIRE content of the file";
 
 const inputSchema = z.object({
-  path: z.string().describe("Relative path of the file to write (e.g., 'src/main.ts' or 'docs/design.md'). Starts from the project root directory. Required."),
+  path: z.string().describe("Absolute path of the file to write (e.g., '/project/src/main.ts'). Must be inside an allowed directory. Required."),
   content: z.string().describe("Content to write to the file. ALWAYS include the ENTIRE file contents to avoid data loss."),
 });
 
@@ -80,5 +82,6 @@ export default {
   displayName,
   description,
   inputSchema,
+  requiredContextHandlers: ["allowed-paths"],
   execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

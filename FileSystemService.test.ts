@@ -12,7 +12,7 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
     const directories = new Set<string>();
     for (const filePath of files.keys()) {
       let currentPath = path.posix.dirname(filePath);
-      while (currentPath && currentPath !== "." && currentPath !== "/repo") {
+      while (currentPath && currentPath !== "." && currentPath !== "/" && currentPath !== "/repo") {
         directories.add(currentPath);
         currentPath = path.posix.dirname(currentPath);
       }
@@ -21,7 +21,10 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
   };
 
   return {
-    async *getDirectoryTree(absolutePath: string, { ignoreFilter, recursive = true }: { ignoreFilter: (path: string) => boolean; recursive?: boolean }) {
+    async *getDirectoryTree(
+      absolutePath: string,
+      { ignoreFilter, recursive = true }: { ignoreFilter: (path: string, isDirectory?: boolean) => boolean | Promise<boolean>; recursive?: boolean },
+    ) {
       const entries = new Set<string>();
       const normalizedRoot = absolutePath === "/" ? "/" : absolutePath.replace(/\/+$/, "");
 
@@ -42,7 +45,7 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
       }
 
       for (const entry of [...entries].sort()) {
-        if (!ignoreFilter(entry)) {
+        if (!(await ignoreFilter(entry, entry.endsWith("/")))) {
           yield entry;
         }
       }
@@ -119,36 +122,26 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
   };
 }
 
-describe("FileSystemService glob fallback", () => {
+describe("FileSystemService allow-list glob", () => {
   const app = createTestingApp();
   const provider = createMockFileSystemProvider({
     "/repo/src/example.ts": "export const example = true;\n",
     "/repo/src/index.js": "console.log('index');\n",
     "/repo/src/components/Button.tsx": "export function Button() {}\n",
     "/repo/assets/logo.png": "png",
+    "/notes/todo.md": "todo\n",
   });
   const fileSystemService = new FileSystemService(
+    app,
     FileSystemConfigSchema.parse({
       agentDefaults: {
         provider: "mock",
-        workingDirectory: "/repo",
         selectedFiles: [],
-        fileWrite: {
-          requireReadBeforeWrite: true,
-          maxReturnedDiffSize: 10_000,
-          validateWrittenFiles: false,
-        },
-        fileRead: {
-          maxFileReadCount: 10,
-          maxFileSize: 128 * 1024,
-        },
-        fileSearch: {
-          maxSnippetCount: 10,
-          maxSnippetSizePercent: 0.3,
-          snippetLinesBefore: 5,
-          snippetLinesAfter: 5,
-        },
       },
+      allowedPaths: [
+        { path: "/repo", permission: "write" },
+        { path: "/notes", permission: "read" },
+      ],
     }),
   );
 
@@ -163,15 +156,40 @@ describe("FileSystemService glob fallback", () => {
     fileSystemService.attach(agent, { items: [] } as any);
   });
 
-  it("matches files when the provider does not implement glob", async () => {
-    expect(fileSystemService.glob("src/*.{ts,js}", {}, agent)).resolves.toEqual(["src/example.ts", "src/index.js"]);
+  it("matches relative patterns against the ephemeral cwd and returns absolute paths", async () => {
+    expect(fileSystemService.glob("src/*.{ts,js}", { cwd: "/repo" }, agent)).resolves.toEqual(["/repo/src/example.ts", "/repo/src/index.js"]);
+  });
+
+  it("rejects relative patterns without a cwd", async () => {
+    expect(fileSystemService.glob("src/*.ts", {}, agent)).rejects.toThrow(/cwd/);
+  });
+
+  it("supports absolute patterns directly", async () => {
+    expect(fileSystemService.glob("/repo/src/*.{ts,js}", {}, agent)).resolves.toEqual(["/repo/src/example.ts", "/repo/src/index.js"]);
   });
 
   it("matches directories when includeDirectories is enabled", async () => {
-    expect(fileSystemService.glob("src/*", { includeDirectories: true }, agent)).resolves.toEqual(["src/components", "src/example.ts", "src/index.js"]);
+    expect(fileSystemService.glob("src/*", { cwd: "/repo", includeDirectories: true }, agent)).resolves.toEqual([
+      "/repo/src/components",
+      "/repo/src/example.ts",
+      "/repo/src/index.js",
+    ]);
   });
 
-  it("supports exact directory matches without provider glob support", async () => {
-    expect(fileSystemService.glob("src/components", { includeDirectories: true }, agent)).resolves.toEqual(["src/components"]);
+  it("supports exact directory matches", async () => {
+    expect(fileSystemService.glob("src/components", { cwd: "/repo", includeDirectories: true }, agent)).resolves.toEqual(["/repo/src/components"]);
+  });
+
+  it("rejects patterns outside the allow-list", async () => {
+    expect(fileSystemService.glob("/etc/*", {}, agent)).rejects.toThrow(/allowed/);
+  });
+
+  it("permits reads but rejects writes inside a read-only root", async () => {
+    expect(await fileSystemService.readTextFile("/notes/todo.md", agent)).toBe("todo\n");
+    expect(fileSystemService.writeFile("/notes/todo.md", "nope", agent)).rejects.toThrow(/read-only/);
+  });
+
+  it("rejects writes outside every allowed root", async () => {
+    expect(fileSystemService.writeFile("/etc/passwd", "nope", agent)).rejects.toThrow(/allowed/);
   });
 });

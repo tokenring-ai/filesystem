@@ -6,17 +6,19 @@ import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
 import createFileWriteResult from "../util/createFileWriteResult.ts";
+import requireAbsolutePath from "../util/requireAbsolutePath.ts";
 import runFileValidator from "../util/runFileValidator.ts";
 
 const name = "file_append";
 const displayName = "Filesystem/append";
 
-async function execute({ path: filePath, content }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+async function execute({ path: rawPath, content }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);
 
-  if (!filePath) {
+  if (!rawPath) {
     throw new ToolCallError(name, `'path' parameter is required`);
   }
+  const filePath = requireAbsolutePath(name, rawPath);
   if (!content) {
     throw new ToolCallError(name, `'content' parameter is required`);
   }
@@ -80,10 +82,10 @@ ${curFileContents}`.trim(),
 }
 
 const description =
-  "Appends content to the end of an existing file. Paths are relative to the project root directory, and should not have a prefix (e.g. 'subdirectory/file.txt' or 'docs/file.md'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the content to be appended to the file";
+  "Appends content to the end of an existing file. Paths must be absolute and inside an allowed directory (e.g. '/project/logs/app.log'). Directories are auto-created as needed. Content is full text (UTF-8), and must contain the content to be appended to the file";
 
 const inputSchema = z.object({
-  path: z.string().describe("Relative path of the file to append to (e.g., 'logs/app.log' or 'notes.md')."),
+  path: z.string().describe("Absolute path of the file to append to (e.g., '/project/logs/app.log'). Must be inside an allowed directory."),
   content: z.string().describe("The content to add to the end of the file."),
 });
 
@@ -92,5 +94,6 @@ export default {
   displayName,
   description,
   inputSchema,
+  requiredContextHandlers: ["allowed-paths"],
   execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

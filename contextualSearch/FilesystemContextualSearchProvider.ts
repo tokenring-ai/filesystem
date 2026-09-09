@@ -7,6 +7,7 @@ import formatError from "@tokenring-ai/utility/error/formatError";
 import type { FileSystemProvider } from "../FileSystemProvider.ts";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import { topLevelRoots } from "../util/allowedPaths.ts";
 import directoryListing from "../util/directoryListing.ts";
 import { listWorkspaceFiles } from "../util/workspaceFileIndex.ts";
 
@@ -87,7 +88,10 @@ export default class FilesystemContextualSearchProvider implements ContextualSea
 
 async function searchFilesystem(fileSystem: FileSystemService, providerName: string, needle: string, limit: number): Promise<ContextualSearchItem[]> {
   const provider = fileSystem.requireFileSystemProviderByName(providerName);
-  const files = await listWorkspaceFiles(providerName, provider, { ignoreFilter: () => false });
+  const files: string[] = [];
+  for (const root of topLevelRoots(fileSystem.getAllowedPaths(providerName))) {
+    files.push(...(await listWorkspaceFiles(providerName, provider, root.path, { ignoreFilter: () => false })));
+  }
   return rankFiles(files, needle)
     .slice(0, limit)
     .map(filePath => ({

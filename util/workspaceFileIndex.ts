@@ -1,7 +1,4 @@
-import type { FileSystemProvider } from "../FileSystemProvider.ts";
-import fallbackGlob from "./fallbackGlob.ts";
-
-type GlobOptions = { ignoreFilter: (path: string) => boolean };
+import type { FileSystemProvider, IgnorePredicate } from "../FileSystemProvider.ts";
 
 type IndexEntry = {
   files: string[];
@@ -9,27 +6,51 @@ type IndexEntry = {
 };
 
 const INDEX_TTL_MS = 30_000;
-const indexByProvider = new Map<string, IndexEntry>();
+const indexByProviderRoot = new Map<string, IndexEntry>();
+
+function indexKey(providerName: string, root: string, variant: string): string {
+  return `${providerName}\0${root}\0${variant}`;
+}
 
 /** Invalidate cached workspace file lists (e.g. after writes). */
 export function invalidateWorkspaceFileIndex(providerName?: string) {
   if (providerName) {
-    indexByProvider.delete(providerName);
+    for (const key of indexByProviderRoot.keys()) {
+      if (key.startsWith(`${providerName}\0`)) indexByProviderRoot.delete(key);
+    }
     return;
   }
-  indexByProvider.clear();
+  indexByProviderRoot.clear();
 }
 
-/** Cached `**\/*` listing used by `searchWorkspaceFiles`. */
-export async function listWorkspaceFiles(providerName: string, provider: FileSystemProvider, globOptions: GlobOptions): Promise<string[]> {
+/**
+ * Cached recursive listing of the files under one absolute root, used by
+ * `searchWorkspaceFiles` and contextual search. Results are absolute paths.
+ */
+export async function listWorkspaceFiles(
+  providerName: string,
+  provider: FileSystemProvider,
+  root: string,
+  options: { ignoreFilter?: IgnorePredicate; variant?: string } = {},
+): Promise<string[]> {
   const now = Date.now();
-  const cached = indexByProvider.get(providerName);
+  const key = indexKey(providerName, root, options.variant ?? "");
+  const cached = indexByProviderRoot.get(key);
   if (cached && now - cached.builtAt < INDEX_TTL_MS) {
     return cached.files;
   }
 
-  const files = provider.glob ? await provider.glob("**/*", globOptions) : await fallbackGlob(provider, "**/*", globOptions);
+  const ignoreFilter = options.ignoreFilter ?? (() => false);
+  const files: string[] = [];
+  try {
+    for await (const entry of provider.getDirectoryTree(root, { recursive: true, ignoreFilter })) {
+      if (entry.endsWith("/")) continue;
+      files.push(entry);
+    }
+  } catch {
+    // Root missing or unreadable — treat as empty rather than failing the search.
+  }
 
-  indexByProvider.set(providerName, { files, builtAt: now });
+  indexByProviderRoot.set(key, { files, builtAt: now });
   return files;
 }

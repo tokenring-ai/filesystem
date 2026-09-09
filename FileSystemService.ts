@@ -1,32 +1,44 @@
 import path from "node:path";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { AgentCreationContext } from "@tokenring-ai/agent/types";
+import type TokenRingApp from "@tokenring-ai/app";
 import type { TokenRingService } from "@tokenring-ai/app/types";
 import deepClone from "@tokenring-ai/utility/object/deepClone";
 import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import EnhancedSet from "@tokenring-ai/utility/set/enhancedSet";
-import type { MaybePromise } from "bun";
 import type { z } from "zod";
-import type {
-  DirectoryTreeOptions,
-  FileSystemProvider,
-  FileSystemWatcher,
-  GlobOptions,
-  GrepOptions,
-  GrepResult,
-  StatLike,
-  WatchOptions,
-} from "./FileSystemProvider.js";
+import type { DirectoryTreeOptions, FileSystemProvider, FileSystemWatcher, GrepOptions, GrepResult, StatLike, WatchOptions } from "./FileSystemProvider.js";
+import type { AllowedPath } from "./schema.ts";
 import { FileSystemAgentConfigSchema, FileSystemConfigSchema } from "./schema.ts";
 import { FileSystemState } from "./state/fileSystemState.ts";
-import createIgnoreFilter from "./util/createIgnoreFilter.ts";
-import fallbackGlob from "./util/fallbackGlob.ts";
+import { allowedPathsForProvider, authorizePath, type PathAccess, PathNotAllowedError } from "./util/allowedPaths.ts";
+import { findFirstMagicIndex } from "./util/fallbackGlob.ts";
+import { RefreshingTreeIgnore, TreeIgnore, type TreeIgnoreIO, type WalkIgnoreOptions } from "./util/treeIgnore.ts";
 
-type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
+export type TreeWalkOptions = WalkIgnoreOptions & { recursive?: boolean | undefined };
+export type GlobWalkOptions = WalkIgnoreOptions & {
+  /** Absolute, allow-listed directory relative glob patterns are resolved against. */
+  cwd?: string | undefined;
+  includeDirectories?: boolean | undefined;
+};
+export type GrepWalkOptions = WalkIgnoreOptions & {
+  /** Absolute, allow-listed directory to walk. Required. */
+  cwd?: string | undefined;
+  includeContent?: GrepOptions["includeContent"] | undefined;
+};
+export type WatchWalkOptions = WalkIgnoreOptions & {
+  pollInterval?: number | undefined;
+  stabilityThreshold?: number | undefined;
+};
 
 /**
  * FileSystem is an abstract class that provides a unified interface
  * for file operations, allowing for different implementations of file systems.
+ *
+ * Paths are absolute within the active provider's namespace and are authorized
+ * against the workspace allow-list (`filesystem.allowedPaths`). Relative paths
+ * from internal callers (services, config) resolve against the workspace
+ * directory, which is implicitly write-allowed for the default provider.
  */
 export default class FileSystemService implements TokenRingService {
   readonly name = "FileSystemService";
@@ -43,7 +55,10 @@ export default class FileSystemService implements TokenRingService {
 
   private options: z.output<typeof FileSystemConfigSchema> = FileSystemConfigSchema.parse({});
 
-  constructor(options?: z.output<typeof FileSystemConfigSchema>) {
+  constructor(
+    private readonly app: TokenRingApp,
+    options?: z.output<typeof FileSystemConfigSchema>,
+  ) {
     if (options) this.options = options;
   }
 
@@ -57,15 +72,17 @@ export default class FileSystemService implements TokenRingService {
   }
 
   attach(agent: Agent, creationContext: AgentCreationContext): void {
-    const { workingDirectory, ...config } = deepClone(this.options.agentDefaults, agent.getAgentConfigSlice("filesystem", FileSystemAgentConfigSchema));
-    const initialState = agent.initializeState(FileSystemState, {
-      workingDirectory: agent.app.getWorkingDirectoryResolvedPath(workingDirectory),
-      ...config,
-    });
-    if (config.selectedFiles.length > 0) {
-      creationContext.items.push(`Selected Files: ${initialState.selectedFiles.join(", ")}`);
+    // oxlint-disable-next-line typescript/no-deprecated -- strips the legacy key from merged config
+    const { workingDirectory: _deprecated, ...config } = deepClone(
+      this.options.agentDefaults,
+      agent.getAgentConfigSlice("filesystem", FileSystemAgentConfigSchema),
+    );
+    const initialState = agent.initializeState(FileSystemState, config);
+    if (initialState.selectedFiles.size > 0) {
+      creationContext.items.push(`Selected Files: ${initialState.selectedFiles.valuesArray().join(", ")}`);
     }
-    creationContext.items.push(`Working Directory: ${initialState.workingDirectory}`);
+    const allowedPaths = this.getAllowedPaths(initialState.providerName ?? undefined);
+    creationContext.items.push(`Allowed Paths: ${allowedPaths.map(entry => `${entry.path} (${entry.permission})`).join(", ") || "(none)"}`);
   }
 
   requireActiveFileSystem(agent: Agent): FileSystemProvider {
@@ -81,79 +98,158 @@ export default class FileSystemService implements TokenRingService {
     });
   }
 
+  // Path authorization
+
+  /** The configured allow-list as-is (no provider filtering, no implicit workspace entry). */
+  getConfiguredAllowedPaths(): AllowedPath[] {
+    return this.options.allowedPaths;
+  }
+
+  /** The provider name new agents default to (and unscoped allow-list entries apply to). */
+  getDefaultProviderName(): string {
+    return this.options.agentDefaults.provider;
+  }
+
+  /**
+   * Workspace allow-list for a provider (default: the default provider), with
+   * the implicit workspace-directory entry appended.
+   */
+  getAllowedPaths(providerName?: string): AllowedPath[] {
+    const defaultProvider = this.options.agentDefaults.provider;
+    return allowedPathsForProvider({
+      entries: this.options.allowedPaths,
+      provider: providerName ?? defaultProvider,
+      defaultProvider,
+      workspaceDirectory: this.app.appConfig.workspaceDirectory,
+    });
+  }
+
+  /**
+   * Internal-path resolution: absolute paths pass through normalized; relative
+   * paths (service/config callers only — agent tool inputs must be absolute)
+   * resolve against the workspace directory.
+   */
+  resolvePath(filePath: string): string {
+    return path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(this.app.appConfig.workspaceDirectory, filePath);
+  }
+
+  /**
+   * Resolve and authorize a path for the agent's active provider. Returns the
+   * normalized absolute path; throws PathNotAllowedError with the allowed
+   * roots listed otherwise.
+   */
+  authorizePath(filePath: string, access: PathAccess, agent: Agent): Promise<string> {
+    const { providerName } = agent.getState(FileSystemState);
+    if (!providerName) throw new Error("No file system provider configured for agent");
+    return this.authorizePathForProvider(filePath, access, providerName);
+  }
+
+  /** Same authorization for callers that have a provider name but no agent (watchers, terminals). */
+  authorizePathForProvider(filePath: string, access: PathAccess, providerName: string): Promise<string> {
+    const provider = this.fileSystemProviderRegistry.require(providerName);
+    return authorizePath(this.resolvePath(filePath), access, {
+      entries: this.options.allowedPaths,
+      provider: providerName,
+      defaultProvider: this.options.agentDefaults.provider,
+      workspaceDirectory: this.app.appConfig.workspaceDirectory,
+      realpath: provider.realpath?.bind(provider),
+    });
+  }
+
+  private providerIO(provider: FileSystemProvider): TreeIgnoreIO {
+    return {
+      readFile: async (filePath: string) => {
+        try {
+          return await provider.readFile(filePath);
+        } catch {
+          return null;
+        }
+      },
+      exists: async (filePath: string) => {
+        try {
+          return await provider.exists(filePath);
+        } catch {
+          return false;
+        }
+      },
+    };
+  }
+
   // Directory walking
-  async *getDirectoryTree(path: string, options: Optional<DirectoryTreeOptions, "ignoreFilter"> = {}, agent: Agent): AsyncGenerator<string> {
+  async *getDirectoryTree(dirPath: string, options: TreeWalkOptions = {}, agent: Agent): AsyncGenerator<string> {
+    const { recursive, ...ignoreOptions } = options;
     const activeFileSystem = this.requireActiveFileSystem(agent);
-    const ignoreFilter =
-      options.ignoreFilter ??
-      (await createIgnoreFilter({
-        exists: (filePath: string) => this.exists(filePath, agent),
-        readFile: (filePath: string) => this.readFile(filePath, agent),
-      }));
-    for await (const entry of activeFileSystem.getDirectoryTree(this.resolveAbsolutePath(path, agent), {
-      ...options,
-      ignoreFilter: (filePath: string) => ignoreFilter(this.relativePathForAgent(filePath, agent)),
-    } as DirectoryTreeOptions)) {
-      yield this.relativePathForAgent(entry, agent);
-    }
+    const root = await this.authorizePath(dirPath, "read", agent);
+    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.providerIO(activeFileSystem));
+    yield* activeFileSystem.getDirectoryTree(root, {
+      ignoreFilter: treeIgnore.shouldIgnore,
+      ...(recursive !== undefined && { recursive }),
+    } as DirectoryTreeOptions);
   }
 
   // file ops
-  writeFile(path: string, content: string | Buffer, agent: Agent): MaybePromise<boolean> {
+  async writeFile(filePath: string, content: string | Buffer, agent: Agent): Promise<boolean> {
+    const target = await this.authorizePath(filePath, "write", agent);
     this.setDirty(true, agent);
-    const activeFileSystem = this.requireActiveFileSystem(agent);
-    return activeFileSystem.writeFile(this.resolveAbsolutePath(path, agent), content);
+    return this.requireActiveFileSystem(agent).writeFile(target, content);
   }
 
-  appendFile(filePath: string, finalContent: string | Buffer, agent: Agent): MaybePromise<boolean> {
+  async appendFile(filePath: string, finalContent: string | Buffer, agent: Agent): Promise<boolean> {
+    const target = await this.authorizePath(filePath, "write", agent);
     this.setDirty(true, agent);
-    return this.requireActiveFileSystem(agent).appendFile(this.resolveAbsolutePath(filePath, agent), finalContent);
+    return this.requireActiveFileSystem(agent).appendFile(target, finalContent);
   }
 
-  deleteFile(path: string, agent: Agent): MaybePromise<boolean> {
+  async deleteFile(filePath: string, agent: Agent): Promise<boolean> {
+    const target = await this.authorizePath(filePath, "write", agent);
     this.setDirty(true, agent);
-    return this.requireActiveFileSystem(agent).deleteFile(this.resolveAbsolutePath(path, agent));
+    return this.requireActiveFileSystem(agent).deleteFile(target);
   }
 
-  readFile(path: string, agent: Agent): MaybePromise<Buffer | null> {
-    return this.requireActiveFileSystem(agent).readFile(this.resolveAbsolutePath(path, agent));
+  async readFile(filePath: string, agent: Agent): Promise<Buffer | null> {
+    const target = await this.authorizePath(filePath, "read", agent);
+    return this.requireActiveFileSystem(agent).readFile(target);
   }
 
-  async readTextFile(path: string, agent: Agent): Promise<string | null> {
-    const buf = await this.readFile(path, agent);
+  async readTextFile(filePath: string, agent: Agent): Promise<string | null> {
+    const buf = await this.readFile(filePath, agent);
     return buf ? buf.toString("utf-8") : null;
   }
 
-  rename(oldPath: string, newPath: string, agent: Agent): MaybePromise<boolean> {
-    return this.requireActiveFileSystem(agent).rename(this.resolveAbsolutePath(oldPath, agent), this.resolveAbsolutePath(newPath, agent));
+  async rename(oldPath: string, newPath: string, agent: Agent): Promise<boolean> {
+    const source = await this.authorizePath(oldPath, "write", agent);
+    const destination = await this.authorizePath(newPath, "write", agent);
+    return this.requireActiveFileSystem(agent).rename(source, destination);
   }
 
-  async exists(path: string, agent: Agent): Promise<boolean> {
+  async exists(filePath: string, agent: Agent): Promise<boolean> {
     try {
-      return await this.requireActiveFileSystem(agent).exists(this.resolveAbsolutePath(path, agent));
+      const target = await this.authorizePath(filePath, "read", agent);
+      return await this.requireActiveFileSystem(agent).exists(target);
     } catch {
       return false;
     }
   }
 
-  async stat(path: string, agent: Agent): Promise<StatLike> {
-    const result = await this.requireActiveFileSystem(agent).stat(this.resolveAbsolutePath(path, agent));
+  async stat(filePath: string, agent: Agent): Promise<StatLike> {
+    const target = await this.authorizePath(filePath, "read", agent);
+    const result = await this.requireActiveFileSystem(agent).stat(target);
     if (result.exists) {
       return {
         ...result,
-        path: this.relativePathForAgent(result.path, agent),
-        absolutePath: result.absolutePath ?? this.resolveAbsolutePath(result.path, agent),
+        path: target,
+        absolutePath: result.absolutePath ?? target,
       };
     }
 
     return {
       ...result,
-      path: this.relativePathForAgent(result.path, agent),
+      path: target,
     };
   }
 
-  async getModifiedTimeNanos(path: string, agent: Agent): Promise<number | null> {
-    const stat = await this.stat(path, agent);
+  async getModifiedTimeNanos(filePath: string, agent: Agent): Promise<number | null> {
+    const stat = await this.stat(filePath, agent);
     if (stat.exists) {
       const result = stat.modified?.getTime() ?? 0;
       return result > 0 ? result : null;
@@ -161,77 +257,120 @@ export default class FileSystemService implements TokenRingService {
     return null;
   }
 
-  createDirectory(path: string, options: { recursive?: boolean | undefined }, agent: Agent): MaybePromise<boolean> {
+  async createDirectory(dirPath: string, options: { recursive?: boolean | undefined }, agent: Agent): Promise<boolean> {
+    const target = await this.authorizePath(dirPath, "write", agent);
     this.setDirty(true, agent);
 
-    return this.requireActiveFileSystem(agent).createDirectory(this.resolveAbsolutePath(path, agent), options);
+    return this.requireActiveFileSystem(agent).createDirectory(target, options);
   }
 
-  copy(source: string, destination: string, options: { overwrite?: boolean | undefined }, agent: Agent): MaybePromise<boolean> {
+  async copy(source: string, destination: string, options: { overwrite?: boolean | undefined }, agent: Agent): Promise<boolean> {
+    const sourcePath = await this.authorizePath(source, "read", agent);
+    const destinationPath = await this.authorizePath(destination, "write", agent);
     this.setDirty(true, agent);
 
-    return this.requireActiveFileSystem(agent).copy(this.resolveAbsolutePath(source, agent), this.resolveAbsolutePath(destination, agent), options);
+    return this.requireActiveFileSystem(agent).copy(sourcePath, destinationPath, options);
   }
 
-  async glob(pattern: string, options: Optional<GlobOptions, "ignoreFilter">, agent: Agent): Promise<string[]> {
+  /**
+   * Match files against a glob pattern. Absolute patterns walk their non-magic
+   * prefix; relative patterns require `options.cwd`. Results are absolute.
+   */
+  async glob(pattern: string, options: GlobWalkOptions, agent: Agent): Promise<string[]> {
+    const { cwd, includeDirectories = false, ...ignoreOptions } = options;
     const activeFileSystem = this.requireActiveFileSystem(agent);
-    const ignoreFilter =
-      options.ignoreFilter ??
-      (await createIgnoreFilter({
-        exists: (filePath: string) => this.exists(filePath, agent),
-        readFile: (filePath: string) => this.readFile(filePath, agent),
-      }));
-    const globOptions = {
-      ...options,
-      ignoreFilter: (filePath: string) => ignoreFilter(this.relativePathForAgent(filePath, agent)),
-    } as GlobOptions;
-    const absolutePattern = this.resolveAbsolutePattern(pattern, agent);
-    const matches = activeFileSystem.glob
-      ? await activeFileSystem.glob(absolutePattern, globOptions)
-      : await fallbackGlob(activeFileSystem, absolutePattern, globOptions);
 
-    return matches.map(filePath => this.relativePathForAgent(filePath, agent));
+    let absolutePattern: string;
+    if (path.isAbsolute(pattern)) {
+      absolutePattern = path.normalize(pattern);
+    } else {
+      if (!cwd) {
+        throw new PathNotAllowedError(
+          `Relative glob pattern "${pattern}" requires an absolute "cwd" to resolve against. ` +
+            `Pass a cwd inside an allowed directory, or use an absolute pattern:\n` +
+            this.getAllowedPaths(agent.getState(FileSystemState).providerName ?? undefined)
+              .map(entry => `- ${entry.path} (${entry.permission})`)
+              .join("\n"),
+        );
+      }
+      const base = await this.authorizePath(cwd, "read", agent);
+      absolutePattern = path.join(base, pattern);
+    }
+
+    const magicIndex = findFirstMagicIndex(absolutePattern);
+
+    // Exact (non-magic) pattern: stat it directly instead of walking the parent.
+    if (magicIndex === -1) {
+      const target = await this.authorizePath(absolutePattern, "read", agent);
+      const stat = await activeFileSystem.stat(target);
+      if (!stat.exists) return [];
+      if (stat.isDirectory && !includeDirectories) return [];
+      const treeIgnore = new TreeIgnore(path.dirname(target), ignoreOptions, this.providerIO(activeFileSystem));
+      if (await treeIgnore.shouldIgnore(target, stat.isDirectory ?? false)) return [];
+      return [target];
+    }
+
+    const prefix = absolutePattern.slice(0, magicIndex);
+    const walkRoot = prefix.endsWith("/") ? prefix.replace(/\/+$/, "") || "/" : path.dirname(prefix);
+    const root = await this.authorizePath(walkRoot, "read", agent);
+
+    const matcher = new Bun.Glob(absolutePattern);
+    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.providerIO(activeFileSystem));
+    const results = new Set<string>();
+
+    const rootStat = await activeFileSystem.stat(root);
+    if (!rootStat.exists) return [];
+
+    for await (const entry of activeFileSystem.getDirectoryTree(root, {
+      recursive: true,
+      ignoreFilter: treeIgnore.shouldIgnore,
+    } as DirectoryTreeOptions)) {
+      const isDirectory = entry.endsWith("/") || entry.endsWith(path.sep);
+      if (isDirectory && !includeDirectories) continue;
+      const candidate = isDirectory ? entry.replace(/[/\\]+$/, "") : entry;
+      if (matcher.match(candidate)) results.add(candidate);
+    }
+
+    return [...results].sort();
   }
 
-  async watch(dir: string, options: Optional<WatchOptions, "ignoreFilter">, agent: Agent): Promise<FileSystemWatcher> {
+  async watch(dir: string, options: WatchWalkOptions, agent: Agent): Promise<FileSystemWatcher> {
+    const { pollInterval, stabilityThreshold, ...ignoreOptions } = options;
     const activeFileSystem = this.requireActiveFileSystem(agent);
     if (!activeFileSystem.watch) {
       throw new Error(`Watch is not supported by the active file system`);
     }
-    const ignoreFilter =
-      options.ignoreFilter ??
-      (await createIgnoreFilter({
-        exists: (filePath: string) => this.exists(filePath, agent),
-        readFile: (filePath: string) => this.readFile(filePath, agent),
-      }));
-    return activeFileSystem.watch(this.resolveAbsolutePath(dir, agent), {
-      ...options,
-      ignoreFilter: (filePath: string) => ignoreFilter(this.relativePathForAgent(filePath, agent)),
+    const root = await this.authorizePath(dir, "read", agent);
+    const treeIgnore = new RefreshingTreeIgnore(root, ignoreOptions, this.providerIO(activeFileSystem));
+    return activeFileSystem.watch(root, {
+      ignoreFilter: treeIgnore.shouldIgnore,
+      ...(pollInterval !== undefined && { pollInterval }),
+      ...(stabilityThreshold !== undefined && { stabilityThreshold }),
     } as WatchOptions);
   }
 
-  async grep(searchString: string | string[], options: Optional<GrepOptions, "ignoreFilter">, agent: Agent): Promise<GrepResult[]> {
+  /** Search file contents under `options.cwd` (required, absolute, allow-listed). */
+  async grep(searchString: string | string[], options: GrepWalkOptions, agent: Agent): Promise<GrepResult[]> {
+    const { cwd, includeContent, ...ignoreOptions } = options;
     const activeFileSystem = this.requireActiveFileSystem(agent);
     if (!activeFileSystem.grep) {
       throw new Error(`Grep is not supported by the active file system`);
     }
-
-    const ignoreFilter =
-      options.ignoreFilter ??
-      (await createIgnoreFilter({
-        exists: (filePath: string) => this.exists(filePath, agent),
-        readFile: (filePath: string) => this.readFile(filePath, agent),
-      }));
-    return (
-      await activeFileSystem.grep(searchString, {
-        ...options,
-        cwd: this.getWorkingDirectory(agent),
-        ignoreFilter: (filePath: string) => ignoreFilter(this.relativePathForAgent(filePath, agent)),
-      } as GrepOptions)
-    ).map(result => ({
-      ...result,
-      file: this.relativePathForAgent(result.file, agent),
-    }));
+    if (!cwd) {
+      throw new PathNotAllowedError(
+        `grep requires an absolute "cwd" to walk. Allowed directories:\n` +
+          this.getAllowedPaths(agent.getState(FileSystemState).providerName ?? undefined)
+            .map(entry => `- ${entry.path} (${entry.permission})`)
+            .join("\n"),
+      );
+    }
+    const root = await this.authorizePath(cwd, "read", agent);
+    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.providerIO(activeFileSystem));
+    return await activeFileSystem.grep(searchString, {
+      cwd: root,
+      ignoreFilter: treeIgnore.shouldIgnore,
+      ...(includeContent !== undefined && { includeContent }),
+    } as GrepOptions);
   }
 
   supportsGrep(agent: Agent) {
@@ -284,29 +423,20 @@ export default class FileSystemService implements TokenRingService {
     });
   }
 
-  private getWorkingDirectory(agent: Agent): string {
-    return agent.getState(FileSystemState).workingDirectory;
-  }
-
-  private resolveAbsolutePath(filePath: string, agent: Agent): string {
-    const workingDirectory = this.getWorkingDirectory(agent);
-    const absolutePath = path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(workingDirectory, filePath);
-
-    const relativePath = path.relative(workingDirectory, absolutePath);
-    if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-      throw new Error(`Path ${filePath} is outside the root directory`);
+  /**
+   * Probe a possibly-relative user-facing path (mention, /file argument)
+   * against the allowed roots; returns the first existing absolute match, or
+   * null. Absolute inputs are returned when they exist.
+   */
+  async probeMentionedPath(mention: string, agent: Agent): Promise<string | null> {
+    if (path.isAbsolute(mention)) {
+      return (await this.exists(mention, agent)) ? path.resolve(mention) : null;
     }
-
-    return absolutePath;
-  }
-
-  private resolveAbsolutePattern(pattern: string, agent: Agent): string {
-    return path.isAbsolute(pattern) ? this.resolveAbsolutePath(pattern, agent) : path.resolve(this.getWorkingDirectory(agent), pattern);
-  }
-
-  private relativePathForAgent(absolutePath: string, agent: Agent): string {
-    const hasTrailingSeparator = absolutePath.endsWith("/") || absolutePath.endsWith(path.sep);
-    const relativePath = path.relative(this.getWorkingDirectory(agent), this.resolveAbsolutePath(absolutePath, agent));
-    return hasTrailingSeparator ? `${relativePath}/` : relativePath;
+    const { providerName } = agent.getState(FileSystemState);
+    for (const entry of this.getAllowedPaths(providerName ?? undefined)) {
+      const candidate = path.join(entry.path, mention);
+      if (await this.exists(candidate, agent)) return candidate;
+    }
+    return null;
   }
 }

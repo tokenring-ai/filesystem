@@ -85,27 +85,13 @@ describe("file_findReplace", () => {
     });
 
     fileSystemService = new FileSystemService(
+      app,
       FileSystemConfigSchema.parse({
         agentDefaults: {
           provider: "mock",
-          workingDirectory: "/repo",
           selectedFiles: [],
-          fileWrite: {
-            requireReadBeforeWrite: true,
-            maxReturnedDiffSize: 10_000,
-            validateWrittenFiles: false,
-          },
-          fileRead: {
-            maxFileReadCount: 10,
-            maxFileSize: 128 * 1024,
-          },
-          fileSearch: {
-            maxSnippetCount: 10,
-            maxSnippetSizePercent: 0.3,
-            snippetLinesBefore: 5,
-            snippetLinesAfter: 5,
-          },
         },
+        allowedPaths: [{ path: "/repo", permission: "write" }],
       }),
     );
 
@@ -123,12 +109,12 @@ describe("file_findReplace", () => {
 
   it("replaces a word-based match while ignoring whitespace differences", async () => {
     agent.mutateState(FileSystemState, state => {
-      state.readFiles.set("src/example.ts", 12345);
+      state.readFiles.set("/repo/src/example.ts", 12345);
     });
 
     const result = await findReplaceTool.execute(
       {
-        path: "src/example.ts",
+        path: "/repo/src/example.ts",
         find: 'lazy   dog";',
         replace: 'lazy cat";',
         multiple: false,
@@ -137,7 +123,7 @@ describe("file_findReplace", () => {
     );
 
     expect(provider.files.get("/repo/src/example.ts")?.toString("utf-8")).toContain("lazy cat");
-    expect(agent.getState(FileSystemState).readFiles.get("src/example.ts")).toBe(12345);
+    expect(agent.getState(FileSystemState).readFiles.get("/repo/src/example.ts")).toBe(12345);
     expect(fileSystemService.isDirty(agent)).toBe(true);
     expect(typeof result).not.toBe("string");
     expect((result as any).result).toContain("Success");
@@ -148,7 +134,7 @@ describe("file_findReplace", () => {
 
     const result = await findReplaceTool.execute(
       {
-        path: "src/example.ts",
+        path: "/repo/src/example.ts",
         find: "alpha beta",
         replace: "gamma",
         multiple: false,
@@ -167,7 +153,7 @@ describe("file_findReplace", () => {
 
     await findReplaceTool.execute(
       {
-        path: "src/example.ts",
+        path: "/repo/src/example.ts",
         find: "alpha beta",
         replace: "gamma",
         multiple: true,

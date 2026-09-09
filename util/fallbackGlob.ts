@@ -17,7 +17,7 @@ function normalizeGlobPath(inputPath: string, { stripTrailingSeparator = false }
   return normalized.replace(/\/+$/, "");
 }
 
-function hasGlobMagic(pattern: string): boolean {
+export function hasGlobMagic(pattern: string): boolean {
   let escaped = false;
 
   for (const char of pattern) {
@@ -39,7 +39,7 @@ function hasGlobMagic(pattern: string): boolean {
   return false;
 }
 
-function findFirstMagicIndex(pattern: string): number {
+export function findFirstMagicIndex(pattern: string): number {
   let escaped = false;
 
   for (let i = 0; i < pattern.length; i++) {
@@ -306,7 +306,7 @@ async function resolveExactPattern(
   const stat = await provider.stat(normalizedPattern);
   if (!stat.exists) return [];
   if (stat.isDirectory && !includeDirectories) return [];
-  if (ignoreFilter(normalizedPattern)) return [];
+  if (await ignoreFilter(normalizedPattern, stat.isDirectory ?? false)) return [];
   return [
     normalizeGlobPath(stat.absolutePath ?? stat.path, {
       stripTrailingSeparator: true,
@@ -348,11 +348,12 @@ export default async function fallbackGlob(provider: GlobCapableProvider, patter
     }
   }
 
-  return candidates
-    .valuesArray()
-    .filter(candidate => options.includeDirectories || !candidate.isDirectory)
-    .filter(candidate => !options.ignoreFilter(candidate.path))
-    .filter(candidate => matchers.some(matcher => matcher.test(candidate.path)))
-    .map(candidate => candidate.path)
-    .sort();
+  const results: string[] = [];
+  for (const candidate of candidates.valuesArray()) {
+    if (!options.includeDirectories && candidate.isDirectory) continue;
+    if (!matchers.some(matcher => matcher.test(candidate.path))) continue;
+    if (await options.ignoreFilter(candidate.path, candidate.isDirectory)) continue;
+    results.push(candidate.path);
+  }
+  return results.sort();
 }

@@ -86,7 +86,7 @@ describe("FileWatchService", () => {
   beforeEach(async () => {
     app = createTestingApp();
     mockFs = createMockProvider(files);
-    fileSystemService = new FileSystemService();
+    fileSystemService = new FileSystemService(app);
     fileSystemService.registerFileSystemProvider("mock", mockFs.provider);
     fileWatchService = new FileWatchService(app);
     queueService = new QueueService(app, {
@@ -104,11 +104,11 @@ describe("FileWatchService", () => {
     const config = FileSystemConfigSchema.parse({
       agentDefaults: {
         provider: "mock",
-        workingDirectory,
       },
+      allowedPaths: [{ path: workingDirectory, permission: "write" }],
       watch: {
         notes: {
-          path: "notes",
+          path: "/repo/notes",
           include: "\\.md$",
           stabilityThreshold: 10,
           actions: [{ action: "addToQueue", queue: "ingest" }],
@@ -138,12 +138,12 @@ describe("FileWatchService", () => {
 
     const pending = queueService.getPending("ingest");
     expect(pending).toHaveLength(1);
-    expect(pending[0]!.name).toBe("notes/todo.md");
+    expect(pending[0]!.name).toBe("todo.md");
     expect(pending[0]!.input.from).toBe("Filesystem Watch (notes)");
-    expect(pending[0]!.input.message).toBe("File changed: notes/todo.md");
+    expect(pending[0]!.input.message).toBe("File changed: todo.md");
     expect(pending[0]!.input.attachments).toEqual([
       {
-        name: "notes/todo.md",
+        name: "todo.md",
         description: 'Changed file from watch "notes"',
         encoding: "text",
         mimeType: "text/markdown",
@@ -156,11 +156,11 @@ describe("FileWatchService", () => {
     const config = FileSystemConfigSchema.parse({
       agentDefaults: {
         provider: "mock",
-        workingDirectory,
       },
+      allowedPaths: [{ path: workingDirectory, permission: "write" }],
       watch: {
         notes: {
-          path: "notes",
+          path: "/repo/notes",
           include: "\\.md$",
           contentIncludes: "URGENT",
           stabilityThreshold: 10,

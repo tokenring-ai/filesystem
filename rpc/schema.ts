@@ -1,7 +1,7 @@
 import type { RPCSchema } from "@tokenring-ai/rpc/types";
 import { AgentNotFoundSchema, SuccessSchema } from "@tokenring-ai/rpc/types";
 import { z } from "zod";
-import { StatSchema } from "../schema.ts";
+import { AllowedPathSchema, StatSchema } from "../schema.ts";
 
 export default {
   name: "Filesystem RPC",
@@ -12,6 +12,25 @@ export default {
       input: z.object({}),
       result: z.object({
         providers: z.array(z.string()),
+      }),
+    },
+    getAllowedPaths: {
+      type: "query",
+      input: z.object({
+        provider: z.string().exactOptional(),
+      }),
+      result: z.object({
+        allowedPaths: z.array(AllowedPathSchema),
+      }),
+    },
+    /** App-level directories the UI anchors on (launch dir for browsing/spawning, workspace dir for data). */
+    getDefaultDirectories: {
+      type: "query",
+      input: z.object({}),
+      result: z.object({
+        workingDirectory: z.string(),
+        workspaceDirectory: z.string(),
+        defaultProvider: z.string(),
       }),
     },
 
@@ -72,6 +91,8 @@ export default {
         provider: z.string(),
         query: z.string().default(""),
         limit: z.number().int().positive().default(48),
+        /** When true, entries matched by .gitignore/.aiignore are excluded. */
+        gitignore: z.boolean().default(false),
       }),
       result: z.object({
         files: z.array(z.string()),
@@ -85,6 +106,8 @@ export default {
         path: z.string(),
         showHidden: z.boolean().default(false),
         recursive: z.boolean().default(false),
+        /** When true, entries matched by .gitignore/.aiignore are excluded. */
+        gitignore: z.boolean().default(false),
       }),
       result: z.object({
         files: z.array(z.string()),
@@ -166,7 +189,7 @@ export default {
       result: z.discriminatedUnion("status", [
         SuccessSchema.extend({
           provider: z.string(),
-          workingDirectory: z.string(),
+          allowedPaths: z.array(AllowedPathSchema),
           selectedFiles: z.array(z.string()),
           readFiles: z.record(z.string(), z.number()),
           dirty: z.boolean(),
@@ -182,7 +205,7 @@ export default {
       result: z.discriminatedUnion("status", [
         SuccessSchema.extend({
           provider: z.string(),
-          workingDirectory: z.string(),
+          allowedPaths: z.array(AllowedPathSchema),
           selectedFiles: z.array(z.string()),
           readFiles: z.record(z.string(), z.number()),
           dirty: z.boolean(),

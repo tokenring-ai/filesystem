@@ -255,7 +255,6 @@ const results = await scriptingService.executeFunction("searchFiles", ["function
 filesystem:
   agentDefaults:
     provider: "posix"
-    workingDirectory: "."
     selectedFiles: ["src/main.ts", "README.md"]
     settings:
       requireReadBeforeWrite: true
@@ -289,7 +288,7 @@ filesystem:
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `provider` | `string` | No | `"posix"` | Filesystem provider new agents use by default (e.g. posix) |
-| `workingDirectory` | `string` | No | `"."` | Working directory new agents use by default, either relative to workspace or absolute |
+| `workingDirectory` | `string` | No | — | **Deprecated; ignored.** Access is governed by `filesystem.allowedPaths` (array of `{ path, permission, provider?, description? }`) |
 | `selectedFiles` | `string[]` | No | `[]` | Files preselected into new agents' context |
 | `settings` | `FileSystemToolSettingsSchema` | No | (schema defaults) | Filesystem tool settings (see below) |
 
@@ -358,7 +357,7 @@ Configuration metadata lives in `schema.ts` via `.meta()` annotations:
 | `filesystem` | label: "Filesystem", description: "Filesystem access for agents" |
 | `agentDefaults` | label: "Agent Defaults", description: "Filesystem behavior applied to newly created agents" |
 | `agentDefaults.provider` | description: "Filesystem provider new agents use by default (e.g. posix)" |
-| `agentDefaults.workingDirectory` | description: "Working directory new agents use by default, either relative to workspace or absolute" |
+| `allowedPaths` | description: "Directories agents may access with the filesystem and terminal tools" |
 | `agentDefaults.selectedFiles` | description: "Files preselected into new agents' context" |
 | `agentDefaults.settings` | label: "Filesystem Tool Settings" |
 | `settings.requireReadBeforeWrite` | description: "Require the agent to read a file before it may overwrite it" |
@@ -599,7 +598,7 @@ Tracks filesystem-related state for agents.
 |----------|------|-------------|
 | `selectedFiles` | `EnhancedSet<string>` | Files in chat context |
 | `providerName` | `string \| null` | Active provider name |
-| `workingDirectory` | `string` | Working directory for path resolution |
+| `allowedPaths` | `AllowedPath[]` | Directories agents may access |
 | `dirty` | `boolean` | Whether files have been modified |
 | `readFiles` | `EnhancedMap<string, number>` | Files that have been read (path to modification time in ms) |
 | `hasInjectedSimilarFiles` | `boolean` | Whether RAG-related files have been injected |
@@ -892,7 +891,7 @@ The package registers an RPC endpoint at `/rpc/filesystem` with 18 methods.
 
 ## Ignore Filter System
 
-The package automatically excludes files based on ignore patterns. The filter is created by `createIgnoreFilter` and applied to glob, grep, directory tree, and watch operations.
+The package automatically excludes files based on ignore patterns. Walks construct a per-call `TreeIgnore` (`util/treeIgnore.ts`) that honors nested `.gitignore`/`.aiignore` files as directories are entered; hidden files are skipped unless `includeHidden` is set, and `.git` is always pruned.
 
 **Built-in patterns:** `.git`, `*.lock`, `node_modules`, `.*` (all dotfiles)
 
@@ -902,7 +901,7 @@ The package automatically excludes files based on ignore patterns. The filter is
 - `.aiignore` — AI-specific ignore patterns
 
 ```typescript
-import createIgnoreFilter from "@tokenring-ai/filesystem/util/createIgnoreFilter";
+import { TreeIgnore } from "@tokenring-ai/filesystem/util/treeIgnore";
 
 const ignoreFilter = await createIgnoreFilter({
   exists: (path) => fileSystemService.exists(path, agent),
@@ -1048,7 +1047,8 @@ plugin/filesystem/
 │   ├── addSelectedFiles.ts              # addSelectedFiles hook
 │   └── addSimilarFiles.ts               # addSimilarFiles hook (RAG search)
 ├── util/
-│   ├── createIgnoreFilter.ts            # Ignore filter creation
+│   ├── treeIgnore.ts                    # Walk-scoped nested ignore handling
+│   ├── allowedPaths.ts                  # Allow-list authorization
 │   ├── runFileValidator.ts              # File validator runner and types
 │   ├── createFileWriteResult.ts         # File write result creation
 │   ├── findWordMatches.ts               # Word matching utility

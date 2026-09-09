@@ -10,14 +10,14 @@ import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirecto
 const name = "file_glob";
 const displayName = "Filesystem/glob";
 
-async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+async function execute({ filePaths, cwd, includeHidden, gitignore, aiignore }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);
 
   const matchCounts: Record<string, number> = {};
 
   const matchedFiles = new EnhancedSet<string>();
   for (const filePattern of filePaths) {
-    const matches = await fileSystem.glob(filePattern, {}, agent);
+    const matches = await fileSystem.glob(filePattern, { ...(cwd !== undefined && { cwd }), includeHidden, gitignore, aiignore }, agent);
     matchCounts[filePattern] = matches.length;
 
     for (const file of matches) {
@@ -58,14 +58,18 @@ async function execute({ filePaths }: z.output<typeof inputSchema>, agent: Agent
 }
 
 const description = `
-List files matching glob patterns relative to the project root folder.
-- File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
-- When more files match than the configured limit, returns a per-directory match count summary instead of individual files.
+List files matching glob patterns.
+- Patterns are absolute ('/project/src/**/*.ts'), or relative when 'cwd' names the absolute allowed directory to search from.
+- Results are absolute paths. When more files match than the configured limit, returns a per-directory match count summary instead of individual files.
 `.trim();
 
 const inputSchema = z
   .object({
-    filePaths: z.array(z.string()).describe('List of glob patterns to match files. Examples: "**/*.ts", "path/to/file.txt"').default(["**/*"]),
+    filePaths: z.array(z.string()).describe('List of glob patterns to match files. Examples: "/project/src/**/*.ts", or "**/*.ts" with cwd set.'),
+    cwd: z.string().exactOptional().describe("Absolute, allowed directory that relative patterns are resolved against."),
+    includeHidden: z.boolean().default(false).describe("Include files and directories whose name starts with '.'"),
+    gitignore: z.boolean().default(true).describe("Honor nested .gitignore files while walking"),
+    aiignore: z.boolean().default(true).describe("Honor nested .aiignore files while walking"),
   })
   .strict();
 
@@ -74,5 +78,6 @@ export default {
   displayName,
   description,
   inputSchema,
+  requiredContextHandlers: ["allowed-paths"],
   execute,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

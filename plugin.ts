@@ -8,6 +8,7 @@ import type { ScriptingThis } from "@tokenring-ai/scripting/ScriptingService";
 import { WebHostService } from "@tokenring-ai/web-host";
 import { z } from "zod";
 import agentCommands from "./commands.ts";
+import allowedPathsContextHandler from "./contextHandlers/allowedPaths.ts";
 import FilesystemContextualSearchProvider from "./contextualSearch/FilesystemContextualSearchProvider.ts";
 import FileSystemHttpResource from "./FileSystemHttpResource.ts";
 import FileSystemService from "./FileSystemService.ts";
@@ -51,23 +52,24 @@ export default {
 
       scriptingService.registerFunction("globFiles", {
         type: "native",
-        params: ["pattern"],
-        async execute(this: ScriptingThis, pattern: string): Promise<string[]> {
-          return await this.agent.requireService(FileSystemService).glob(pattern, {}, this.agent);
+        params: ["pattern", "cwd"],
+        async execute(this: ScriptingThis, pattern: string, cwd?: string): Promise<string[]> {
+          return await this.agent.requireService(FileSystemService).glob(pattern, cwd ? { cwd } : {}, this.agent);
         },
       });
 
       scriptingService.registerFunction("searchFiles", {
         type: "native",
-        params: ["searchString"],
-        async execute(this: ScriptingThis, searchString: string): Promise<string[]> {
-          const results = await this.agent.requireService(FileSystemService).grep([searchString], {}, this.agent);
+        params: ["searchString", "cwd"],
+        async execute(this: ScriptingThis, searchString: string, cwd?: string): Promise<string[]> {
+          const results = await this.agent.requireService(FileSystemService).grep([searchString], cwd ? { cwd } : {}, this.agent);
           return results.map(r => `${r.file}:${r.line}: ${r.match}`);
         },
       });
     });
     app.waitForService(ChatService, chatService => {
       chatService.addTools(tools);
+      chatService.registerContextHandler("allowed-paths", allowedPathsContextHandler);
     });
     app.waitForService(ContextualSearchService, service => {
       service.registerProvider("file", new FilesystemContextualSearchProvider(app));
@@ -75,7 +77,7 @@ export default {
 
     app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles, addSelectedFiles, addSimilarFiles));
     app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(agentCommands));
-    app.addService(FileSystemService, new FileSystemService());
+    app.addService(FileSystemService, new FileSystemService(app));
     app.addService(FileWatchService, new FileWatchService(app));
 
     app.waitForService(RpcService, rpcService => {

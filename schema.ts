@@ -6,12 +6,31 @@ export const FileMatchSchema = z.object({
   include: z
     .string()
     .exactOptional()
-    .meta({ uiType: "regex", description: "Regex matched against relative file paths to include" } satisfies ConfigFieldMeta),
+    .meta({ uiType: "regex", description: "Regex matched against file paths relative to the watch root to include" } satisfies ConfigFieldMeta),
   exclude: z
     .string()
     .exactOptional()
-    .meta({ uiType: "regex", description: "Regex matched against relative file paths to exclude" } satisfies ConfigFieldMeta),
+    .meta({ uiType: "regex", description: "Regex matched against file paths relative to the watch root to exclude" } satisfies ConfigFieldMeta),
 });
+
+export const AllowedPathPermissionSchema = z.enum(["read", "write"]);
+
+export const AllowedPathSchema = z.object({
+  path: z.string().meta({ description: "Absolute directory the agent may access (in the provider's namespace)" } satisfies ConfigFieldMeta),
+  permission: AllowedPathPermissionSchema.default("write").meta({
+    description: "read = list/read only; write = read plus create/modify/delete",
+  } satisfies ConfigFieldMeta),
+  provider: z
+    .string()
+    .exactOptional()
+    .meta({ description: "Filesystem provider this entry applies to (defaults to agentDefaults.provider)" } satisfies ConfigFieldMeta),
+  description: z
+    .string()
+    .exactOptional()
+    .meta({ description: "Optional label shown to the model and in Settings" } satisfies ConfigFieldMeta),
+});
+
+export type AllowedPath = z.output<typeof AllowedPathSchema>;
 
 export type ParsedFileMatch = z.output<typeof FileMatchSchema>;
 
@@ -145,7 +164,11 @@ export type ParsedTriggeredAction = z.output<typeof TriggeredActionSchema>;
 export const FileSystemAgentConfigSchema = z
   .object({
     provider: z.string().exactOptional(),
-    workingDirectory: z.string().exactOptional(),
+    /** @deprecated Ignored. Filesystem access is governed by `filesystem.allowedPaths`. */
+    workingDirectory: z
+      .string()
+      .exactOptional()
+      .meta({ hidden: true, description: "Deprecated; ignored. Use filesystem.allowedPaths." } satisfies ConfigFieldMeta),
     selectedFiles: z.array(z.string()).exactOptional(),
     settings: FileSystemToolSettingsSchema.partial().optional(),
   })
@@ -160,10 +183,11 @@ export const FileSystemConfigSchema = z
           .string()
           .default("posix")
           .meta({ description: "Filesystem provider new agents use by default (e.g. posix)" } satisfies ConfigFieldMeta),
+        /** @deprecated Ignored. Filesystem access is governed by `filesystem.allowedPaths`. */
         workingDirectory: z
           .string()
-          .default(".")
-          .meta({ description: "Working directory new agents use by default, either relative to workspace or absolute" } satisfies ConfigFieldMeta),
+          .exactOptional()
+          .meta({ hidden: true, description: "Deprecated; ignored. Use filesystem.allowedPaths." } satisfies ConfigFieldMeta),
         selectedFiles: z
           .array(z.string())
           .default([])
@@ -172,6 +196,10 @@ export const FileSystemConfigSchema = z
       })
       .prefault({})
       .meta({ label: "Agent Defaults", description: "Filesystem behavior applied to newly created agents" } satisfies ConfigFieldMeta),
+    allowedPaths: z
+      .array(AllowedPathSchema)
+      .default([])
+      .meta({ label: "Allowed Paths", description: "Directories agents may access with the filesystem and terminal tools" } satisfies ConfigFieldMeta),
     watch: z
       .record(z.string(), FileWatchSchema)
       .default({})

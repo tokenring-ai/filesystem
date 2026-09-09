@@ -4,9 +4,26 @@ import fileDefault from "./commands/file/default.ts";
 import fileList from "./commands/file/list.ts";
 import fileRemove from "./commands/file/remove.ts";
 import fileSelect from "./commands/file/select.ts";
+import pathAdd from "./commands/filesystem/path/add.ts";
+import pathList from "./commands/filesystem/path/list.ts";
+import pathRemove from "./commands/filesystem/path/remove.ts";
 import providerGet from "./commands/filesystem/provider/get.ts";
 import providerReset from "./commands/filesystem/provider/reset.ts";
 import providerSelect from "./commands/filesystem/provider/select.ts";
 import providerSet from "./commands/filesystem/provider/set.ts";
 
-export default [fileSelect, fileAdd, fileRemove, fileList, fileClear, fileDefault, providerGet, providerSet, providerSelect, providerReset];
+export default [
+  fileSelect,
+  fileAdd,
+  fileRemove,
+  fileList,
+  fileClear,
+  fileDefault,
+  providerGet,
+  providerSet,
+  providerSelect,
+  providerReset,
+  pathList,
+  pathAdd,
+  pathRemove,
+];

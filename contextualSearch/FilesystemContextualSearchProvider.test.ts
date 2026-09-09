@@ -10,10 +10,10 @@ import FilesystemContextualSearchProvider from "./FilesystemContextualSearchProv
 function createMockFileSystemProvider(initialFiles: Record<string, string>) {
   const files = new Map(Object.entries(initialFiles).map(([filePath, content]) => [filePath, Buffer.from(content)]));
   return {
-    async *getDirectoryTree(absolutePath: string, { ignoreFilter }: { ignoreFilter: (path: string) => boolean }) {
+    async *getDirectoryTree(absolutePath: string, { ignoreFilter }: { ignoreFilter: (path: string) => boolean | Promise<boolean> }) {
       const prefix = absolutePath.endsWith("/") ? absolutePath : `${absolutePath}/`;
       for (const filePath of files.keys()) {
-        if ((filePath === absolutePath || filePath.startsWith(prefix)) && !ignoreFilter(filePath)) {
+        if ((filePath === absolutePath || filePath.startsWith(prefix)) && !(await ignoreFilter(filePath))) {
           yield filePath;
         }
       }
@@ -64,11 +64,12 @@ function createMockFileSystemProvider(initialFiles: Record<string, string>) {
 describe("FilesystemContextualSearchProvider", () => {
   const app = createTestingApp();
   const fileSystemService = new FileSystemService(
+    app,
     FileSystemConfigSchema.parse({
       agentDefaults: {
         provider: "mock",
-        workingDirectory: "/repo",
       },
+      allowedPaths: [{ path: "/repo", permission: "write" }],
     }),
   );
   fileSystemService.registerFileSystemProvider(

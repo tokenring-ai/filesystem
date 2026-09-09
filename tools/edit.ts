@@ -7,6 +7,7 @@ import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
 import createFileWriteResult from "../util/createFileWriteResult.ts";
 import findWordMatches, { type WordMatch } from "../util/findWordMatches.ts";
+import requireAbsolutePath from "../util/requireAbsolutePath.ts";
 import runFileValidator from "../util/runFileValidator.ts";
 
 const name = "file_edit";
@@ -24,7 +25,7 @@ function describeMatch(content: string, match: WordMatch, index: number): string
   return `Match ${index + 1} at line ${line}, column ${column} (chars ${match.start}-${match.end}):\n…${before}》${matched}《${after}…`;
 }
 
-async function execute({ path: filePath, find, replace, multiple }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+async function execute({ path: rawPath, find, replace, multiple }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const { enabled } = agent.getState(FileSystemState).settings.fileEdit;
 
   if (!enabled) {
@@ -35,6 +36,7 @@ async function execute({ path: filePath, find, replace, multiple }: z.output<typ
   }
 
   const fileSystem = agent.requireService(FileSystemService);
+  const filePath = requireAbsolutePath(name, rawPath);
   const originalContent = await fileSystem.readTextFile(filePath, agent);
 
   if (originalContent === null) {
@@ -118,7 +120,7 @@ Modifies an existing file by finding a string and replacing it.
 `.trim();
 
 const inputSchema = z.object({
-  path: z.string().describe("Relative path of the file to edit (e.g., 'src/main.ts'). Relative to the project root directory."),
+  path: z.string().describe("Absolute path of the file to edit (e.g., '/project/src/main.ts'). Must be inside an allowed directory."),
   find: z.string().describe("Text to find. Will be trimmed; whitespace between words is not significant but word order and exact word content are."),
   replace: z.string().describe("Replacement text. Replaces the matched region verbatim. Use an empty string to delete the match."),
   multiple: z
@@ -136,6 +138,7 @@ export default {
   displayName,
   description,
   inputSchema,
+  requiredContextHandlers: ["allowed-paths"],
   execute,
   adjustActivation,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

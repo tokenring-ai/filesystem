@@ -1,20 +1,67 @@
+import path from "node:path";
 import { AgentManager } from "@tokenring-ai/agent";
 import { createAgentStateSliceStream } from "@tokenring-ai/agent/rpc/createAgentStateStream";
 import type TokenRingApp from "@tokenring-ai/app";
 import { createRPCEndpoint } from "@tokenring-ai/rpc/createRPCEndpoint";
 import { encode8601dates } from "@tokenring-ai/utility/date/transform8601Dates";
+import type { FileSystemProvider, IgnorePredicate } from "../FileSystemProvider.ts";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import { topLevelRoots } from "../util/allowedPaths.ts";
 import fallbackGlob from "../util/fallbackGlob.ts";
+import { TreeIgnore } from "../util/treeIgnore.ts";
 import { invalidateWorkspaceFileIndex, listWorkspaceFiles } from "../util/workspaceFileIndex.ts";
 import FileSystemRpcSchema from "./schema.ts";
 
+function providerIO(provider: FileSystemProvider) {
+  return {
+    readFile: async (filePath: string) => {
+      try {
+        return await provider.readFile(filePath);
+      } catch {
+        return null;
+      }
+    },
+    exists: async (filePath: string) => {
+      try {
+        return await provider.exists(filePath);
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+/**
+ * Root ignore state at the enclosing git repository (nearest ancestor with a
+ * `.git`) when there is one, so ancestor .gitignore files apply while browsing
+ * a subdirectory. Falls back to the directory itself.
+ */
+async function findIgnoreRoot(provider: FileSystemProvider, dir: string): Promise<string> {
+  if (!path.isAbsolute(dir)) return dir;
+  let current = path.resolve(dir);
+  for (;;) {
+    if (await providerIO(provider).exists(path.join(current, ".git"))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return path.resolve(dir);
+}
+
+/** Walk filter for browser listings: gitignore/aiignore rules only — hidden files stay a client-side toggle. */
+async function browserIgnoreFilter(provider: FileSystemProvider, dir: string): Promise<IgnorePredicate> {
+  const root = await findIgnoreRoot(provider, dir);
+  const treeIgnore = new TreeIgnore(root, { includeHidden: true }, providerIO(provider));
+  return treeIgnore.shouldIgnore;
+}
+
 const streamFilesystemState = createAgentStateSliceStream({
   SliceClass: FileSystemState,
-  project: state => ({
+  project: (state, agent) => ({
     status: "success" as const,
     provider: state.providerName ?? "",
-    workingDirectory: state.workingDirectory,
+    allowedPaths: agent.requireService(FileSystemService).getAllowedPaths(state.providerName ?? undefined),
     selectedFiles: state.selectedFiles.valuesArray(),
     readFiles: state.readFiles.toPlainObject(),
     dirty: state.dirty,
@@ -26,6 +73,20 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     const fs = app.requireService(FileSystemService);
     const providers = fs.getFilesystemProviderNames();
     return Promise.resolve({ providers });
+  },
+
+  getAllowedPaths(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    return Promise.resolve({ allowedPaths: fs.getAllowedPaths(args.provider) });
+  },
+
+  getDefaultDirectories(_args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    return Promise.resolve({
+      workingDirectory: app.appConfig.workingDirectory,
+      workspaceDirectory: app.appConfig.workspaceDirectory,
+      defaultProvider: fs.getDefaultProviderName(),
+    });
   },
 
   async readTextFile(args, app: TokenRingApp) {
@@ -67,8 +128,17 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
   async searchWorkspaceFiles(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
-    const globOptions = { ignoreFilter: () => false };
-    const allFiles = await listWorkspaceFiles(args.provider, provider, globOptions);
+    // Walk every top-level allowed root for this provider; gitignore filtering is opt-in.
+    const allFiles: string[] = [];
+    for (const root of topLevelRoots(fs.getAllowedPaths(args.provider))) {
+      const ignoreFilter = args.gitignore ? await browserIgnoreFilter(provider, root.path) : () => false;
+      allFiles.push(
+        ...(await listWorkspaceFiles(args.provider, provider, root.path, {
+          ignoreFilter,
+          variant: args.gitignore ? "gitignore" : "all",
+        })),
+      );
+    }
 
     const query = args.query.trim().toLowerCase();
     let matches = allFiles;
@@ -98,10 +168,11 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
   async listDirectory(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
     const provider = fs.requireFileSystemProviderByName(args.provider);
+    const ignoreFilter = args.gitignore ? await browserIgnoreFilter(provider, args.path) : () => false;
     const files: string[] = [];
     for await (const file of provider.getDirectoryTree(args.path, {
       recursive: args.recursive,
-      ignoreFilter: () => false,
+      ignoreFilter,
     })) {
       files.push(file);
     }
@@ -164,10 +235,11 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
       return { status: "agentNotFound" };
     }
     const state = agent.getState(FileSystemState);
+    const fs = app.requireService(FileSystemService);
     return Promise.resolve({
       status: "success",
       provider: state.providerName ?? "",
-      workingDirectory: state.workingDirectory,
+      allowedPaths: fs.getAllowedPaths(state.providerName ?? undefined),
       selectedFiles: state.selectedFiles.valuesArray(),
       readFiles: state.readFiles.toPlainObject(),
       dirty: state.dirty,

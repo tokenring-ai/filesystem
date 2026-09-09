@@ -8,8 +8,8 @@ import type { z } from "zod";
 import type { FileSystemProvider, FileSystemWatcher } from "./FileSystemProvider.ts";
 import FileSystemService from "./FileSystemService.ts";
 import type { FileSystemConfigSchema, ParsedFileWatch } from "./schema.ts";
-import createIgnoreFilter from "./util/createIgnoreFilter.ts";
 import detectMimeType from "./util/detectMimeType.ts";
+import { isIgnoreFile, RefreshingTreeIgnore } from "./util/treeIgnore.ts";
 
 type FileSystemConfig = z.output<typeof FileSystemConfigSchema>;
 
@@ -73,10 +73,9 @@ export default class FileWatchService implements TokenRingService {
   private async openWatcher(watchName: string, config: ParsedFileWatch): Promise<ActiveWatch> {
     const options = this.requireOptions();
     const providerName = config.provider ?? options.agentDefaults.provider;
-    const workingDirectory = options.agentDefaults.workingDirectory;
 
-    if (!workingDirectory) {
-      throw new ConfigurationError(this.name, `Watch "${watchName}" requires agentDefaults.workingDirectory`);
+    if (!path.isAbsolute(config.path)) {
+      throw new ConfigurationError(this.name, `Watch "${watchName}" path must be absolute (got "${config.path}")`);
     }
 
     const fileSystemService = this.app.requireService(FileSystemService);
@@ -86,12 +85,30 @@ export default class FileWatchService implements TokenRingService {
       throw new ConfigurationError(this.name, `File system provider '${providerName}' does not support watching`);
     }
 
-    const absolutePath = path.isAbsolute(config.path) ? path.normalize(config.path) : path.resolve(workingDirectory, config.path);
+    const absolutePath = await fileSystemService.authorizePathForProvider(config.path, "read", providerName);
 
-    const baseIgnore = await createIgnoreFilter({
-      exists: (filePath: string) => provider.exists(this.resolveProviderPath(filePath, workingDirectory)),
-      readFile: (filePath: string) => provider.readFile(this.resolveProviderPath(filePath, workingDirectory)),
-    });
+    // Event-time ignore: rebuilt after a short TTL (and when an ignore file
+    // changes), so .gitignore edits take effect while the watcher runs.
+    const baseIgnore = new RefreshingTreeIgnore(
+      absolutePath,
+      {},
+      {
+        readFile: async (filePath: string) => {
+          try {
+            return await provider.readFile(filePath);
+          } catch {
+            return null;
+          }
+        },
+        exists: async (filePath: string) => {
+          try {
+            return await provider.exists(filePath);
+          } catch {
+            return false;
+          }
+        },
+      },
+    );
 
     const include = config.include ? new RegExp(config.include) : undefined;
     const exclude = config.exclude ? new RegExp(config.exclude) : undefined;
@@ -100,9 +117,11 @@ export default class FileWatchService implements TokenRingService {
     const watcher = await provider.watch(absolutePath, {
       pollInterval: Math.min(1000, Math.max(100, Math.floor(config.stabilityThreshold / 5))),
       stabilityThreshold: config.stabilityThreshold,
-      ignoreFilter: (filePath: string) => {
-        const relativePath = this.toRelativePath(filePath, workingDirectory);
-        if (baseIgnore(relativePath)) return true;
+      ignoreFilter: async (filePath: string, isDirectory?: boolean) => {
+        if (isIgnoreFile(filePath)) baseIgnore.invalidate();
+        // include/exclude match paths relative to the watch root.
+        const relativePath = this.toWatchRelativePath(filePath, absolutePath);
+        if (await baseIgnore.shouldIgnore(filePath, isDirectory)) return true;
         if (exclude?.test(relativePath)) return true;
         if (include && !include.test(relativePath)) return true;
         return false;
@@ -126,7 +145,7 @@ export default class FileWatchService implements TokenRingService {
       if (Date.now() < current.readyAt) return;
       if (eventType !== "add" && eventType !== "change") return;
 
-      void this.handleStableFileChange(watchName, filePath, workingDirectory, provider).catch(err => {
+      void this.handleStableFileChange(watchName, filePath, absolutePath, provider).catch(err => {
         this.app.serviceError(this, `Error handling change for watch "${watchName}" file ${filePath}:`, err);
       });
     };
@@ -141,11 +160,11 @@ export default class FileWatchService implements TokenRingService {
     return active;
   }
 
-  private async handleStableFileChange(watchName: string, absoluteFilePath: string, workingDirectory: string, provider: FileSystemProvider): Promise<void> {
+  private async handleStableFileChange(watchName: string, absoluteFilePath: string, watchRoot: string, provider: FileSystemProvider): Promise<void> {
     const active = this.activeWatches.get(watchName);
     if (!active) return;
 
-    const relativePath = this.toRelativePath(absoluteFilePath, workingDirectory);
+    const relativePath = this.toWatchRelativePath(absoluteFilePath, watchRoot);
 
     // Double-check path filters in case the watcher emitted a path that slipped past ignoreFilter.
     if (active.exclude?.test(relativePath)) return;
@@ -201,16 +220,13 @@ export default class FileWatchService implements TokenRingService {
     }
   }
 
-  private toRelativePath(filePath: string, workingDirectory: string): string {
+  /** Path relative to the watch root (used for include/exclude matching and enqueue names). */
+  private toWatchRelativePath(filePath: string, watchRoot: string): string {
     if (!path.isAbsolute(filePath)) return filePath;
-    const relative = path.relative(workingDirectory, filePath);
+    const relative = path.relative(watchRoot, filePath);
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
       return filePath;
     }
     return relative;
-  }
-
-  private resolveProviderPath(filePath: string, workingDirectory: string): string {
-    return path.isAbsolute(filePath) ? filePath : path.resolve(workingDirectory, filePath);
   }
 }

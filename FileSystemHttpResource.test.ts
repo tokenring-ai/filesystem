@@ -59,6 +59,8 @@ function createMockProvider(files: Record<string, Buffer | string>, options?: { 
   };
 }
 
+const stubApp = { appConfig: { workspaceDirectory: "/tmp/fs-http-workspace" } } as unknown as TokenRingApp;
+
 function makeApp(fsService: FileSystemService, authUsers = AUTH_USERS): TokenRingApp {
   return {
     requireService(ctor: { name?: string }) {
@@ -105,7 +107,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("rejects unauthenticated requests with 401", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "x" }));
     const { file } = handlersFor(makeApp(fsService));
 
@@ -115,7 +117,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("rejects invalid credentials", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "x" }));
     const { file } = handlersFor(makeApp(fsService));
 
@@ -128,7 +130,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("serves a file with valid Basic auth", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "media-library/panda.png": "PNGDATA" }));
     const { file } = handlersFor(makeApp(fsService));
 
@@ -144,7 +146,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("supports HEAD without a body", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "abc" }));
     const { file } = handlersFor(makeApp(fsService));
 
@@ -160,7 +162,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("returns 404 for unknown provider", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     const { file } = handlersFor(makeApp(fsService));
     const response = await file(
       new Request("http://localhost/api/fs/missing/file.txt", {
@@ -171,7 +173,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("returns 404 for missing file", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({}));
     const { file } = handlersFor(makeApp(fsService));
     const response = await file(
@@ -183,7 +185,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("rejects null bytes and backslashes in the path", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "ok" }));
     const { file } = handlersFor(makeApp(fsService));
 
@@ -196,7 +198,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("sets Content-Disposition when download=1", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "docs/report.pdf": "%PDF" }));
     const { file } = handlersFor(makeApp(fsService));
 
@@ -212,8 +214,9 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("streams local files via Bun.file when absolutePath is set", async () => {
-    const fsService = new FileSystemService();
-    const virtualPath = "streamed/hello.txt";
+    const fsService = new FileSystemService(stubApp);
+    // Relative URLs on the default provider resolve against the workspace directory.
+    const virtualPath = "/tmp/fs-http-workspace/streamed/hello.txt";
     const provider = createMockProvider({ [virtualPath]: "ignored-buffer" });
     provider.stat = async (filePath: string): Promise<StatLike> => {
       if (filePath !== virtualPath) return { path: filePath, exists: false };
@@ -239,8 +242,27 @@ describe("FileSystemHttpResource", () => {
     expect(await response.text()).toBe("hello-stream");
   });
 
+  it("preserves an absolute path on the default provider instead of resolving it against the workspace directory", async () => {
+    const fsService = new FileSystemService(stubApp);
+    // Outside the workspace directory (/tmp/fs-http-workspace) entirely — this only
+    // resolves correctly if the leading slash survives the URL round-trip intact.
+    const absolutePath = "/Users/mdierolf/notes/todo.md";
+    fsService.registerFileSystemProvider("posix", createMockProvider({ [absolutePath]: "buy milk" }));
+
+    const { file } = handlersFor(makeApp(fsService));
+    // Mirrors what frontend/src/lib/workspaceFileUrl.ts produces for an absolute path:
+    // the leading slash is kept, appearing as a doubled slash after the provider segment.
+    const response = await file(
+      new Request("http://localhost/api/fs/posix//Users/mdierolf/notes/todo.md", {
+        headers: authHeaders(),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("buy milk");
+  });
+
   it("returns 405 for unsupported methods", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "a" }));
     const { file } = handlersFor(makeApp(fsService));
     const response = await file(
@@ -253,7 +275,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("decodes URI-encoded path segments", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a b.png": "IMG" }));
     const { file } = handlersFor(makeApp(fsService));
     const response = await file(
@@ -266,7 +288,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("accepts PUT uploads with Basic auth", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     const provider = createMockProvider({});
     fsService.registerFileSystemProvider("mock", provider);
     const { file } = handlersFor(makeApp(fsService));
@@ -293,7 +315,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("establishes a session cookie and accepts cookie auth on later requests", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "cookie-ok" }));
     const { file, session } = handlersFor(makeApp(fsService));
 
@@ -319,7 +341,7 @@ describe("FileSystemHttpResource", () => {
   });
 
   it("returns 503 when web-host auth is not configured", async () => {
-    const fsService = new FileSystemService();
+    const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "x" }));
     const app = {
       requireService(ctor: { name?: string }) {

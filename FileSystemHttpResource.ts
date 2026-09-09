@@ -123,11 +123,18 @@ export default class FileSystemHttpResource implements WebResource {
       const target = this.parseTarget(request, prefix);
       if (target instanceof Response) return target;
 
-      const { providerName, filePath } = target;
+      const { providerName } = target;
+      let { filePath } = target;
 
       let provider: FileSystemProvider;
       try {
-        provider = this.app.requireService(FileSystemService).requireFileSystemProviderByName(providerName);
+        const fileSystemService = this.app.requireService(FileSystemService);
+        provider = fileSystemService.requireFileSystemProviderByName(providerName);
+        // Relative URLs resolve against the workspace directory for the default
+        // (host filesystem) provider; other providers keep their own namespace.
+        if (!path.posix.isAbsolute(filePath) && providerName === fileSystemService.getDefaultProviderName()) {
+          filePath = fileSystemService.resolvePath(filePath);
+        }
       } catch {
         return this.withSessionCookie(new Response("Not Found", { status: 404 }), authResult.sessionId, authResult.renewCookie);
       }

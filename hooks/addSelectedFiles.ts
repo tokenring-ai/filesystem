@@ -33,7 +33,10 @@ async function addSelectedFiles(data: BeforeInputReceived, agent: Agent) {
 
       if (!cleanPath) continue;
 
-      filePathsToAttach.add(cleanPath);
+      // Relative mentions (src/foo.ts) are probed across the allowed roots;
+      // the first existing match wins. Absolute mentions pass through.
+      const probed = await fileSystem.probeMentionedPath(cleanPath, agent);
+      if (probed) filePathsToAttach.add(probed);
     }
   }
 

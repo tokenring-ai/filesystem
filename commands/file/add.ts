@@ -18,7 +18,10 @@ async function execute({ remainder, agent }: AgentCommandInputType<typeof inputS
 
   for (const file of filesToAdd) {
     try {
-      await filesystem.addFileToChat(file, agent);
+      // Relative arguments are probed across the allowed roots.
+      const probed = await filesystem.probeMentionedPath(file, agent);
+      if (!probed) throw new CommandFailedError(`Could not find ${file} in any allowed directory`);
+      await filesystem.addFileToChat(probed, agent);
       addedCount++;
     } catch (err) {
       throw new CommandFailedError(`Failed to add file ${file}`, { cause: err });

@@ -10,7 +10,10 @@ import { buildDirectorySummaryResponse } from "../util/summarizeMatchesByDirecto
 const name = "file_grep";
 const displayName = "Filesystem/grep";
 
-async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
+async function execute(
+  { filePaths, searchTerms, cwd, includeHidden, gitignore, aiignore }: z.output<typeof inputSchema>,
+  agent: Agent,
+): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);
 
   const matchCounts: Record<string, number> = {};
@@ -18,9 +21,10 @@ async function execute({ filePaths, searchTerms }: z.output<typeof inputSchema>,
     matchCounts[term] = 0;
   }
 
+  const walkOptions = { ...(cwd !== undefined && { cwd }), includeHidden, gitignore, aiignore };
   const matchedFiles = new Set<string>();
   for (const filePattern of filePaths) {
-    for (const file of await fileSystem.glob(filePattern, {}, agent)) {
+    for (const file of await fileSystem.glob(filePattern, walkOptions, agent)) {
       matchedFiles.add(file);
     }
   }
@@ -176,7 +180,7 @@ ${fileListing(results.keys())}
 
 const description = `
 Search for text patterns within files. Supports plain string and regex patterns.
-- File paths use Unix-style '/' separators and are relative to the root folder defined by the user.
+- File patterns are absolute ('/project/src/**/*.ts'), or relative when 'cwd' names the absolute allowed directory to search from.
 - Searches are OR-based across multiple patterns (any match counts).
 - Automatically returns complete file contents, directory listings, directory summaries, or grep-style snippets based on match count.
 - When more files match than the configured limit, returns a per-directory match count summary instead of individual files.
@@ -184,10 +188,17 @@ Search for text patterns within files. Supports plain string and regex patterns.
 
 const inputSchema = z
   .object({
-    filePaths: z.array(z.string()).describe('List of file paths or glob patterns to search within. Examples: "**/*.ts", "path/to/file.txt"').default(["**/*"]),
+    filePaths: z
+      .array(z.string())
+      .describe('List of absolute file paths or glob patterns to search within; relative patterns require cwd. Examples: "/project/src/**/*.ts"')
+      .default(["**/*"]),
     searchTerms: z
       .array(z.string())
       .describe('List of search terms. Plain strings use fuzzy substring match; wrap in \'/\' for regex. Examples: "searchTerm", "/searchTerm.*/"'),
+    cwd: z.string().exactOptional().describe("Absolute, allowed directory that relative patterns are resolved against."),
+    includeHidden: z.boolean().default(false).describe("Include files and directories whose name starts with '.'"),
+    gitignore: z.boolean().default(true).describe("Honor nested .gitignore files while walking"),
+    aiignore: z.boolean().default(true).describe("Honor nested .aiignore files while walking"),
   })
   .strict();
 
@@ -201,6 +212,7 @@ export default {
   displayName,
   description,
   inputSchema,
+  requiredContextHandlers: ["allowed-paths"],
   execute,
   adjustActivation,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

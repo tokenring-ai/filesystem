@@ -26,19 +26,24 @@ export interface GrepResult {
   content: string | null;
 }
 
+/**
+ * Walk-time ignore predicate. May be async (it can read nested ignore files as
+ * the walk proceeds); providers must await it and prune when it returns true.
+ */
+export type IgnorePredicate = (path: string, isDirectory?: boolean) => MaybePromise<boolean>;
+
 export interface DirectoryTreeOptions {
-  ignoreFilter: (path: string) => boolean;
+  ignoreFilter: IgnorePredicate;
   recursive?: boolean | undefined;
 }
 
 export interface GlobOptions {
-  ignoreFilter: (path: string) => boolean;
-  absolute?: boolean | undefined;
+  ignoreFilter: IgnorePredicate;
   includeDirectories?: boolean | undefined;
 }
 
 export interface WatchOptions {
-  ignoreFilter: (path: string) => boolean;
+  ignoreFilter: IgnorePredicate;
   pollInterval?: number | undefined;
   stabilityThreshold?: number | undefined;
 }
@@ -51,9 +56,10 @@ export interface FileSystemWatcher {
 }
 
 export interface GrepOptions {
-  ignoreFilter: (path: string) => boolean;
+  ignoreFilter: IgnorePredicate;
   includeContent?: { linesBefore?: number | undefined; linesAfter?: number | undefined };
-  cwd?: string | undefined;
+  /** Absolute directory to walk. Required — there is no implicit default. */
+  cwd: string;
 }
 
 /**
@@ -84,6 +90,12 @@ export interface FileSystemProvider {
   copy(absoluteSource: string, absoluteDestination: string, options?: { overwrite?: boolean | undefined }): MaybePromise<boolean>;
 
   glob?(absolutePattern: string, options?: GlobOptions): MaybePromise<string[]>;
+
+  /**
+   * Resolve symlinks in an absolute path (posix providers). Used by allow-list
+   * authorization to prevent symlink escapes; throws when the path does not exist.
+   */
+  realpath?(absolutePath: string): Promise<string>;
 
   watch?(absoluteDir: string, options?: WatchOptions): MaybePromise<FileSystemWatcher>;
 

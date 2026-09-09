@@ -1,3 +1,4 @@
+import path from "node:path";
 import { AgentStateSlice } from "@tokenring-ai/agent/types";
 import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
 import deepClone from "@tokenring-ai/utility/object/deepClone";
@@ -9,7 +10,8 @@ import { type FileSystemConfigSchema, FileSystemToolSettingsSchema } from "../sc
 const serializationSchema = z.object({
   selectedFiles: z.array(z.string()),
   activeFileSystemProviderName: z.string().nullable(),
-  workingDirectory: z.string(),
+  // Legacy field from before the allow-list model; ignored on restore.
+  workingDirectory: z.string().optional(),
   dirty: z.boolean(),
   settings: FileSystemToolSettingsSchema,
   readFiles: z.record(z.string(), z.number()),
@@ -20,7 +22,6 @@ const serializationSchema = z.object({
 export class FileSystemState extends AgentStateSlice<typeof serializationSchema> {
   selectedFiles: EnhancedSet<string>;
   providerName: string | null;
-  workingDirectory: string;
   dirty: boolean = false;
   readFiles = new EnhancedMap<string, number>();
   hasInjectedSimilarFiles: boolean = false;
@@ -28,11 +29,10 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
 
   settings: z.output<typeof FileSystemToolSettingsSchema>;
 
-  constructor(readonly initialConfig: z.output<typeof FileSystemConfigSchema>["agentDefaults"]) {
+  constructor(readonly initialConfig: Omit<z.output<typeof FileSystemConfigSchema>["agentDefaults"], "workingDirectory">) {
     super("FileSystemState", serializationSchema);
     this.selectedFiles = new EnhancedSet(initialConfig.selectedFiles);
     this.providerName = initialConfig.provider;
-    this.workingDirectory = initialConfig.workingDirectory;
     this.settings = deepClone(initialConfig.settings);
   }
 
@@ -40,7 +40,6 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
     return {
       selectedFiles: this.selectedFiles.valuesArray(),
       activeFileSystemProviderName: this.providerName,
-      workingDirectory: this.workingDirectory,
       dirty: this.dirty,
       settings: this.settings,
       readFiles: this.readFiles.toPlainObject(),
@@ -50,19 +49,18 @@ export class FileSystemState extends AgentStateSlice<typeof serializationSchema>
   }
 
   deserialize(data: z.output<typeof serializationSchema>): void {
-    this.selectedFiles = new EnhancedSet(data.selectedFiles);
+    // Relative entries predate the absolute-path model and have no resolution base; drop them.
+    this.selectedFiles = new EnhancedSet(data.selectedFiles.filter(file => path.isAbsolute(file)));
     this.providerName = data.activeFileSystemProviderName;
-    this.workingDirectory = data.workingDirectory;
     this.dirty = data.dirty;
     this.settings = data.settings;
-    this.readFiles = EnhancedMap.fromPlainObject(data.readFiles);
+    this.readFiles = new EnhancedMap(Object.entries(data.readFiles).filter(([file]) => path.isAbsolute(file)));
     this.hasInjectedSimilarFiles = data.hasInjectedSimilarFiles;
     this.fileEditFailureCount = data.fileEditFailureCount;
   }
 
   show(): string {
     return `Provider: ${this.providerName}
-Working Directory: ${this.workingDirectory}
 Dirty: ${this.dirty}
 Selected Files and Directories: ${this.selectedFiles.size}
 Read Files with modification times: ${this.readFiles.size}
