@@ -127,8 +127,9 @@ export default class FileSystemHttpResource implements WebResource {
       let { filePath } = target;
 
       let provider: FileSystemProvider;
+      let fileSystemService: FileSystemService | undefined;
       try {
-        const fileSystemService = this.app.requireService(FileSystemService);
+        fileSystemService = this.app.requireService(FileSystemService);
         provider = fileSystemService.requireFileSystemProviderByName(providerName);
         // Relative URLs resolve against the workspace directory for the default
         // (host filesystem) provider; other providers keep their own namespace.
@@ -142,7 +143,12 @@ export default class FileSystemHttpResource implements WebResource {
       if (request.method === "PUT") {
         try {
           const body = Buffer.from(await request.arrayBuffer());
-          await provider.writeFile(filePath, body);
+          // Default-provider uploads go through the system write so they archive like any other write.
+          if (fileSystemService && providerName === fileSystemService.getDefaultProviderName()) {
+            await fileSystemService.writeSystemFile(filePath, body);
+          } else {
+            await provider.writeFile(filePath, body);
+          }
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : "Upload failed";
           return this.withSessionCookie(new Response(message, { status: 500 }), authResult.sessionId, authResult.renewCookie);

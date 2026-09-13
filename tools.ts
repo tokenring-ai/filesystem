@@ -1,3 +1,4 @@
+import del from "./tools/delete.ts";
 import edit from "./tools/edit.ts";
 import glob from "./tools/glob.ts";
 import grep from "./tools/grep.ts";
@@ -8,6 +9,7 @@ export default [
   edit,
   write,
   read,
+  del,
   //append,
   glob,
   grep,

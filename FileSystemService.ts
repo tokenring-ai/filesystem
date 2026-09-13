@@ -13,6 +13,7 @@ import { FileSystemAgentConfigSchema, FileSystemConfigSchema } from "./schema.ts
 import { FileSystemState } from "./state/fileSystemState.ts";
 import { allowedPathsForProvider, authorizePath, type PathAccess, PathNotAllowedError } from "./util/allowedPaths.ts";
 import { findFirstMagicIndex } from "./util/fallbackGlob.ts";
+import { type ArchivedVersionSummary, archivePreviousVersion, listArchivedVersions, readArchivedVersion } from "./util/fileArchive.ts";
 import { RefreshingTreeIgnore, TreeIgnore, type TreeIgnoreIO, type WalkIgnoreOptions } from "./util/treeIgnore.ts";
 
 export type TreeWalkOptions = WalkIgnoreOptions & { recursive?: boolean | undefined };
@@ -188,22 +189,101 @@ export default class FileSystemService implements TokenRingService {
   }
 
   // file ops
+
+  /** Subscribes to successful file writes (absolute provider paths). Returns an unsubscribe function. */
+  onFileWritten(listener: (absolutePath: string) => void): () => void {
+    this.writeListeners.add(listener);
+    return () => this.writeListeners.delete(listener);
+  }
+
+  private writeListeners = new Set<(absolutePath: string) => void>();
+
+  private notifyFileWritten(absolutePath: string): void {
+    for (const listener of this.writeListeners) {
+      try {
+        listener(absolutePath);
+      } catch {
+        // Listener errors must never break the write path.
+      }
+    }
+  }
+
+  /**
+   * Reads the content that is about to be overwritten and queues it for
+   * archiving (best-effort, off the write path's critical latency). Returns the
+   * promise so callers may await it when they need ordering guarantees.
+   */
+  private archiveBeforeWrite(provider: FileSystemProvider, target: string): Promise<void> {
+    const archiveConfig = this.options.archive;
+    if (!archiveConfig?.enabled) return Promise.resolve();
+    return Promise.resolve(provider.readFile(target))
+      .then(previous => {
+        if (!previous) return;
+        return archivePreviousVersion({
+          config: archiveConfig,
+          workspaceDirectory: this.app.appConfig.workspaceDirectory,
+          absolutePath: target,
+          previousContent: previous,
+        });
+      })
+      .catch(() => {
+        // Archiving is best-effort; never surface failures to the write path.
+      });
+  }
+
   async writeFile(filePath: string, content: string | Buffer, agent: Agent): Promise<boolean> {
     const target = await this.authorizePath(filePath, "write", agent);
+    const activeFileSystem = this.requireActiveFileSystem(agent);
+    await this.archiveBeforeWrite(activeFileSystem, target);
     this.setDirty(true, agent);
-    return this.requireActiveFileSystem(agent).writeFile(target, content);
+    const result = await activeFileSystem.writeFile(target, content);
+    this.notifyFileWritten(target);
+    return result;
+  }
+
+  /**
+   * Agentless write for internal services and HTTP resources: same archive and
+   * notification behavior as {@link writeFile}, resolved against the default
+   * provider's namespace without permission state.
+   */
+  async writeSystemFile(filePath: string, content: string | Buffer): Promise<boolean> {
+    const target = this.resolvePath(filePath);
+    await this.archiveBeforeWrite(this.defaultProvider, target);
+    const result = await this.defaultProvider.writeFile(target, content);
+    this.notifyFileWritten(target);
+    return result;
   }
 
   async appendFile(filePath: string, finalContent: string | Buffer, agent: Agent): Promise<boolean> {
     const target = await this.authorizePath(filePath, "write", agent);
+    const activeFileSystem = this.requireActiveFileSystem(agent);
+    await this.archiveBeforeWrite(activeFileSystem, target);
     this.setDirty(true, agent);
-    return this.requireActiveFileSystem(agent).appendFile(target, finalContent);
+    const result = await activeFileSystem.appendFile(target, finalContent);
+    this.notifyFileWritten(target);
+    return result;
   }
 
   async deleteFile(filePath: string, agent: Agent): Promise<boolean> {
     const target = await this.authorizePath(filePath, "write", agent);
     this.setDirty(true, agent);
     return this.requireActiveFileSystem(agent).deleteFile(target);
+  }
+
+  // archived versions
+
+  /** Archived previous versions of a file (workspace-relative or absolute path), newest first. */
+  async listVersions(filePath: string): Promise<ArchivedVersionSummary[]> {
+    const archiveConfig = this.options.archive;
+    if (!archiveConfig?.enabled) return [];
+    return listArchivedVersions(archiveConfig, this.app.appConfig.workspaceDirectory, this.resolvePath(filePath));
+  }
+
+  /** Content of one archived version, or null when the version does not exist. */
+  async readVersion(filePath: string, versionId: string): Promise<Buffer | null> {
+    const archiveConfig = this.options.archive;
+    if (!archiveConfig?.enabled) return null;
+    return readArchivedVersion(archiveConfig, this.app.appConfig.workspaceDirectory, this.resolvePath(filePath), versionId);
   }
 
   async readFile(filePath: string, agent: Agent): Promise<Buffer | null> {

@@ -133,6 +133,15 @@ export const FileSystemToolSettingsSchema = z.object({
     })
     .prefault({})
     .meta({ label: "File Edit", advanced: true, description: "Behavior of the in-place file edit tool" } satisfies ConfigFieldMeta),
+  fileDelete: z
+    .object({
+      enabled: z
+        .boolean()
+        .default(true)
+        .meta({ description: "Allow agents to use the file delete tool" } satisfies ConfigFieldMeta),
+    })
+    .prefault({})
+    .meta({ label: "File Delete", advanced: true, description: "Behavior of the file delete tool" } satisfies ConfigFieldMeta),
 });
 
 const AddToQueueActionSchema = z.object({
@@ -160,6 +169,34 @@ export const FileWatchSchema = FileMatchSchema.extend({
 
 export type ParsedFileWatch = z.output<typeof FileWatchSchema>;
 export type ParsedTriggeredAction = z.output<typeof TriggeredActionSchema>;
+
+export const FileArchiveConfigSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .default(true)
+      .meta({ description: "Archive the previous version of a file before it is overwritten" } satisfies ConfigFieldMeta),
+    directory: z
+      .string()
+      .default(".archive")
+      .meta({ description: "Workspace-relative directory where archived previous versions are stored" } satisfies ConfigFieldMeta),
+    maxVersions: z
+      .number()
+      .min(1)
+      .default(50)
+      .meta({ description: "Most archived versions kept per file (oldest pruned)" } satisfies ConfigFieldMeta),
+    exclude: z
+      .array(z.string())
+      .default([])
+      .meta({
+        uiType: "regex",
+        description: "Regexes matched against workspace-relative file paths that are never archived",
+      } satisfies ConfigFieldMeta),
+  })
+  .prefault({})
+  .meta({ label: "File Archiving", description: "Keep archived previous versions of overwritten files under the workspace" } satisfies ConfigFieldMeta);
+
+export type ParsedFileArchiveConfig = z.output<typeof FileArchiveConfigSchema>;
 
 export const FileSystemAgentConfigSchema = z
   .object({
@@ -204,6 +241,7 @@ export const FileSystemConfigSchema = z
       .record(z.string(), FileWatchSchema)
       .default({})
       .meta({ label: "File Watching", description: "Automatically trigger actions when files change" } satisfies ConfigFieldMeta),
+    archive: FileArchiveConfigSchema.meta({ label: "File Archiving" } satisfies ConfigFieldMeta),
   })
   .strict()
   .prefault({})
