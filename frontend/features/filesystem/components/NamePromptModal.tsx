@@ -98,7 +98,7 @@ export default function NamePromptModal({
               type="button"
               onClick={() => void handleSubmit()}
               disabled={!canSubmit}
-              className="flex-1 flex items-center justify-center gap-2 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-semibold rounded-lg transition-colors focus-ring cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 flex items-center justify-center gap-2 py-2 btn-accent text-xs font-semibold rounded-lg transition-colors focus-ring cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
               {confirmText}

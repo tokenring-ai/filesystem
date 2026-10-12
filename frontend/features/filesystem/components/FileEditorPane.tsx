@@ -1,7 +1,7 @@
 import CodeEditor from "@tokenring-ai/one-frontend/components/editor/CodeEditor.tsx";
 import MarkdownEditor from "@tokenring-ai/one-frontend/components/editor/MarkdownEditor.tsx";
 import DetailViewerArea from "@tokenring-ai/one-frontend/components/ui/DetailViewerArea.tsx";
-import { Code, FileWarning, Loader2, Save } from "lucide-react";
+import { Code, FileWarning, History, Loader2, Save } from "lucide-react";
 import { getBasename, isLikelyTextFile } from "../fsUtils.ts";
 
 interface FileEditorPaneProps {
@@ -14,6 +14,9 @@ interface FileEditorPaneProps {
   saving?: boolean;
   onSave?: () => void;
   loadError?: string | null;
+  /** Shows a "Versions" toggle in the header. */
+  onToggleVersions?: () => void;
+  versionsOpen?: boolean;
 }
 
 export default function FileEditorPane({
@@ -26,6 +29,8 @@ export default function FileEditorPane({
   saving = false,
   onSave,
   loadError,
+  onToggleVersions,
+  versionsOpen = false,
 }: FileEditorPaneProps) {
   return (
     <DetailViewerArea
@@ -49,6 +54,8 @@ export default function FileEditorPane({
           saving={saving}
           {...(onSave != null ? { onSave } : {})}
           {...(loadError !== undefined ? { loadError } : {})}
+          {...(onToggleVersions != null ? { onToggleVersions } : {})}
+          versionsOpen={versionsOpen}
         />
       )}
     />
@@ -65,6 +72,8 @@ function FileEditorBody({
   saving,
   onSave,
   loadError,
+  onToggleVersions,
+  versionsOpen,
 }: {
   file: string;
   content: string;
@@ -75,6 +84,8 @@ function FileEditorBody({
   saving: boolean;
   onSave?: () => void;
   loadError?: string | null;
+  onToggleVersions?: () => void;
+  versionsOpen: boolean;
 }) {
   const name = getBasename(file);
   const textEditable = isLikelyTextFile(file);
@@ -93,6 +104,21 @@ function FileEditorBody({
         </span>
         {isDirty && <span className="text-xs text-amber-400 shrink-0">unsaved</span>}
         <div className="flex-1" />
+        {onToggleVersions && textEditable && (
+          <button
+            type="button"
+            onClick={onToggleVersions}
+            aria-pressed={versionsOpen}
+            className={`flex items-center gap-1.5 px-2 py-1 transition-colors focus-ring rounded-md text-xs cursor-pointer ${
+              versionsOpen ? "text-primary bg-hover" : "text-muted hover:text-primary"
+            }`}
+            aria-label="Versions"
+            title="Earlier versions of this file"
+          >
+            <History className="w-3.5 h-3.5" />
+            Versions
+          </button>
+        )}
         {onSave && textEditable && (
           <button
             type="button"

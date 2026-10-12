@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent.test";
 import TokenRingApp from "@tokenring-ai/app";
+import ChatService from "@tokenring-ai/chat/ChatService";
 import FileSystemService from "./FileSystemService.ts";
 import { FileSystemConfigSchema } from "./schema.ts";
 import deleteTool from "./tools/delete.ts";
@@ -207,6 +208,7 @@ describe("file_delete", () => {
   let service: FileSystemService;
   let agent: ReturnType<typeof createTestingAgent>;
   let provider: ReturnType<typeof createMockProvider>;
+  let approved: boolean;
 
   beforeEach(() => {
     workspace = fs.mkdtempSync(path.join(os.tmpdir(), "tr-file-delete-"));
@@ -231,6 +233,11 @@ describe("file_delete", () => {
     );
     service.registerFileSystemProvider("mock", provider as never);
     app.addService(FileSystemService, service);
+    // Deletion is gated behind the chat tool-approval flow; stub the decision.
+    approved = true;
+    app.addService(ChatService, {
+      checkToolApproval: async () => approved,
+    } as never);
     service.start();
 
     agent = createTestingAgent(app);
@@ -257,5 +264,14 @@ describe("file_delete", () => {
     const result = await deleteTool.execute({ path: path.join(workspace, "missing.txt") }, agent);
     expect(result.failed).toBe(true);
     expect(result.message).toContain("File not found");
+  });
+
+  test("does not delete when the user rejects the approval prompt", async () => {
+    approved = false;
+    const target = path.join(workspace, "doomed.txt");
+    const result = await deleteTool.execute({ path: target }, agent);
+    expect(result.failed).toBe(true);
+    expect(result.message).toContain("Not approved");
+    expect(provider.files.has(target)).toBe(true);
   });
 });

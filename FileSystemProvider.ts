@@ -60,6 +60,10 @@ export interface GrepOptions {
   includeContent?: { linesBefore?: number | undefined; linesAfter?: number | undefined };
   /** Absolute directory to walk. Required — there is no implicit default. */
   cwd: string;
+  /** Stop after this many matching lines. Providers that cannot stop early may ignore it; callers still truncate. */
+  maxResults?: number | undefined;
+  /** Match case-insensitively (default false). */
+  ignoreCase?: boolean | undefined;
 }
 
 /**
@@ -76,6 +80,14 @@ export interface FileSystemProvider {
   appendFile(absoluteFilePath: string, finalContent: string | Buffer): MaybePromise<boolean>;
 
   deleteFile(absolutePath: string): MaybePromise<boolean>;
+
+  /**
+   * Recursively delete a directory and everything inside it. Must refuse
+   * anything that is not a real directory (files, symlinks). Callers go
+   * through FileSystemService, which authorizes the path and refuses allowed
+   * roots; providers do not need to repeat that policy.
+   */
+  deleteDirectory?(absolutePath: string): MaybePromise<boolean>;
 
   readFile(absolutePath: string): MaybePromise<Buffer | null>;
 

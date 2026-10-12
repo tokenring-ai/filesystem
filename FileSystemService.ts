@@ -11,7 +11,7 @@ import type { DirectoryTreeOptions, FileSystemProvider, FileSystemWatcher, GrepO
 import type { AllowedPath } from "./schema.ts";
 import { FileSystemAgentConfigSchema, FileSystemConfigSchema } from "./schema.ts";
 import { FileSystemState } from "./state/fileSystemState.ts";
-import { allowedPathsForProvider, authorizePath, type PathAccess, PathNotAllowedError } from "./util/allowedPaths.ts";
+import { allowedPathsForProvider, authorizePath, type PathAccess, PathNotAllowedError, pathIsWithin } from "./util/allowedPaths.ts";
 import { findFirstMagicIndex } from "./util/fallbackGlob.ts";
 import { type ArchivedVersionSummary, archivePreviousVersion, listArchivedVersions, readArchivedVersion } from "./util/fileArchive.ts";
 import { RefreshingTreeIgnore, TreeIgnore, type TreeIgnoreIO, type WalkIgnoreOptions } from "./util/treeIgnore.ts";
@@ -215,7 +215,7 @@ export default class FileSystemService implements TokenRingService {
    */
   private archiveBeforeWrite(provider: FileSystemProvider, target: string): Promise<void> {
     const archiveConfig = this.options.archive;
-    if (!archiveConfig?.enabled) return Promise.resolve();
+    if (!archiveConfig.enabled) return Promise.resolve();
     return Promise.resolve(provider.readFile(target))
       .then(previous => {
         if (!previous) return;
@@ -270,19 +270,100 @@ export default class FileSystemService implements TokenRingService {
     return this.requireActiveFileSystem(agent).deleteFile(target);
   }
 
+  /**
+   * Recursively delete a directory for an agent. See {@link deleteDirectoryForProvider}.
+   */
+  async deleteDirectory(dirPath: string, agent: Agent): Promise<boolean> {
+    const { providerName } = agent.getState(FileSystemState);
+    if (!providerName) throw new Error("No file system provider configured for agent");
+    this.setDirty(true, agent);
+    return this.deleteDirectoryForProvider(dirPath, providerName);
+  }
+
+  /**
+   * Recursively delete a directory. The path must be write-authorized by the
+   * allow-list (symlinks resolved), and may not be an allowed root, the
+   * workspace or working directory, or anything containing one of them.
+   */
+  async deleteDirectoryForProvider(dirPath: string, providerName: string): Promise<boolean> {
+    const provider = this.fileSystemProviderRegistry.require(providerName);
+    if (!provider.deleteDirectory) {
+      throw new Error(`The ${providerName} filesystem does not support deleting directories`);
+    }
+    const target = await this.authorizePathForProvider(dirPath, "write", providerName);
+    await this.assertDeletableDirectory(target, provider, providerName);
+    const stat = await provider.stat(target);
+    if (!stat.exists) throw new Error(`Directory ${target} does not exist`);
+    if (!stat.isDirectory) throw new Error(`Path ${target} is not a directory`);
+    return provider.deleteDirectory(target);
+  }
+
+  /** Throws when `target` is a protected directory (an allowed root, the workspace, or one of their ancestors). */
+  private async assertDeletableDirectory(target: string, provider: FileSystemProvider, providerName: string): Promise<void> {
+    const protectedRoots = this.getAllowedPaths(providerName).map(entry => entry.path);
+    if (providerName === this.options.agentDefaults.provider) {
+      protectedRoots.push(path.resolve(this.app.appConfig.workspaceDirectory), path.resolve(this.app.appConfig.workingDirectory));
+    }
+    // Check the symlink-resolved location too, so a path through a linked parent cannot reach a protected root.
+    const candidates = [target];
+    if (provider.realpath) {
+      try {
+        const real = await provider.realpath(target);
+        if (real !== target) candidates.push(real);
+      } catch {
+        // Missing paths are reported by the caller's stat.
+      }
+    }
+    for (const candidate of candidates) {
+      if (candidate === path.parse(candidate).root) {
+        throw new PathNotAllowedError(`Refusing to delete the filesystem root`);
+      }
+      for (const root of protectedRoots) {
+        if (pathIsWithin(candidate, root)) {
+          throw new PathNotAllowedError(
+            candidate === path.resolve(root)
+              ? `Refusing to delete ${target}: it is an allowed root directory`
+              : `Refusing to delete ${target}: it contains the allowed directory ${root}`,
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Count what a recursive delete would remove (read-authorized). Stops at
+   * `limit` entries and reports `truncated`.
+   */
+  async countDirectoryEntriesForProvider(
+    dirPath: string,
+    providerName: string,
+    limit = 100_000,
+  ): Promise<{ files: number; directories: number; truncated: boolean }> {
+    const provider = this.fileSystemProviderRegistry.require(providerName);
+    const target = await this.authorizePathForProvider(dirPath, "read", providerName);
+    let files = 0;
+    let directories = 0;
+    for await (const entry of provider.getDirectoryTree(target, { ignoreFilter: () => false, recursive: true })) {
+      if (entry.endsWith("/") || entry.endsWith(path.sep)) directories++;
+      else files++;
+      if (files + directories >= limit) return { files, directories, truncated: true };
+    }
+    return { files, directories, truncated: false };
+  }
+
   // archived versions
 
   /** Archived previous versions of a file (workspace-relative or absolute path), newest first. */
   async listVersions(filePath: string): Promise<ArchivedVersionSummary[]> {
     const archiveConfig = this.options.archive;
-    if (!archiveConfig?.enabled) return [];
+    if (!archiveConfig.enabled) return [];
     return listArchivedVersions(archiveConfig, this.app.appConfig.workspaceDirectory, this.resolvePath(filePath));
   }
 
   /** Content of one archived version, or null when the version does not exist. */
   async readVersion(filePath: string, versionId: string): Promise<Buffer | null> {
     const archiveConfig = this.options.archive;
-    if (!archiveConfig?.enabled) return null;
+    if (!archiveConfig.enabled) return null;
     return readArchivedVersion(archiveConfig, this.app.appConfig.workspaceDirectory, this.resolvePath(filePath), versionId);
   }
 
@@ -451,6 +532,33 @@ export default class FileSystemService implements TokenRingService {
       ignoreFilter: treeIgnore.shouldIgnore,
       ...(includeContent !== undefined && { includeContent }),
     } as GrepOptions);
+  }
+
+  /**
+   * Agentless content search for UI callers: `cwd` is read-authorized against
+   * the provider's allow-list, ignore rules apply, and at most `maxResults`
+   * matching lines are returned (`truncated` says whether more exist).
+   */
+  async grepForProvider(
+    searchString: string,
+    options: WalkIgnoreOptions & { cwd: string; maxResults: number; ignoreCase?: boolean | undefined },
+    providerName: string,
+  ): Promise<{ matches: GrepResult[]; truncated: boolean }> {
+    const { cwd, maxResults, ignoreCase, ...ignoreOptions } = options;
+    const provider = this.fileSystemProviderRegistry.require(providerName);
+    if (!provider.grep) {
+      throw new Error(`The ${providerName} filesystem does not support content search`);
+    }
+    const root = await this.authorizePathForProvider(cwd, "read", providerName);
+    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.providerIO(provider));
+    // One extra match tells us whether the list was cut short.
+    const results = await provider.grep(searchString, {
+      cwd: root,
+      ignoreFilter: treeIgnore.shouldIgnore,
+      maxResults: maxResults + 1,
+      ...(ignoreCase !== undefined && { ignoreCase }),
+    });
+    return { matches: results.slice(0, maxResults), truncated: results.length > maxResults };
   }
 
   supportsGrep(agent: Agent) {

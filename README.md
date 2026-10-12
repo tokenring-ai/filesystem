@@ -31,7 +31,7 @@ The package integrates deeply with the agent system, providing both tools for AI
 - **AgentLifecycleService** — registers three lifecycle hooks (`clearReadFiles`, `addSelectedFiles`, `addSimilarFiles`)
 - **AgentCommandService** — registers ten chat commands for file and provider management
 - **ScriptingService** — registers four scripting functions (`createFile`, `deleteFile`, `globFiles`, `searchFiles`)
-- **RpcService** — registers an RPC endpoint at `/rpc/filesystem` with 18 methods
+- **RpcService** — registers an RPC endpoint at `/rpc/filesystem` with 23 methods
 - **WebHostService** — registers an HTTP resource for browser-based file access
 - **QueueService** — used by `FileWatchService` to enqueue changed files
 
@@ -434,6 +434,10 @@ constructor(options?: z.output<typeof FileSystemConfigSchema>)
 | `writeFile(path: string, content: string \| Buffer, agent: Agent): MaybePromise<boolean>` | Write or overwrite file; sets dirty |
 | `appendFile(filePath: string, finalContent: string \| Buffer, agent: Agent): MaybePromise<boolean>` | Append to file; sets dirty |
 | `deleteFile(path: string, agent: Agent): MaybePromise<boolean>` | Delete file; sets dirty |
+| `deleteDirectory(path: string, agent: Agent): Promise<boolean>` | Recursively delete a directory for the agent's provider; sets dirty (see `deleteDirectoryForProvider`) |
+| `deleteDirectoryForProvider(path: string, providerName: string): Promise<boolean>` | Recursively delete a directory. The path must be write-allowed (symlinks resolved); allowed roots, the workspace and working directories, anything containing one of them, and the filesystem root are refused. Requires the provider's `deleteDirectory` |
+| `countDirectoryEntriesForProvider(path: string, providerName: string, limit?: number)` | `{ files, directories, truncated }` under a read-allowed directory, for delete confirmations |
+| `grepForProvider(search: string, options: { cwd, maxResults, ignoreCase?, includeHidden?, gitignore?, aiignore? }, providerName: string)` | Agentless content search under a read-allowed `cwd`; returns `{ matches, truncated }` |
 | `readFile(path: string, agent: Agent): MaybePromise<Buffer \| null>` | Read file as buffer |
 | `readTextFile(path: string, agent: Agent): Promise<string \| null>` | Read file as UTF-8 string |
 | `rename(oldPath: string, newPath: string, agent: Agent): MaybePromise<boolean>` | Rename file |
@@ -506,6 +510,7 @@ type StatLike =
 | `writeFile(absolutePath: string, content: string \| Buffer): MaybePromise<boolean>` | Write file |
 | `appendFile(absoluteFilePath: string, finalContent: string \| Buffer): MaybePromise<boolean>` | Append to file |
 | `deleteFile(absolutePath: string): MaybePromise<boolean>` | Delete file |
+| `deleteDirectory?(absolutePath: string): MaybePromise<boolean>` | Optional. Recursively delete a real directory (refuse files and symlinks). Policy (allow-list, protected roots) is applied by `FileSystemService` |
 | `readFile(absolutePath: string): MaybePromise<Buffer \| null>` | Read file as buffer |
 | `rename(oldAbsolutePath: string, newAbsolutePath: string): MaybePromise<boolean>` | Rename file |
 | `exists(absolutePath: string): MaybePromise<boolean>` | Check if path exists |
@@ -553,12 +558,11 @@ Serves and accepts file uploads from registered filesystem providers over HTTP. 
 
 | Route | Methods | Description |
 |-------|---------|-------------|
-| `/api/fs/session` | GET, POST | Establish a session cookie from Basic auth credentials |
 | `/api/fs/{provider}/{path...}` | GET, HEAD, PUT | Read, stream, or upload files |
 
 #### Authentication
 
-- Always requires authentication via HTTP Basic or a session cookie obtained from a prior Basic login
+- Always requires authentication via HTTP Basic or the web host sign-in session cookie (`tokenring_session`, issued by `POST /api/auth/session`), so signing out also ends file access
 - Session cookies use a 7-day TTL with sliding expiration
 - Returns `503` if `WebHostService` auth is not configured
 - Returns `401` with `WWW-Authenticate: Basic` for unauthenticated requests
@@ -720,7 +724,7 @@ if (lifecycleService) {
 
 ## RPC
 
-The package registers an RPC endpoint at `/rpc/filesystem` with 18 methods.
+The package registers an RPC endpoint at `/rpc/filesystem` with 23 methods.
 
 **Schema:** `plugin/filesystem/rpc/schema.ts`
 
@@ -734,9 +738,14 @@ The package registers an RPC endpoint at `/rpc/filesystem` with 18 methods.
 | `glob` | query | Match files with a glob pattern |
 | `searchWorkspaceFiles` | query | Search workspace files by query string |
 | `listDirectory` | query | List directory contents |
-| `writeFile` | mutation | Write a file (supports `utf8` and `base64` encoding) |
+| `writeFile` | mutation | Write a file (supports `utf8` and `base64` encoding). For the default provider it goes through `writeSystemFile`, so the overwritten content is archived (see `listFileVersions`) |
 | `appendFile` | mutation | Append content to a file |
 | `deleteFile` | mutation | Delete a file |
+| `deleteDirectory` | mutation | Recursively delete a directory (`deleteDirectoryForProvider` safety rules) |
+| `countDirectoryEntries` | query | `{ files, directories, truncated }` inside a directory, for the delete confirmation |
+| `searchFileContents` | query | `{ provider, path, query, limit ≤ 1000 (200), ignoreCase (true), gitignore (true), includeHidden (false) }` → `{ matches: { file, line, match }[], truncated }`; `path` must be read-allowed |
+| `listFileVersions` | query | Archived previous versions of a file, newest first (default provider only; empty when not covered by archiving or not allowed) |
+| `readFileVersion` | query | Text of one archived version, or `null` |
 | `rename` | mutation | Rename a file |
 | `createDirectory` | mutation | Create a directory |
 | `copy` | mutation | Copy a file or directory |
@@ -888,6 +897,12 @@ The package registers an RPC endpoint at `/rpc/filesystem` with 18 methods.
 | Field | Type | Description |
 |-------|------|-------------|
 | `status` | `"agentNotFound"` | — |
+
+## Files dashboard
+
+- **Folder delete** — folders get a *Delete folder* row action. The confirmation always shows (it ignores "don't ask again") and names how many files and folders go with it (`countDirectoryEntries`); open editors and drafts under the folder are closed and dropped.
+- **Search contents** — the navigator's *Names / Contents* toggle switches the search box to `searchFileContents` under the current folder (two characters minimum, 200 matches). Results list `file:line` grouped by file; choosing one opens the editor and scrolls Monaco to the line (Markdown files open without line navigation).
+- **Versions** — the editor's *Versions* button lists archived versions (`listFileVersions`), previews one, and restores it by writing it through the normal save, so the content being replaced is archived too. Archiving only covers files inside the workspace directory.
 
 ## Ignore Filter System
 

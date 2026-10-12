@@ -193,3 +193,80 @@ describe("FileSystemService allow-list glob", () => {
     expect(fileSystemService.writeFile("/etc/passwd", "nope", agent)).rejects.toThrow(/allowed/);
   });
 });
+
+describe("FileSystemService directory delete, content search and versions (agentless)", () => {
+  const app = createTestingApp();
+  const provider = createMockFileSystemProvider({
+    "/repo/src/example.ts": "export const example = true;\n",
+    "/repo/src/nested/deep.ts": "deep\n",
+    "/repo/build/out.js": "out\n",
+    "/notes/todo.md": "todo\n",
+  });
+  const deleted: string[] = [];
+  const grepCalls: { search: unknown; options: Record<string, unknown> }[] = [];
+  const extended = {
+    ...provider,
+    async deleteDirectory(absolutePath: string) {
+      deleted.push(absolutePath);
+      return true;
+    },
+    async grep(search: unknown, options: Record<string, unknown>) {
+      grepCalls.push({ search, options });
+      return [1, 2, 3, 4].map(line => ({ file: "/repo/src/example.ts", line, match: `match ${line}`, content: null }));
+    },
+  };
+  const fileSystemService = new FileSystemService(
+    app,
+    FileSystemConfigSchema.parse({
+      agentDefaults: { provider: "mock", selectedFiles: [] },
+      allowedPaths: [
+        { path: "/repo", permission: "write" },
+        { path: "/notes", permission: "read" },
+      ],
+    }),
+  );
+  fileSystemService.registerFileSystemProvider("mock", extended as any);
+  fileSystemService.start();
+
+  beforeEach(() => {
+    deleted.length = 0;
+    grepCalls.length = 0;
+  });
+
+  it("deletes a directory inside a writable root", async () => {
+    expect(await fileSystemService.deleteDirectoryForProvider("/repo/build", "mock")).toBe(true);
+    expect(deleted).toEqual(["/repo/build"]);
+  });
+
+  it("refuses allowed roots, their ancestors, the workspace, read-only roots and paths outside the allow-list", async () => {
+    await expect(fileSystemService.deleteDirectoryForProvider("/repo", "mock")).rejects.toThrow(/allowed root/);
+    await expect(fileSystemService.deleteDirectoryForProvider("/", "mock")).rejects.toThrow();
+    await expect(fileSystemService.deleteDirectoryForProvider("/tmp", "mock")).rejects.toThrow(/allowed root/);
+    await expect(fileSystemService.deleteDirectoryForProvider("/notes", "mock")).rejects.toThrow(/read-only|allowed root/);
+    await expect(fileSystemService.deleteDirectoryForProvider("/etc", "mock")).rejects.toThrow(/allowed/);
+    expect(deleted).toEqual([]);
+  });
+
+  it("refuses files and missing directories", async () => {
+    await expect(fileSystemService.deleteDirectoryForProvider("/repo/src/example.ts", "mock")).rejects.toThrow(/not a directory/);
+    await expect(fileSystemService.deleteDirectoryForProvider("/repo/missing", "mock")).rejects.toThrow(/does not exist/);
+    expect(deleted).toEqual([]);
+  });
+
+  it("counts what a recursive delete would remove", async () => {
+    expect(await fileSystemService.countDirectoryEntriesForProvider("/repo/src", "mock")).toEqual({ files: 2, directories: 1, truncated: false });
+    expect(await fileSystemService.countDirectoryEntriesForProvider("/repo/src", "mock", 2)).toEqual({ files: 1, directories: 1, truncated: true });
+  });
+
+  it("searches contents under an allowed directory with a result limit", async () => {
+    const result = await fileSystemService.grepForProvider("match", { cwd: "/repo", maxResults: 3, ignoreCase: true }, "mock");
+    expect(result.matches.map(match => match.line)).toEqual([1, 2, 3]);
+    expect(result.truncated).toBe(true);
+    expect(grepCalls[0]?.options).toMatchObject({ cwd: "/repo", maxResults: 4, ignoreCase: true });
+    await expect(fileSystemService.grepForProvider("x", { cwd: "/etc", maxResults: 3 }, "mock")).rejects.toThrow(/allowed/);
+  });
+
+  it("returns no versions when archiving is disabled or does not cover the file", async () => {
+    expect(await fileSystemService.listVersions("/repo/src/example.ts")).toEqual([]);
+  });
+});

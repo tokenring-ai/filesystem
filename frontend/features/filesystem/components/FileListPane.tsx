@@ -1,9 +1,11 @@
 import NavigationSidebarHeader from "@tokenring-ai/one-frontend/components/layout/NavigationSidebarHeader.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@tokenring-ai/one-frontend/components/ui/dropdown-menu.tsx";
+import ErrorState from "@tokenring-ai/one-frontend/components/ui/ErrorState.tsx";
+import LoadingState from "@tokenring-ai/one-frontend/components/ui/LoadingState.tsx";
 import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx";
 import { cn } from "@tokenring-ai/one-frontend/lib/utils.ts";
 import { useDirectoryListing, useWorkspaceFileSearch } from "@tokenring-ai/one-frontend/rpc.ts";
-import formatError from "@tokenring-ai/utility/error/formatError";
-import { Check, Download, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Check, Copy, Download, type LucideIcon, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useMemo } from "react";
 import { downloadWorkspaceFile } from "../downloadFile.ts";
 import { getBasename, getFileIcon, isHiddenEntry, isHiddenPath } from "../fsUtils.ts";
@@ -23,7 +25,22 @@ interface FileListPaneProps {
   searchQuery: string;
   onRename?: (file: string) => void;
   onDelete?: (file: string) => void;
+  onDuplicate?: (file: string) => void;
 }
+
+interface RowAction {
+  key: string;
+  label: string;
+  icon: LucideIcon;
+  danger?: boolean;
+  run: () => void;
+}
+
+/**
+ * Inline row actions reveal on hover, on keyboard focus inside the row, and
+ * always on touch screens (no hover to reveal them).
+ */
+export const ROW_ACTIONS_REVEAL = "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100";
 
 export default function FileListPane({
   provider,
@@ -40,6 +57,7 @@ export default function FileListPane({
   searchQuery,
   onRename,
   onDelete,
+  onDuplicate,
 }: FileListPaneProps) {
   const trimmedSearch = searchQuery.trim();
   const isSearching = trimmedSearch.length > 0;
@@ -99,9 +117,7 @@ export default function FileListPane({
     return (
       <div className="h-full flex flex-col min-h-0">
         <NavigationSidebarHeader title="Files" />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-5 h-5 text-muted animate-spin" />
-        </div>
+        <LoadingState size="sm" className="flex-1" />
       </div>
     );
   }
@@ -110,9 +126,7 @@ export default function FileListPane({
     return (
       <div className="h-full flex flex-col min-h-0">
         <NavigationSidebarHeader title="Files" />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-5 h-5 text-muted animate-spin" />
-        </div>
+        <LoadingState size="sm" className="flex-1" />
       </div>
     );
   }
@@ -121,12 +135,35 @@ export default function FileListPane({
     return (
       <div className="h-full flex flex-col min-h-0">
         <NavigationSidebarHeader title="Files" />
-        <div className="flex-1 flex items-center justify-center p-6 text-center">
-          <p className="text-sm text-red-400">{formatError(loadError)}</p>
-        </div>
+        <ErrorState
+          className="flex-1 flex flex-col items-center justify-center"
+          title={isSearching ? "Search failed" : "Could not list this folder"}
+          error={loadError}
+          onRetry={() => void (isSearching ? workspaceSearch.mutate() : listing.mutate())}
+        />
       </div>
     );
   }
+
+  const rowActions = (file: string, isDir: boolean): RowAction[] => [
+    ...(!isDir
+      ? [
+          {
+            key: "download",
+            label: "Download",
+            icon: Download,
+            run: () => {
+              if (!provider) return;
+              downloadWorkspaceFile(file, provider).catch(() => toastManager.error("Download failed", { duration: 3000 }));
+            },
+          },
+        ]
+      : []),
+    ...(onDuplicate && !isDir ? [{ key: "duplicate", label: "Duplicate", icon: Copy, run: () => onDuplicate(file) }] : []),
+    ...(onRename ? [{ key: "rename", label: "Rename", icon: Pencil, run: () => onRename(file) }] : []),
+    // deleteFile RPC only supports files, not directories
+    ...(onDelete ? [{ key: "delete", label: isDir ? "Delete folder" : "Delete", icon: Trash2, danger: true, run: () => onDelete(file) }] : []),
+  ];
 
   return (
     <div className="h-full overflow-y-auto flex flex-col">
@@ -159,7 +196,9 @@ export default function FileListPane({
             </th>
             <th className="px-2 py-2 font-medium">Name</th>
             <th className="px-2 py-2 font-medium w-24 hidden md:table-cell">Type</th>
-            <th className="px-2 py-2 font-medium w-24 hidden sm:table-cell text-right pr-4">Actions</th>
+            <th className="px-2 py-2 font-medium w-10 sm:w-28 text-right pr-4">
+              <span className="sr-only sm:not-sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody className="text-xs">
@@ -170,6 +209,7 @@ export default function FileListPane({
             const isChecked = selectedPaths.has(file);
             const isUploading = uploadingFiles.includes(name);
             const showPathHint = isSearching && file.includes("/");
+            const actions = rowActions(file, isDir);
 
             return (
               <tr
@@ -218,50 +258,47 @@ export default function FileListPane({
 
                 <td className="px-2 py-2.5 text-muted hidden md:table-cell">{isDir ? "folder" : name.includes(".") ? name.split(".").pop() : "—"}</td>
 
-                <td className="px-2 py-2.5 hidden sm:table-cell" onClick={e => e.stopPropagation()}>
-                  <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
-                    {!isDir && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            if (!provider) return;
-                            await downloadWorkspaceFile(file, provider);
-                          } catch {
-                            toastManager.error("Download failed", { duration: 3000 });
-                          }
-                        }}
-                        className="p-1 hover:text-primary text-muted focus-ring rounded cursor-pointer"
-                        aria-label={`Download ${name}`}
-                        title="Download"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    {onRename && (
-                      <button
-                        type="button"
-                        onClick={() => onRename(file)}
-                        className="p-1 hover:text-primary text-muted focus-ring rounded cursor-pointer"
-                        aria-label={`Rename ${name}`}
-                        title="Rename"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    {/* deleteFile RPC only supports files, not directories */}
-                    {onDelete && !isDir && (
-                      <button
-                        type="button"
-                        onClick={() => onDelete(file)}
-                        className="p-1 hover:text-red-400 text-muted focus-ring rounded cursor-pointer"
-                        aria-label={`Delete ${name}`}
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+                <td className="px-2 py-2.5" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+                  {actions.length > 0 && (
+                    <>
+                      <div className={cn("hidden sm:flex items-center justify-end gap-0.5 transition-opacity pr-2", ROW_ACTIONS_REVEAL)}>
+                        {actions.map(action => (
+                          <button
+                            key={action.key}
+                            type="button"
+                            onClick={action.run}
+                            className={cn("p-1 text-muted focus-ring rounded cursor-pointer", action.danger ? "hover:text-red-400" : "hover:text-primary")}
+                            aria-label={`${action.label} ${name}`}
+                            title={action.label}
+                          >
+                            <action.icon className="w-3.5 h-3.5" />
+                          </button>
+                        ))}
+                      </div>
+                      {/* Phones: one always-visible menu instead of hover-revealed icons. */}
+                      <div className="flex sm:hidden justify-end">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="p-1.5 text-muted hover:text-primary focus-ring rounded cursor-pointer"
+                              aria-label={`Actions for ${name}`}
+                              title="Actions"
+                            >
+                              <MoreHorizontal className="w-4 h-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {actions.map(action => (
+                              <DropdownMenuItem key={action.key} onSelect={action.run} className={cn("gap-2 text-xs", action.danger && "text-red-500")}>
+                                <action.icon className="w-3.5 h-3.5" /> {action.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </>
+                  )}
                 </td>
               </tr>
             );

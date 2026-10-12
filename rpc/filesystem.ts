@@ -7,7 +7,7 @@ import { encode8601dates } from "@tokenring-ai/utility/date/transform8601Dates";
 import type { FileSystemProvider, IgnorePredicate } from "../FileSystemProvider.ts";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
-import { topLevelRoots } from "../util/allowedPaths.ts";
+import { PathNotAllowedError, topLevelRoots } from "../util/allowedPaths.ts";
 import fallbackGlob from "../util/fallbackGlob.ts";
 import { TreeIgnore } from "../util/treeIgnore.ts";
 import { invalidateWorkspaceFileIndex, listWorkspaceFiles } from "../util/workspaceFileIndex.ts";
@@ -55,6 +55,9 @@ async function browserIgnoreFilter(provider: FileSystemProvider, dir: string): P
   const treeIgnore = new TreeIgnore(root, { includeHidden: true }, providerIO(provider));
   return treeIgnore.shouldIgnore;
 }
+
+/** Content-search lines longer than this are cut for display. */
+const MAX_MATCH_LENGTH = 400;
 
 const streamFilesystemState = createAgentStateSliceStream({
   SliceClass: FileSystemState,
@@ -181,9 +184,13 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
 
   async writeFile(args, app: TokenRingApp) {
     const fs = app.requireService(FileSystemService);
-    const provider = fs.requireFileSystemProviderByName(args.provider);
     const content = args.encoding === "base64" ? Buffer.from(args.content, "base64") : args.content;
-    await provider.writeFile(args.path, content);
+    if (args.provider === fs.getDefaultProviderName()) {
+      // Same path as internal writes: archives the overwritten version (see listFileVersions) and notifies watchers.
+      await fs.writeSystemFile(args.path, content);
+    } else {
+      await fs.requireFileSystemProviderByName(args.provider).writeFile(args.path, content);
+    }
     invalidateWorkspaceFileIndex(args.provider);
     return { success: true };
   },
@@ -201,6 +208,63 @@ export default createRPCEndpoint(FileSystemRpcSchema, {
     await provider.deleteFile(args.path);
     invalidateWorkspaceFileIndex(args.provider);
     return { success: true };
+  },
+
+  async deleteDirectory(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    await fs.deleteDirectoryForProvider(args.path, args.provider);
+    invalidateWorkspaceFileIndex(args.provider);
+    return { success: true };
+  },
+
+  async countDirectoryEntries(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    return fs.countDirectoryEntriesForProvider(args.path, args.provider);
+  },
+
+  async searchFileContents(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    const { matches, truncated } = await fs.grepForProvider(
+      args.query,
+      {
+        cwd: args.path,
+        maxResults: args.limit,
+        ignoreCase: args.ignoreCase,
+        includeHidden: args.includeHidden,
+        gitignore: args.gitignore,
+        aiignore: args.gitignore,
+      },
+      args.provider,
+    );
+    return {
+      matches: matches.map(match => ({
+        file: match.file,
+        line: match.line,
+        match: match.match.length > MAX_MATCH_LENGTH ? `${match.match.slice(0, MAX_MATCH_LENGTH)}…` : match.match,
+      })),
+      truncated,
+    };
+  },
+
+  async listFileVersions(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    // The archive mirrors the default (host) filesystem only.
+    if (args.provider !== fs.getDefaultProviderName()) return { versions: [] };
+    try {
+      const target = await fs.authorizePathForProvider(args.path, "read", args.provider);
+      return { versions: await fs.listVersions(target) };
+    } catch (error: unknown) {
+      if (error instanceof PathNotAllowedError) return { versions: [] };
+      throw error;
+    }
+  },
+
+  async readFileVersion(args, app: TokenRingApp) {
+    const fs = app.requireService(FileSystemService);
+    if (args.provider !== fs.getDefaultProviderName()) return { content: null };
+    const target = await fs.authorizePathForProvider(args.path, "read", args.provider);
+    const content = await fs.readVersion(target, args.versionId);
+    return { content: content ? content.toString("utf-8") : null };
   },
 
   async rename(args, app: TokenRingApp) {

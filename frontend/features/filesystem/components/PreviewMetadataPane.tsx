@@ -130,7 +130,7 @@ export default function PreviewMetadataPane({
             "w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all focus-ring cursor-pointer",
             isChecked
               ? "bg-accent-subtle border border-accent-strong text-accent-soft hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400"
-              : "bg-accent hover:bg-accent-hover text-white shadow-button-primary",
+              : "btn-accent shadow-button-primary",
           )}
         >
           {isChecked ? (

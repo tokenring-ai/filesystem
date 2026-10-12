@@ -130,3 +130,15 @@ export function getFileIcon(file: string, isDir: boolean, size = 16, variant: Fi
   }
   return createElement(FileText, { className: `text-muted${shrink}`, size });
 }
+
+/**
+ * Name for a duplicate of `name`: "report.md" → "report copy.md", then
+ * "report copy 2.md" for `attempt` 2 and so on. Dotfiles and extensionless
+ * names get the suffix at the end.
+ */
+export const duplicateName = (name: string, attempt = 1): string => {
+  const suffix = attempt <= 1 ? " copy" : ` copy ${attempt}`;
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0) return `${name}${suffix}`;
+  return `${name.slice(0, dot)}${suffix}${name.slice(dot)}`;
+};

@@ -1,4 +1,5 @@
 import type Agent from "@tokenring-ai/agent/Agent";
+import ChatService from "@tokenring-ai/chat/ChatService";
 import type { TokenRingToolDefinition, TokenRingToolResult } from "@tokenring-ai/chat/schema";
 import { z } from "zod";
 import FileSystemService from "../FileSystemService.ts";
@@ -8,8 +9,12 @@ import requireAbsolutePath from "../util/requireAbsolutePath.ts";
 const name = "file_delete";
 const displayName = "Filesystem/delete";
 
+/** Permanent deletion is in the data-loss band. */
+const DELETE_SAFETY_LEVEL = 8;
+
 async function execute({ path: rawPath }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);
+  const chatService = agent.requireService(ChatService);
   const filePath = requireAbsolutePath(name, rawPath);
 
   if (!(await fileSystem.exists(filePath, agent))) {
@@ -17,6 +22,24 @@ async function execute({ path: rawPath }: z.output<typeof inputSchema>, agent: A
       failed: true,
       message: `**File Delete** File not found: ${filePath}`,
       result: `Cannot delete ${filePath}: the file does not exist.`,
+    };
+  }
+
+  const confirmed = await chatService.checkToolApproval(
+    {
+      toolName: name,
+      message: `Permanently delete ${filePath}?`,
+      detailedDescription: "The file is removed immediately; this action cannot be undone.",
+      safetyLevel: DELETE_SAFETY_LEVEL,
+      default: false,
+    },
+    agent,
+  );
+  if (!confirmed) {
+    return {
+      failed: true,
+      message: `**File Delete** Not approved: ${filePath}`,
+      result: `User did not approve deleting ${filePath}.`,
     };
   }
 

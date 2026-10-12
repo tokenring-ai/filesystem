@@ -147,6 +147,89 @@ export default {
         success: z.boolean(),
       }),
     },
+    /**
+     * Recursively delete a directory. The path must be write-allowed; allowed
+     * roots, the workspace/working directory and their ancestors are refused.
+     */
+    deleteDirectory: {
+      type: "mutation",
+      input: z.object({
+        provider: z.string(),
+        path: z.string(),
+      }),
+      result: z.object({
+        success: z.boolean(),
+      }),
+    },
+    /** What a recursive delete would remove (counted up to a cap; `truncated` when the cap was hit). */
+    countDirectoryEntries: {
+      type: "query",
+      input: z.object({
+        provider: z.string(),
+        path: z.string(),
+      }),
+      result: z.object({
+        files: z.number(),
+        directories: z.number(),
+        truncated: z.boolean(),
+      }),
+    },
+    /** Search file contents under a directory (read-allowed), returning file:line matches. */
+    searchFileContents: {
+      type: "query",
+      input: z.object({
+        provider: z.string(),
+        /** Absolute directory to search. */
+        path: z.string(),
+        query: z.string().min(1),
+        limit: z.number().int().positive().max(1000).default(200),
+        ignoreCase: z.boolean().default(true),
+        /** When true, entries matched by .gitignore/.aiignore are skipped. */
+        gitignore: z.boolean().default(true),
+        includeHidden: z.boolean().default(false),
+      }),
+      result: z.object({
+        matches: z.array(
+          z.object({
+            file: z.string(),
+            line: z.number(),
+            /** The matching line, trimmed to a display length. */
+            match: z.string(),
+          }),
+        ),
+        /** True when more matches exist than were returned. */
+        truncated: z.boolean(),
+      }),
+    },
+    /** Archived previous versions of a file, newest first (empty when archiving does not cover it). */
+    listFileVersions: {
+      type: "query",
+      input: z.object({
+        provider: z.string(),
+        path: z.string(),
+      }),
+      result: z.object({
+        versions: z.array(
+          z.object({
+            id: z.string(),
+            createdAt: z.string(),
+            size: z.number(),
+          }),
+        ),
+      }),
+    },
+    /** Text content of one archived version, or null when it does not exist. */
+    readFileVersion: {
+      type: "query",
+      input: z.object({
+        provider: z.string(),
+        path: z.string(),
+        versionId: z.string(),
+      }),
+      result: z.object({
+        content: z.string().nullable(),
+      }),
+    },
     rename: {
       type: "mutation",
       input: z.object({

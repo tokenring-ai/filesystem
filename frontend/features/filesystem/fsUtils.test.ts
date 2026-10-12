@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   base64ToUint8Array,
+  duplicateName,
   formatFileSize,
   getBasename,
   getParentPath,
@@ -98,5 +99,17 @@ describe("base64ToUint8Array", () => {
   test("round-trips ASCII", () => {
     const bytes = base64ToUint8Array(btoa("hello"));
     expect(Array.from(bytes)).toEqual([104, 101, 108, 108, 111]);
+  });
+});
+
+describe("duplicateName", () => {
+  test("inserts the copy suffix before the extension", () => {
+    expect(duplicateName("report.md")).toBe("report copy.md");
+    expect(duplicateName("report.md", 3)).toBe("report copy 3.md");
+  });
+
+  test("appends to dotfiles and extensionless names", () => {
+    expect(duplicateName(".env")).toBe(".env copy");
+    expect(duplicateName("Makefile", 2)).toBe("Makefile copy 2");
   });
 });

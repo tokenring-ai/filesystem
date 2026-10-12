@@ -3,19 +3,20 @@
   "version": "0.2.0",
   "description": "Unified API for file operations including reading, writing, and smart patching.",
   "dependencies": {
-    "@tokenring-ai/app": "workspace:*",
-    "zod": "^4.4.3",
-    "@tokenring-ai/chat": "workspace:*",
     "@tokenring-ai/agent": "workspace:*",
-    "@tokenring-ai/utility": "workspace:*",
+    "@tokenring-ai/ai-client": "workspace:*",
+    "@tokenring-ai/app": "workspace:*",
+    "@tokenring-ai/chat": "workspace:*",
     "@tokenring-ai/lifecycle": "workspace:*",
-    "@tokenring-ai/scripting": "workspace:*",
-    "@tokenring-ai/rpc": "workspace:*",
     "@tokenring-ai/queue": "workspace:*",
+    "@tokenring-ai/rpc": "workspace:*",
+    "@tokenring-ai/scripting": "workspace:*",
+    "@tokenring-ai/utility": "workspace:*",
     "@tokenring-ai/web-host": "workspace:*",
-    "ignore": "^7.0.6",
     "diff": "^9.0.0",
-    "mime-types": "^3.0.2"
+    "ignore": "^7.0.6",
+    "mime-types": "^3.0.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/mime-types": "^3.0.1",

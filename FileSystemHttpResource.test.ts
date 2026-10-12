@@ -1,8 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type TokenRingApp from "@tokenring-ai/app";
+import SessionStore, { parseCookie, SESSION_COOKIE } from "@tokenring-ai/web-host/sessionStore";
+import { loginRateLimiter } from "@tokenring-ai/web-host/util/authSecurity";
 import FileSystemHttpResource from "./FileSystemHttpResource.ts";
 import type { FileSystemProvider, StatLike } from "./FileSystemProvider.ts";
 import FileSystemService from "./FileSystemService.ts";
@@ -61,6 +63,9 @@ function createMockProvider(files: Record<string, Buffer | string>, options?: { 
 
 const stubApp = { appConfig: { workspaceDirectory: "/tmp/fs-http-workspace" } } as unknown as TokenRingApp;
 
+/** Stands in for the web host's sign-in sessions (`/api/auth/session`). */
+const webHostSessions = new SessionStore();
+
 function makeApp(fsService: FileSystemService, authUsers = AUTH_USERS): TokenRingApp {
   return {
     requireService(ctor: { name?: string }) {
@@ -68,9 +73,10 @@ function makeApp(fsService: FileSystemService, authUsers = AUTH_USERS): TokenRin
       if (ctor?.name === "WebHostService") {
         return {
           getAuthConfig: () => ({ users: authUsers }),
+          resolveSessionUsername: (request: Request) => webHostSessions.resolve(parseCookie(request.headers.get("Cookie"), SESSION_COOKIE)),
         };
       }
-      throw new Error(`Unexpected service: ${String(ctor?.name ?? ctor)}`);
+      throw new Error(`Unexpected service: ${ctor?.name ?? "<unnamed>"}`);
     },
   } as unknown as TokenRingApp;
 }
@@ -78,17 +84,13 @@ function makeApp(fsService: FileSystemService, authUsers = AUTH_USERS): TokenRin
 function handlersFor(app: TokenRingApp, prefix = "/api/fs") {
   const resource = new FileSystemHttpResource(app, { prefix });
   const fileRoute = resource.routes[`${prefix}/*`];
-  const sessionRoute = resource.routes[`${prefix}/session`];
-  if (typeof fileRoute !== "function" || typeof sessionRoute !== "function") {
-    throw new Error("expected route handler functions");
+  if (typeof fileRoute !== "function") {
+    throw new Error("expected a route handler function");
   }
-  return {
-    file: fileRoute as (request: Request) => Promise<Response>,
-    session: sessionRoute as (request: Request) => Promise<Response>,
-  };
+  return { file: fileRoute as (request: Request) => Promise<Response> };
 }
 
-function authHeaders(username = "alice", password = "secret-pass"): HeadersInit {
+function authHeaders(username = "alice", password = "secret-pass"): Record<string, string> {
   return { Authorization: basicAuth(username, password) };
 }
 
@@ -104,6 +106,10 @@ describe("FileSystemHttpResource", () => {
 
   afterAll(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    loginRateLimiter.reset();
   });
 
   it("rejects unauthenticated requests with 401", async () => {
@@ -129,6 +135,21 @@ describe("FileSystemHttpResource", () => {
     expect(response.status).toBe(401);
   });
 
+  it("locks the client out with 429 after repeated failed logins", async () => {
+    const fsService = new FileSystemService(stubApp);
+    fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "x" }));
+    const { file } = handlersFor(makeApp(fsService));
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const response = await file(new Request("http://localhost/api/fs/mock/a.txt", { headers: authHeaders("alice", `wrong-${attempt}`) }));
+      expect(response.status).toBe(401);
+    }
+
+    const blocked = await file(new Request("http://localhost/api/fs/mock/a.txt", { headers: authHeaders() }));
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get("Retry-After"))).toBeGreaterThan(0);
+  });
+
   it("serves a file with valid Basic auth", async () => {
     const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "media-library/panda.png": "PNGDATA" }));
@@ -141,7 +162,8 @@ describe("FileSystemHttpResource", () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");
-    expect(response.headers.get("Set-Cookie")).toContain("tokenring_fs_session=");
+    // No cookie of its own: browsers ride on the web host's sign-in cookie.
+    expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(await response.text()).toBe("PNGDATA");
   });
 
@@ -244,21 +266,40 @@ describe("FileSystemHttpResource", () => {
 
   it("preserves an absolute path on the default provider instead of resolving it against the workspace directory", async () => {
     const fsService = new FileSystemService(stubApp);
-    // Outside the workspace directory (/tmp/fs-http-workspace) entirely — this only
+    // Inside the workspace directory but addressed absolutely — this only
     // resolves correctly if the leading slash survives the URL round-trip intact.
-    const absolutePath = "/Users/mdierolf/notes/todo.md";
+    const absolutePath = "/tmp/fs-http-workspace/notes/todo.md";
     fsService.registerFileSystemProvider("posix", createMockProvider({ [absolutePath]: "buy milk" }));
 
     const { file } = handlersFor(makeApp(fsService));
     // Mirrors what frontend/src/lib/workspaceFileUrl.ts produces for an absolute path:
     // the leading slash is kept, appearing as a doubled slash after the provider segment.
     const response = await file(
-      new Request("http://localhost/api/fs/posix//Users/mdierolf/notes/todo.md", {
+      new Request(`http://localhost/api/fs/posix/${absolutePath}`, {
         headers: authHeaders(),
       }),
     );
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("buy milk");
+  });
+
+  it("rejects absolute paths on the default provider outside the allowed roots with 403", async () => {
+    const fsService = new FileSystemService(stubApp);
+    // Outside the workspace directory (/tmp/fs-http-workspace) entirely.
+    fsService.registerFileSystemProvider("posix", createMockProvider({ "/etc/passwd": "root:x:0:0:" }));
+
+    const { file } = handlersFor(makeApp(fsService));
+    const response = await file(new Request("http://localhost/api/fs/posix//etc/passwd", { headers: authHeaders() }));
+    expect(response.status).toBe(403);
+
+    const put = await file(
+      new Request("http://localhost/api/fs/posix//etc/passwd", {
+        method: "PUT",
+        headers: { ...authHeaders(), "Content-Type": "text/plain" },
+        body: "pwned",
+      }),
+    );
+    expect(put.status).toBe(403);
   });
 
   it("returns 405 for unsupported methods", async () => {
@@ -314,30 +355,35 @@ describe("FileSystemHttpResource", () => {
     expect(await get.text()).toBe("hello upload");
   });
 
-  it("establishes a session cookie and accepts cookie auth on later requests", async () => {
+  it("accepts the web host's sign-in session cookie", async () => {
     const fsService = new FileSystemService(stubApp);
     fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "cookie-ok" }));
-    const { file, session } = handlersFor(makeApp(fsService));
+    const { file } = handlersFor(makeApp(fsService));
+    const sessionId = webHostSessions.create("alice");
 
-    const sessionRes = await session(
-      new Request("http://localhost/api/fs/session", {
-        method: "POST",
-        headers: authHeaders(),
-      }),
-    );
-    expect(sessionRes.status).toBe(200);
-    const setCookie = sessionRes.headers.get("Set-Cookie") ?? "";
-    expect(setCookie).toContain("tokenring_fs_session=");
-    const sessionId = /tokenring_fs_session=([^;]+)/.exec(setCookie)?.[1];
-    expect(sessionId).toBeTruthy();
-
-    const response = await file(
-      new Request("http://localhost/api/fs/mock/a.txt", {
-        headers: { Cookie: `tokenring_fs_session=${sessionId}` },
-      }),
-    );
+    const response = await file(new Request("http://localhost/api/fs/mock/a.txt", { headers: { Cookie: `${SESSION_COOKIE}=${sessionId}` } }));
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("cookie-ok");
+  });
+
+  it("refuses an unknown or signed-out session cookie", async () => {
+    const fsService = new FileSystemService(stubApp);
+    fsService.registerFileSystemProvider("mock", createMockProvider({ "a.txt": "cookie-ok" }));
+    const { file } = handlersFor(makeApp(fsService));
+
+    const unknown = await file(new Request("http://localhost/api/fs/mock/a.txt", { headers: { Cookie: `${SESSION_COOKIE}=not-a-session` } }));
+    expect(unknown.status).toBe(401);
+
+    // Sign-out revokes the web host session, which must end media access too.
+    const sessionId = webHostSessions.create("alice");
+    webHostSessions.revoke(sessionId);
+    const revoked = await file(new Request("http://localhost/api/fs/mock/a.txt", { headers: { Cookie: `${SESSION_COOKIE}=${sessionId}` } }));
+    expect(revoked.status).toBe(401);
+  });
+
+  it("no longer serves a separate /api/fs/session endpoint", () => {
+    const resource = new FileSystemHttpResource(makeApp(new FileSystemService(stubApp)), { prefix: "/api/fs" });
+    expect(resource.routes["/api/fs/session"]).toBeUndefined();
   });
 
   it("returns 503 when web-host auth is not configured", async () => {
