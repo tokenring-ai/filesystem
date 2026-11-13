@@ -1,21 +1,16 @@
 import ConfirmModal from "@tokenring-ai/one-frontend/components/ui/ConfirmModal.tsx";
 import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx";
-import { useDashboardApi } from "@tokenring-ai/one-frontend/dock/DashboardApiContext.tsx";
-import { openInMainArea } from "@tokenring-ai/one-frontend/dock/layout/mainArea.ts";
 import { useEntityDelete } from "@tokenring-ai/one-frontend/hooks/useEntityDelete.ts";
 import { useRefSync } from "@tokenring-ai/one-frontend/hooks/useRefSync.ts";
 import { runOrConfirm } from "@tokenring-ai/one-frontend/lib/uiPreferences.ts";
 import { filesystemRPCClient } from "@tokenring-ai/one-frontend/rpc.ts";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { useCallback, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import { useSWRConfig } from "swr";
 import NamePromptModal from "../features/filesystem/components/NamePromptModal.tsx";
 import { duplicateName, getBasename, getParentPath, joinPath } from "../features/filesystem/fsUtils.ts";
-import { FILE_EDITOR_VIEW, FILE_PREVIEW_VIEW, FILES_DASHBOARD_ID, FILES_SIDEBAR_VIEWS } from "../manifest.ts";
 import { CONTENT_SEARCH_KEY_PREFIX } from "./contentSearch.ts";
 import { discardFileDrafts, isPathAtOrUnder, moveFileDrafts, removeSelectedPaths, renamedPath, setFilesBrowserState } from "./filesBrowserStore.ts";
-import { FILES_ROOT, filesPath, viewForFile } from "./paths.ts";
 
 const MAX_DUPLICATE_ATTEMPTS = 50;
 
@@ -50,21 +45,23 @@ function validateEntryName(name: string): string | null {
   return null;
 }
 
-/** Opens a file in the Files dashboard's main area (or navigates there from elsewhere). */
-export function useOpenFile() {
-  const navigate = useNavigate();
-  const dashboard = useDashboardApi();
-  const onDashboard = dashboard.dashboardId === FILES_DASHBOARD_ID;
-  return useCallback(
-    (path: string, options?: { replace?: boolean }) => {
-      if (onDashboard) {
-        const view = viewForFile(path);
-        openInMainArea(dashboard, view, { path }, { sidebarViews: FILES_SIDEBAR_VIEWS, fillPlaceholder: view === FILE_EDITOR_VIEW });
-      }
-      void navigate(filesPath(path), options?.replace ? { replace: true } : undefined);
-    },
-    [dashboard, navigate, onDashboard],
-  );
+/**
+ * What the file mutations need from the app hosting them: which files have open
+ * panels, how to open, re-point and close them, and how to move the URL
+ * (provided by `useFilesLayoutNavigation.ts`).
+ */
+export interface FilesHost {
+  /** The file the URL currently names, if any. */
+  routeFile: string | null;
+  /** Opens a file's tab and takes focus. */
+  openFile: (path: string) => void;
+  /** Every open editor/preview panel with the file path it shows. */
+  listFilePanels: () => { panelId: string; path: string }[];
+  closePanel: (panelId: string) => void;
+  /** Makes the panel show another path (renames). */
+  repointPanel: (panelId: string, path: string) => void;
+  /** Moves the URL to a file (or the app root for null) without adding history. */
+  replaceRoute: (path: string | null) => void;
 }
 
 /** Revalidates every directory listing and workspace search. */
@@ -100,11 +97,8 @@ export interface UseFileMutationsResult {
  * preview views. Keeps open editor/preview panels in step: a renamed file's
  * panel follows the new path, a deleted file's panels close.
  */
-export function useFileMutations(provider: string | null, path: string | null): UseFileMutationsResult {
-  const navigate = useNavigate();
-  const dashboard = useDashboardApi();
-  const { fileId: routeFile } = useParams<{ fileId?: string }>();
-  const openFile = useOpenFile();
+export function useFileMutationsCore(host: FilesHost, provider: string | null, path: string | null): UseFileMutationsResult {
+  const { routeFile, openFile } = host;
   const refreshListing = useRefreshListing();
   const [namePrompt, setNamePrompt] = useState<NamePrompt | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -112,28 +106,18 @@ export function useFileMutations(provider: string | null, path: string | null): 
   const [folderDelete, setFolderDelete] = useState<{ path: string; count: FolderCount | null; countError: string | null } | null>(null);
 
   /** Editor/preview panels showing `target`, or any file inside it when it is a directory. */
-  const panelsUnder = useCallback(
-    (target: string, isDir: boolean): { panelId: string; path: string }[] =>
-      dashboard
-        .listPanels()
-        .filter(panel => panel.viewId === FILE_EDITOR_VIEW || panel.viewId === FILE_PREVIEW_VIEW)
-        .flatMap(panel => {
-          const panelPath = panel.params.path;
-          return typeof panelPath === "string" && isPathAtOrUnder(panelPath, target, isDir) ? [{ panelId: panel.panelId, path: panelPath }] : [];
-        }),
-    [dashboard],
-  );
+  const filePanelsUnder = (target: string, isDir: boolean) => host.listFilePanels().filter(panel => isPathAtOrUnder(panel.path, target, isDir));
 
   const entityDelete = useEntityDelete({
     currentRouteId: routeFile ?? null,
-    navigateToOverview: () => void navigate(FILES_ROOT, { replace: true }),
+    navigateToOverview: () => host.replaceRoute(null),
     refreshList: () => void refreshListing(),
     clearLocalState: id => {
       const isDir = id.endsWith("/");
       removeSelectedPaths([id]);
       // The deleted file's (or folder's) unsaved edits have nothing left to save to.
       discardFileDrafts(provider, id, isDir);
-      for (const { panelId } of panelsUnder(id, isDir)) dashboard.closeView(panelId);
+      for (const { panelId } of filePanelsUnder(id, isDir)) host.closePanel(panelId);
     },
     successMessage: name => `Deleted ${getBasename(name)}`,
     errorMessage: error => `Delete failed: ${formatError(error)}`,
@@ -175,12 +159,12 @@ export function useFileMutations(provider: string | null, path: string | null): 
       // file inside it — to the new path. Drafts move first so the re-keyed
       // editor finds its draft when it remounts.
       moveFileDrafts(provider, oldPath, newPath, namePrompt.isDir);
-      for (const panel of panelsUnder(oldPath, namePrompt.isDir)) {
+      for (const panel of filePanelsUnder(oldPath, namePrompt.isDir)) {
         const next = renamedPath(panel.path, oldPath, newPath, namePrompt.isDir);
-        if (next !== null) dashboard.updateViewParams(panel.panelId, { path: next });
+        if (next !== null) host.repointPanel(panel.panelId, next);
       }
       const nextRoute = routeFile ? renamedPath(routeFile, oldPath, newPath, namePrompt.isDir) : null;
-      if (nextRoute !== null) void navigate(filesPath(nextRoute), { replace: true });
+      if (nextRoute !== null) host.replaceRoute(nextRoute);
       removeSelectedPaths([namePrompt.path, oldPath]);
       if (!namePrompt.isDir)
         setFilesBrowserState(current => ({ selectedPaths: current.selectedPaths.has(oldPath) ? current.selectedPaths : new Set(current.selectedPaths) }));

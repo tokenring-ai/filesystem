@@ -11,8 +11,9 @@ import formatError from "@tokenring-ai/utility/error/formatError";
 import { FocusTrap } from "focus-trap-react";
 import { Check, ChevronRight, Download, Edit, Eye, EyeOff, File, Folder, Plus, Save, Trash2, X } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useOpenWorkspaceFile } from "../../lib/openWorkspaceFile.ts";
 import { downloadWorkspaceFile } from "./downloadFile.ts";
-import { getBasename, getFileIcon } from "./fsUtils.ts";
+import { getBasename, getFileIcon, isHiddenEntry } from "./fsUtils.ts";
 
 interface FileBrowserOverlayProps {
   agentId: string;
@@ -37,6 +38,7 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
   const fsState = useFilesystemState(agentId);
   const fsStateData = fsState.data?.status === "success" ? fsState.data : null;
   const provider = fsStateData?.provider ?? null;
+  const openFile = useOpenWorkspaceFile();
   const directoryListing = useDirectoryListing(provider ? { path, showHidden: showHiddenFiles, provider } : undefined);
   const fileContent = useFileContents(selectedFile ?? undefined, provider ?? undefined);
 
@@ -74,6 +76,11 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
     if (!directoryListing.data?.files) return [];
     let files = [...directoryListing.data.files];
 
+    // listDirectory accepts showHidden but does not apply it. Hide dotfiles here, same as the Files tree.
+    if (!showHiddenFiles) {
+      files = files.filter(f => !isHiddenEntry(f));
+    }
+
     if (debouncedSearch) {
       files = files.filter(f => getBasename(f).toLowerCase().includes(debouncedSearch.toLowerCase()));
     }
@@ -85,7 +92,7 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
       if (!isDirA && isDirB) return 1;
       return a.localeCompare(b);
     });
-  }, [directoryListing.data?.files, debouncedSearch]);
+  }, [directoryListing.data?.files, debouncedSearch, showHiddenFiles]);
 
   useEventListener(
     "keydown",
@@ -551,6 +558,10 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
                     </button>
                     <button
                       type="button"
+                      onClick={() => {
+                        openFile(selectedFile);
+                        onClose();
+                      }}
                       className="flex items-center justify-center gap-2 bg-tertiary hover:bg-hover text-muted text-xs font-medium py-1.5 rounded-md border border-primary transition-colors focus-ring"
                       aria-label="Edit file"
                     >

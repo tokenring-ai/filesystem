@@ -1,3 +1,4 @@
+import { useRouteParamsFor } from "@tokenring-ai/one-frontend/apps/panelHooks.ts";
 import AgentLaunchPanel from "@tokenring-ai/one-frontend/components/ui/AgentLaunchPanel.tsx";
 import BreadcrumbBar, { type BreadcrumbAction, type BreadcrumbSegment } from "@tokenring-ai/one-frontend/components/ui/BreadcrumbBar.tsx";
 import EmptyState from "@tokenring-ai/one-frontend/components/ui/EmptyState.tsx";
@@ -9,17 +10,19 @@ import ViewShell from "@tokenring-ai/one-frontend/components/ui/ViewShell.tsx";
 import { useDebounce } from "@tokenring-ai/one-frontend/hooks/useDebounce.ts";
 import { useFileUpload } from "@tokenring-ai/one-frontend/hooks/useFileUpload.ts";
 import { filesystemRPCClient } from "@tokenring-ai/one-frontend/rpc.ts";
-import { SegmentedControl } from "@tokenring-ai/one-frontend/ui";
+import { Button, SegmentedControl, Select } from "@tokenring-ai/one-frontend/ui";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { Eye, EyeOff, FilePlus, Filter, FilterX, FolderPlus, HardDrive, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ContentSearchResults from "../features/filesystem/components/ContentSearchResults.tsx";
 import FileListPane from "../features/filesystem/components/FileListPane.tsx";
 import { getParentPath, joinPath } from "../features/filesystem/fsUtils.ts";
+import { FILE_VIEW_ID } from "../ids.ts";
 import { requestRevealLine } from "../lib/contentSearch.ts";
 import { setFilesBrowserState, toggleSelectAll, toggleSelectedPath, useFilesBrowserStore, useFilesProvider } from "../lib/filesBrowserStore.ts";
-import { useFileMutations, useOpenFile, useRefreshListing } from "../lib/useFileMutations.tsx";
+import { useRefreshListing } from "../lib/useFileMutationsCore.tsx";
+import { useFileMutations, useOpenFile } from "../lib/useFilesLayoutNavigation.ts";
 
 /** Max size for uploads (matches user-facing error copy). */
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
@@ -27,19 +30,18 @@ const MAX_UPLOAD_SIZE_MB = 5;
 
 /**
  * The Files navigator: provider, search, breadcrumbs with file actions and
- * the directory listing. Selecting a file opens it in the main area (or, from
- * another dashboard, navigates to the Files dashboard).
+ * the directory listing. Selecting a file opens its tab beside the tree.
  */
-export default function FileTreeView() {
+export default function FileTreePane() {
   const navigate = useNavigate();
-  const { fileId: routeFile } = useParams<{ fileId?: string }>();
+  const routeFile = useRouteParamsFor(FILE_VIEW_ID)?.fileId;
   const { provider, providers, homePath, fsProviders } = useFilesProvider();
   const { pathOverride, showHidden, showIgnored, selectedPaths, searchQuery, searchMode } = useFilesBrowserStore();
   const path = pathOverride ?? homePath;
   const debouncedSearch = useDebounce(searchQuery, 250);
   const openFile = useOpenFile();
   const refreshListing = useRefreshListing();
-  const { newFile, newFolder, openRename, requestDelete, duplicate, modals } = useFileMutations(provider, path);
+  const { newFile, newFolder, openRename, requestDelete, duplicate, modals } = useFileMutations(provider, path, routeFile ?? null);
 
   // A file named by the URL (deep link, "open in Files" from a terminal) shows its directory.
   useEffect(() => {
@@ -140,9 +142,9 @@ export default function FileTreeView() {
             <Link to="/configuration" className="text-xs font-medium text-accent hover:underline focus-ring rounded">
               Open configuration
             </Link>
-            <button type="button" onClick={() => void fsProviders.mutate()} className="text-xs text-muted hover:text-primary focus-ring rounded cursor-pointer">
+            <Button variant="ghost" onClick={() => void fsProviders.mutate()}>
               Retry
-            </button>
+            </Button>
           </div>
         }
         data-testid="files-no-providers"
@@ -158,18 +160,13 @@ export default function FileTreeView() {
     <ViewShell tone="sidebar" scroll={false}>
       <div className="shrink-0 flex items-center gap-2 px-2 py-1.5 border-b border-primary">
         {providers.length > 1 && (
-          <select
-            value={provider}
-            onChange={e => switchProvider(e.target.value)}
-            className="bg-input border border-primary rounded-lg px-2 py-1 text-xs text-primary focus-ring cursor-pointer"
-            aria-label="Filesystem provider"
-          >
+          <Select value={provider} onChange={switchProvider} aria-label="Filesystem provider">
             {providers.map(p => (
               <option key={p} value={p}>
                 {p}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         <SearchInput
           value={searchQuery}
@@ -199,9 +196,9 @@ export default function FileTreeView() {
       />
       {homePath !== null && path !== homePath && (
         <div className="px-3 py-1 border-b border-primary bg-secondary">
-          <button type="button" onClick={() => navigateTo(homePath)} className="text-xs text-accent hover:underline focus-ring rounded cursor-pointer">
+          <Button variant="ghost" onClick={() => navigateTo(homePath)}>
             ← Back to {homePath === "." ? "root" : homePath}
-          </button>
+          </Button>
         </div>
       )}
       <input ref={upload.inputRef} type="file" multiple onChange={e => void upload.onChange(e)} className="hidden" />

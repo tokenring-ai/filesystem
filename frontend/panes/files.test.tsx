@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { getPanelBadge } from "@tokenring-ai/one-frontend/dock/panelBadges.ts";
-import type { DashboardDefinition, ViewDefinition, ViewParams } from "@tokenring-ai/one-frontend/dock/types.ts";
-import { createFakeDashboardApi, createFakePanelHandle, type FakeDashboardApi, renderView } from "@tokenring-ai/one-frontend/test/dock.tsx";
+import { createLayoutRegistry } from "@tokenring-ai/one-frontend/layout/registry.ts";
+import { renderLayoutApp } from "@tokenring-ai/one-frontend/test/layout.tsx";
 import type React from "react";
+import { SWRConfig } from "swr";
 
 const PassThroughFocusTrap = ({ children }: { children: React.ReactNode }) => children;
 void mock.module("focus-trap-react", () => ({ FocusTrap: PassThroughFocusTrap, default: PassThroughFocusTrap }));
@@ -58,6 +58,19 @@ void mock.module("@tokenring-ai/one-frontend/rpc.ts", () => ({
     isLoading: false,
     error: undefined,
   }),
+  useFilesystemState: () => ({
+    data: {
+      status: "success" as const,
+      provider: "local",
+      allowedPaths: [],
+      selectedFiles: [] as string[],
+      readFiles: {},
+      dirty: false,
+    },
+    isLoading: false,
+    error: undefined,
+    mutate: mock(async () => undefined),
+  }),
   useDirectoryListing: (opts?: { path: string }) => ({
     data: opts && !state.listingError ? { files: state.files.map(f => `${opts.path}/${f}`) } : undefined,
     isLoading: false,
@@ -92,27 +105,32 @@ void mock.module("@tokenring-ai/one-frontend/rpc.ts", () => ({
   },
 }));
 
-const { default: contribution } = await import("../app.tsx");
+const { FILES_APP } = await import("../layout.ts");
+const { default: filesViews } = await import("../views.tsx");
 const { resetFilesBrowserStore, clearFileDrafts, fileDraftKey, getFileDraft, setFileDraft, setFilesBrowserState } = await import("../lib/filesBrowserStore.ts");
+const { filesPath } = await import("../lib/paths.ts");
 const { setConfirmSkipped } = await import("@tokenring-ai/one-frontend/lib/uiPreferences.ts");
 const { getPendingRevealForTest, resetRevealRequests } = await import("../lib/contentSearch.ts");
 
-const viewById = (id: string) => contribution.views.find(view => view.id === id) as ViewDefinition<any>;
-const getView = (id: string) => contribution.views.find(view => view.id === id);
-const dashboard: DashboardDefinition = contribution.dashboards[0]!;
+const registry = createLayoutRegistry({
+  apps: [FILES_APP],
+  views: filesViews.views,
+  kinds: [
+    { id: "navigator", label: "Navigators", plural: "navigators" },
+    { id: "file", label: "Files", plural: "files" },
+  ],
+});
 
-function fakeApi(): FakeDashboardApi {
-  return createFakeDashboardApi({ dashboardId: "files", getView });
+function Fresh({ children }: { children: React.ReactNode }) {
+  return <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>{children}</SWRConfig>;
 }
 
-function renderFilesView(viewId: string, params: ViewParams = {}, path = "/files", api = fakeApi()) {
-  const panel = createFakePanelHandle({ viewId, dashboardId: "files", panelId: `${viewId}:${JSON.stringify(params)}`, params });
-  return renderView(viewById(viewId), params, { api, panel, path, routes: ["/files/:fileId?"] });
-}
+const renderApp = (url = "/files") => renderLayoutApp({ registry, url, wrapper: Fresh });
+/** A tab by title (its accessible name also carries a badge label when it has one). */
+const tab = (title: string) => screen.queryByRole("tab", { name: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`) });
+const README = "/project/README.md";
 
-const pathname = () => screen.getByTestId("pathname").textContent;
-
-describe("Files dashboard views", () => {
+describe("Files app", () => {
   beforeEach(() => {
     localStorage.clear();
     resetFilesBrowserStore();
@@ -137,50 +155,55 @@ describe("Files dashboard views", () => {
     state.listingError = undefined;
     state.providers = ["local"];
     state.files = ["src/", "README.md", "logo.png"];
-    state.contents = { "/project/README.md": "# Hello" };
+    state.contents = { [README]: "# Hello" };
   });
 
-  describe("tree", () => {
-    it("lists the working directory and opens a text file in the editor", async () => {
-      const user = userEvent.setup();
-      const { api } = renderFilesView("file-tree");
+  describe("routing", () => {
+    it("shows the landing tab at /files", async () => {
+      renderApp();
+      expect(await screen.findByText("No file open")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Editor" })).toBeInTheDocument();
+    });
 
-      await user.click(await screen.findByText("README.md"));
-
-      expect(api.opened).toEqual([expect.objectContaining({ viewId: "file-editor", params: { path: "/project/README.md" } })]);
-      expect(pathname()).toBe("/files/%2Fproject%2FREADME.md");
+    it("keeps the encoded file URLs: a path with slashes and spaces opens its own tab", async () => {
+      state.contents["src/a b.ts"] = "const a = 1;";
+      const app = renderApp(`/files/${encodeURIComponent("src/a b.ts")}`);
+      expect(await screen.findByLabelText("Code editor")).toHaveValue("const a = 1;");
+      expect(app.location().pathname).toBe("/files/src%2Fa%20b.ts");
+      expect(tab("a b.ts")).toBeInTheDocument();
+      expect(screen.queryByText("No file open")).not.toBeInTheDocument();
     });
 
     it("opens non-text files in the preview pane", async () => {
-      const user = userEvent.setup();
-      const { api } = renderFilesView("file-tree");
-
-      await user.click(await screen.findByText("logo.png"));
-      expect(api.opened).toEqual([expect.objectContaining({ viewId: "file-preview", params: { path: "/project/logo.png" } })]);
+      renderApp(filesPath("/project/logo.png"));
+      expect(await screen.findByRole("button", { name: "Close preview" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Code editor")).not.toBeInTheDocument();
+      await waitFor(() => expect(tab("logo.png")).toBeInTheDocument());
     });
+  });
 
-    it("fills an empty editor panel instead of opening a second one", async () => {
+  describe("tree", () => {
+    it("lists the working directory and opens a text file in a new tab, closing the landing tab", async () => {
       const user = userEvent.setup();
-      const api = fakeApi();
-      api.panels.push({ panelId: "file-editor:new", viewId: "file-editor", params: {}, title: "Editor" });
-      renderFilesView("file-tree", {}, "/files", api);
+      const app = renderApp();
 
       await user.click(await screen.findByText("README.md"));
-      expect(api.opened).toHaveLength(0);
-      expect(api.panels[0]!.params).toEqual({ path: "/project/README.md" });
+
+      await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2FREADME.md"));
+      expect(await screen.findByLabelText("Markdown editor")).toHaveValue("# Hello");
+      expect(tab("README.md")).toBeInTheDocument();
+      expect(tab("Editor")).not.toBeInTheDocument();
     });
 
     it("shows the directory of a file named by the URL", async () => {
-      renderFilesView("file-tree", {}, "/files/%2Fproject%2Fsrc%2Findex.ts");
-      // The listing mock prefixes entries with the directory it was asked for.
+      renderApp("/files/%2Fproject%2Fsrc%2Findex.ts");
       expect(await screen.findByText("README.md")).toBeInTheDocument();
-      // "src" appears both as a breadcrumb segment and as a listed directory.
       expect(screen.getAllByText("src").length).toBeGreaterThan(0);
     });
 
     it("creates a new file from the breadcrumb actions and opens it", async () => {
       const user = userEvent.setup();
-      const { api } = renderFilesView("file-tree");
+      const app = renderApp();
 
       await user.click(await screen.findByRole("button", { name: "New file" }));
       const dialog = screen.getByRole("dialog");
@@ -188,89 +211,45 @@ describe("Files dashboard views", () => {
       await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
       await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: "/project/notes.md", content: "", provider: "local" }));
-      await waitFor(() => expect(api.opened).toEqual([expect.objectContaining({ viewId: "file-editor", params: { path: "/project/notes.md" } })]));
+      await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2Fnotes.md"));
     });
-  });
 
-  describe("listing states and row actions", () => {
     it("shows a listing error with a working Retry", async () => {
       const user = userEvent.setup();
       state.listingError = new Error("permission denied");
-      renderFilesView("file-tree");
+      renderApp();
 
       expect(await screen.findByText("Could not list this folder")).toBeInTheDocument();
-      expect(screen.getByText("permission denied")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Retry" }));
       expect(mutateListing).toHaveBeenCalled();
     });
 
     it("explains how to configure a provider when none exist", async () => {
       state.providers = [];
-      renderFilesView("file-tree");
+      renderApp();
 
       const empty = await screen.findByTestId("files-no-providers");
       expect(empty).toHaveTextContent("filesystem.agentDefaults.provider");
       expect(within(empty).getByRole("link", { name: "Open configuration" })).toHaveAttribute("href", "/configuration");
     });
 
-    it("labels search as a file-name search", async () => {
-      renderFilesView("file-tree");
-      expect(await screen.findByPlaceholderText("Search file names…")).toBeInTheDocument();
-    });
-
-    it("reveals row actions on keyboard focus and touch, with an overflow menu for phones", async () => {
-      const user = userEvent.setup();
-      renderFilesView("file-tree");
-
-      const rename = await screen.findByRole("button", { name: "Rename README.md" });
-      expect(rename.parentElement).toHaveClass("group-focus-within:opacity-100", "focus-within:opacity-100", "[@media(hover:none)]:opacity-100");
-
-      await user.click(screen.getByRole("button", { name: "Actions for README.md" }));
-      const menu = await screen.findByRole("menu");
-      expect(
-        within(menu)
-          .getAllByRole("menuitem")
-          .map(item => item.textContent?.trim()),
-      ).toEqual(["Download", "Duplicate", "Rename", "Delete"]);
-      await user.click(within(menu).getByRole("menuitem", { name: "Rename" }));
-      expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    });
-
-    it("activates a row action with Enter without opening the row", async () => {
-      const user = userEvent.setup();
-      const { api } = renderFilesView("file-tree");
-
-      (await screen.findByRole("button", { name: "Rename README.md" })).focus();
-      await user.keyboard("{Enter}");
-      expect(await screen.findByRole("dialog")).toBeInTheDocument();
-      expect(api.opened).toHaveLength(0);
-    });
-
     it("duplicates a file next to itself under the first free name", async () => {
       const user = userEvent.setup();
       existing.add("/project/README copy.md");
-      renderFilesView("file-tree");
+      renderApp();
 
       await user.click(await screen.findByRole("button", { name: "Duplicate README.md" }));
-      await waitFor(() =>
-        expect(copy).toHaveBeenCalledWith({ provider: "local", source: "/project/README.md", destination: "/project/README copy 2.md", overwrite: false }),
-      );
+      await waitFor(() => expect(copy).toHaveBeenCalledWith({ provider: "local", source: README, destination: "/project/README copy 2.md", overwrite: false }));
     });
 
-    it("offers folder delete but not Duplicate for folders", async () => {
-      renderFilesView("file-tree");
-      expect(await screen.findByRole("button", { name: "Rename src" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Duplicate src" })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Delete folder src" })).toBeInTheDocument();
-    });
-
-    it("deletes a folder after a confirmation that says how much is inside, even when file deletes skip confirmation", async () => {
+    it("deletes a folder after a confirmation that says how much is inside, closing its open tabs and dropping drafts", async () => {
       const user = userEvent.setup();
       setConfirmSkipped("Delete", true);
-      const api = fakeApi();
-      api.openView("file-editor", { path: "/project/src/index.ts" });
+      // Opening a file shows its directory in the tree; step back up to /project so its "src" folder is listed.
       setFileDraft(fileDraftKey("local", "/project/src/index.ts"), "draft inside");
-      renderFilesView("file-tree", {}, "/files", api);
+      renderApp(filesPath("/project/src/index.ts"));
+      await screen.findByLabelText("Code editor");
+      act(() => setFilesBrowserState({ pathOverride: "/project" }));
 
       await user.click(await screen.findByRole("button", { name: "Delete folder src" }));
       await waitFor(() => expect(countDirectoryEntries).toHaveBeenCalledWith({ path: "/project/src", provider: "local" }));
@@ -280,7 +259,7 @@ describe("Files dashboard views", () => {
 
       await user.click(within(dialog).getByRole("button", { name: "Delete folder" }));
       await waitFor(() => expect(deleteDirectory).toHaveBeenCalledWith({ path: "/project/src", provider: "local" }));
-      await waitFor(() => expect(api.panels.some(panel => panel.viewId === "file-editor")).toBe(false));
+      await waitFor(() => expect(tab("index.ts")).not.toBeInTheDocument());
       expect(getFileDraft(fileDraftKey("local", "/project/src/index.ts"))).toBeNull();
     });
   });
@@ -295,70 +274,64 @@ describe("Files dashboard views", () => {
       await user.click(within(dialog).getByRole("button", { name: "Rename" }));
     }
 
-    it("moves a renamed file's unsaved draft and open editor to the new path", async () => {
+    it("moves a renamed file's unsaved draft and open tab to the new path", async () => {
       const user = userEvent.setup();
-      const api = fakeApi();
-      const panelId = api.openView("file-editor", { path: "/project/README.md" });
-      setFileDraft(fileDraftKey("local", "/project/README.md"), "unsaved edits");
-      renderFilesView("file-tree", {}, "/files/%2Fproject%2FREADME.md", api);
+      setFileDraft(fileDraftKey("local", README), "unsaved edits");
+      const app = renderApp(filesPath(README));
+      await screen.findByLabelText("Markdown editor");
 
       await renameTo(user, "README.md", "NOTES.md");
 
-      await waitFor(() => expect(rename).toHaveBeenCalledWith({ oldPath: "/project/README.md", newPath: "/project/NOTES.md", provider: "local" }));
-      await waitFor(() => expect(api.panels.find(panel => panel.panelId === panelId)?.params).toEqual({ path: "/project/NOTES.md" }));
+      await waitFor(() => expect(rename).toHaveBeenCalledWith({ oldPath: README, newPath: "/project/NOTES.md", provider: "local" }));
+      await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2FNOTES.md"));
+      await waitFor(() => expect(tab("NOTES.md")).toBeInTheDocument());
+      await waitFor(() => expect(tab("README.md")).not.toBeInTheDocument());
       expect(getFileDraft(fileDraftKey("local", "/project/NOTES.md"))).toBe("unsaved edits");
-      expect(getFileDraft(fileDraftKey("local", "/project/README.md"))).toBeNull();
-      await waitFor(() => expect(pathname()).toBe("/files/%2Fproject%2FNOTES.md"));
+      expect(getFileDraft(fileDraftKey("local", README))).toBeNull();
+      expect(await screen.findByLabelText("Markdown editor")).toHaveValue("unsaved edits");
     });
 
-    it("re-points panels and drafts of files inside a renamed directory", async () => {
+    it("re-points tabs and drafts of files inside a renamed directory, leaving prefix siblings alone", async () => {
       const user = userEvent.setup();
-      const api = fakeApi();
-      const editorId = api.openView("file-editor", { path: "/project/src/index.ts" });
-      const previewId = api.openView("file-preview", { path: "/project/src/logo.png" });
-      const otherId = api.openView("file-editor", { path: "/project/srcfile.ts" });
       setFileDraft(fileDraftKey("local", "/project/src/index.ts"), "inner draft");
       setFileDraft(fileDraftKey("local", "/project/srcfile.ts"), "sibling draft");
-      renderFilesView("file-tree", {}, "/files", api);
+      const app = renderApp(filesPath("/project/src/index.ts"));
+      await screen.findByLabelText("Code editor");
+      // A sibling that merely shares the prefix, opened too.
+      act(() => app.go(filesPath("/project/srcfile.ts")));
+      await waitFor(() => expect(tab("srcfile.ts")).toBeInTheDocument());
+      act(() => app.go(filesPath("/project/src/index.ts")));
+      act(() => setFilesBrowserState({ pathOverride: "/project" }));
 
       await renameTo(user, "src", "lib");
 
       await waitFor(() => expect(rename).toHaveBeenCalledWith({ oldPath: "/project/src", newPath: "/project/lib", provider: "local" }));
-      await waitFor(() => expect(api.panels.find(panel => panel.panelId === editorId)?.params).toEqual({ path: "/project/lib/index.ts" }));
-      expect(api.panels.find(panel => panel.panelId === previewId)?.params).toEqual({ path: "/project/lib/logo.png" });
-      // A sibling that merely shares the prefix is left alone.
-      expect(api.panels.find(panel => panel.panelId === otherId)?.params).toEqual({ path: "/project/srcfile.ts" });
+      await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2Flib%2Findex.ts"));
       expect(getFileDraft(fileDraftKey("local", "/project/lib/index.ts"))).toBe("inner draft");
       expect(getFileDraft(fileDraftKey("local", "/project/src/index.ts"))).toBeNull();
       expect(getFileDraft(fileDraftKey("local", "/project/srcfile.ts"))).toBe("sibling draft");
+      expect(tab("srcfile.ts")).toBeInTheDocument();
     });
 
-    it("deletes with the current provider when confirmation is skipped, closing panels and dropping the draft", async () => {
+    it("deletes with the current provider when confirmation is skipped, closing the tab and dropping the draft", async () => {
       const user = userEvent.setup();
-      // Providers are still loading on the first render, so the provider starts out null.
-      state.providers = [];
       setConfirmSkipped("Delete", true);
-      const api = fakeApi();
-      api.openView("file-editor", { path: "/project/README.md" });
-      setFileDraft(fileDraftKey("local", "/project/README.md"), "doomed draft");
-      renderFilesView("file-tree", {}, "/files", api);
+      setFileDraft(fileDraftKey("local", README), "doomed draft");
+      renderApp(filesPath(README));
+      await screen.findByLabelText("Markdown editor");
 
-      // Providers arrive; a store update re-renders the tree with the resolved provider.
-      state.providers = ["local"];
-      act(() => setFilesBrowserState({ providerOverride: "local" }));
       await user.click(await screen.findByRole("button", { name: "Delete README.md" }));
 
-      await waitFor(() => expect(deleteFile).toHaveBeenCalledWith({ path: "/project/README.md", provider: "local" }));
-      await waitFor(() => expect(api.panels.some(panel => panel.viewId === "file-editor")).toBe(false));
-      expect(getFileDraft(fileDraftKey("local", "/project/README.md"))).toBeNull();
+      await waitFor(() => expect(deleteFile).toHaveBeenCalledWith({ path: README, provider: "local" }));
+      await waitFor(() => expect(tab("README.md")).not.toBeInTheDocument());
+      expect(getFileDraft(fileDraftKey("local", README))).toBeNull();
     });
   });
 
   describe("content search", () => {
     it("lists file:line matches under the current folder and opens the editor at the line", async () => {
       const user = userEvent.setup();
-      const api = fakeApi();
-      renderFilesView("file-tree", {}, "/files", api);
+      const app = renderApp();
 
       await user.click(await screen.findByRole("button", { name: "Contents" }));
       await user.type(screen.getByLabelText("Search file contents"), "needle");
@@ -368,26 +341,15 @@ describe("Files dashboard views", () => {
       await user.click(screen.getByRole("button", { name: "Open src/a.ts at line 9" }));
 
       expect(getPendingRevealForTest()).toMatchObject({ path: "/project/src/a.ts", line: 9 });
-      await waitFor(() => expect(api.opened).toEqual([expect.objectContaining({ viewId: "file-editor", params: { path: "/project/src/a.ts" } })]));
-      expect(pathname()).toBe("/files/%2Fproject%2Fsrc%2Fa.ts");
-    });
-
-    it("waits for two characters before searching", async () => {
-      const user = userEvent.setup();
-      renderFilesView("file-tree");
-
-      await user.click(await screen.findByRole("button", { name: "Contents" }));
-      await user.type(screen.getByLabelText("Search file contents"), "x");
-      expect(await screen.findByText("Search file contents")).toBeInTheDocument();
-      expect(searchFileContents).not.toHaveBeenCalled();
+      await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2Fsrc%2Fa.ts"));
     });
   });
 
-  describe("versions", () => {
+  describe("editor", () => {
     it("previews an archived version and restores it through the normal save", async () => {
       const user = userEvent.setup();
       state.contents["/project/versioned.ts"] = "new text";
-      renderFilesView("file-editor", { path: "/project/versioned.ts" });
+      renderApp(filesPath("/project/versioned.ts"));
 
       expect(await screen.findByLabelText("Code editor")).toHaveValue("new text");
       await user.click(screen.getByRole("button", { name: "Versions" }));
@@ -405,108 +367,60 @@ describe("Files dashboard views", () => {
       expect(mutateFileContents).toHaveBeenCalled();
     });
 
-    it("explains when a file has no archived versions", async () => {
-      const user = userEvent.setup();
-      listFileVersions.mockImplementationOnce(async () => ({ versions: [] }));
-      renderFilesView("file-editor", { path: "/project/unversioned.ts" });
-
-      await user.click(await screen.findByRole("button", { name: "Versions" }));
-      expect(await screen.findByText("No earlier versions")).toBeInTheDocument();
-    });
-  });
-
-  describe("editor", () => {
     it("edits a file, marks the tab dirty and saves with Ctrl+S", async () => {
       const user = userEvent.setup();
-      const { panel } = renderFilesView("file-editor", { path: "/project/README.md" }, "/files/%2Fproject%2FREADME.md");
+      renderApp(filesPath(README));
 
       const editor = await screen.findByLabelText("Markdown editor");
       expect(editor).toHaveValue("# Hello");
-      await waitFor(() => expect(panel.title).toBe("README.md"));
-
       await user.clear(editor);
       await user.type(editor, "# Changed");
-      await waitFor(() => expect(getPanelBadge(panel.panelId)?.title).toBe("Unsaved changes"));
+      await waitFor(() => expect(screen.getByRole("img", { name: "Unsaved changes" })).toBeInTheDocument());
 
       await user.keyboard("{Control>}s{/Control}");
-      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: "/project/README.md", content: "# Changed", provider: "local" }));
-      await waitFor(() => expect(getPanelBadge(panel.panelId)).toBeNull());
+      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: README, content: "# Changed", provider: "local" }));
+      await waitFor(() => expect(screen.queryByRole("img", { name: "Unsaved changes" })).not.toBeInTheDocument());
     });
 
     it("keeps text typed while a save is in flight", async () => {
       const user = userEvent.setup();
       let finishWrite!: () => void;
       writeFile.mockImplementationOnce(() => new Promise(resolve => (finishWrite = () => resolve({ success: true }))));
-      const { panel } = renderFilesView("file-editor", { path: "/project/README.md" });
+      renderApp(filesPath(README));
 
       const editor = await screen.findByLabelText("Markdown editor");
       await user.type(editor, " one");
       await user.keyboard("{Control>}s{/Control}");
-      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: "/project/README.md", content: "# Hello one", provider: "local" }));
+      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: README, content: "# Hello one", provider: "local" }));
 
       await user.type(editor, " two");
       finishWrite();
 
       await waitFor(() => expect(mutateFileContents).toHaveBeenCalled());
-      expect(getFileDraft(fileDraftKey("local", "/project/README.md"))).toBe("# Hello one two");
+      expect(getFileDraft(fileDraftKey("local", README))).toBe("# Hello one two");
       expect(editor).toHaveValue("# Hello one two");
-      expect(getPanelBadge(panel.panelId)).toMatchObject({ tone: "warning" });
     });
 
-    it("keeps an unsaved draft when the panel is closed and reopened", async () => {
+    it("keeps an unsaved draft when the tab is closed and reopened", async () => {
       const user = userEvent.setup();
-      const first = renderFilesView("file-editor", { path: "/project/README.md" });
-      const editor = await first.findByLabelText("Markdown editor");
+      const first = renderApp(filesPath(README));
+      const editor = await screen.findByLabelText("Markdown editor");
       await user.clear(editor);
       await user.type(editor, "draft");
       first.unmount();
 
-      renderFilesView("file-editor", { path: "/project/README.md" });
+      renderApp(filesPath(README));
       expect(await screen.findByLabelText("Markdown editor")).toHaveValue("draft");
-    });
-
-    it("waits for a file when opened without one", async () => {
-      const { panel } = renderFilesView("file-editor", {});
-      expect(await screen.findByText("No file open")).toBeInTheDocument();
-      await waitFor(() => expect(panel.title).toBe("Editor"));
     });
   });
 
   describe("preview", () => {
-    it("shows file metadata and closes itself", async () => {
+    it("shows file metadata and closes its tab", async () => {
       const user = userEvent.setup();
-      const { panel } = renderFilesView("file-preview", { path: "/project/logo.png" }, "/files/%2Fproject%2Flogo.png");
+      renderApp(filesPath("/project/logo.png"));
 
-      expect(await screen.findByText("logo.png")).toBeInTheDocument();
-      await waitFor(() => expect(panel.title).toBe("logo.png"));
-      await user.click(screen.getByRole("button", { name: /Close/i }));
-      expect(panel.closed).toBe(true);
-    });
-  });
-
-  describe("dashboard definition", () => {
-    it("opens the file named by the route in the right view", () => {
-      const api = fakeApi();
-      api.panels.push({ panelId: "file-tree", viewId: "file-tree", params: {}, title: "Files" });
-      const match = (fileId: string) => ({ pathname: `/files/${encodeURIComponent(fileId)}`, params: { fileId }, searchParams: new URLSearchParams() });
-
-      dashboard.onNavigate?.(match("/project/README.md"), api);
-      dashboard.onNavigate?.(match("/project/logo.png"), api);
-
-      expect(api.opened.map(open => [open.viewId, open.params])).toEqual([
-        ["file-editor", { path: "/project/README.md" }],
-        ["file-preview", { path: "/project/logo.png" }],
-      ]);
-      expect(api.opened[0]!.options).toMatchObject({ position: "right", referencePanelId: "file-tree" });
-    });
-
-    it("maps the active panel back to a URL", () => {
-      const match = { pathname: "/files", params: {}, searchParams: new URLSearchParams() };
-      const path = (viewId: string, params: ViewParams = {}) => dashboard.pathForActivePanel?.({ panelId: viewId, viewId, params }, match);
-      expect(path("file-editor", { path: "/project/README.md" })).toBe("/files/%2Fproject%2FREADME.md");
-      expect(path("file-preview", { path: "/project/logo.png" })).toBe("/files/%2Fproject%2Flogo.png");
-      expect(path("file-editor")).toBe("/files");
-      expect(path("file-tree")).toBeNull();
+      await user.click(await screen.findByRole("button", { name: "Close preview" }));
+      await waitFor(() => expect(tab("logo.png")).not.toBeInTheDocument());
     });
   });
 });

@@ -1,15 +1,12 @@
-import EmptyState from "@tokenring-ai/one-frontend/components/ui/EmptyState.tsx";
+import { usePanelBadge, usePanelTitle } from "@tokenring-ai/one-frontend/apps/panelHooks.ts";
 import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx";
 import ViewShell from "@tokenring-ai/one-frontend/components/ui/ViewShell.tsx";
-import { setPanelBadge } from "@tokenring-ai/one-frontend/dock/panelBadges.ts";
-import type { ViewPanelHandle, ViewProps } from "@tokenring-ai/one-frontend/dock/types.ts";
 import { useKeyboardShortcuts } from "@tokenring-ai/one-frontend/hooks/useKeyboardShortcuts.ts";
+import { usePanel } from "@tokenring-ai/one-frontend/layout/hooks.ts";
 import { filesystemRPCClient, useFileContents } from "@tokenring-ai/one-frontend/rpc.ts";
 import formatError from "@tokenring-ai/utility/error/formatError";
-import { FileText } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
-import type { FileEditorParams } from "../app.tsx";
 import FileEditorPane from "../features/filesystem/components/FileEditorPane.tsx";
 import FileVersionsPanel from "../features/filesystem/components/FileVersionsPanel.tsx";
 import { getBasename, isLikelyTextFile } from "../features/filesystem/fsUtils.ts";
@@ -21,7 +18,9 @@ import { fileVersionsKey } from "../lib/fileVersions.ts";
 const REVEAL_ATTEMPTS = 20;
 const REVEAL_INTERVAL_MS = 150;
 
-function FileEditor({ path, panel }: { path: string; panel: ViewPanelHandle<FileEditorParams> }) {
+/** The editor of one text file, with its save/restore flow and version history. */
+export default function FileEditorTab({ path }: { path: string }) {
+  const panel = usePanel();
   const { provider } = useFilesProvider();
   const isText = isLikelyTextFile(path);
   const fileContent = useFileContents(isText ? path : undefined, provider ?? undefined);
@@ -62,15 +61,9 @@ function FileEditor({ path, panel }: { path: string; panel: ViewPanelHandle<File
   const editorContent = draft ?? diskContent;
   const isDirty = draft !== null && draft !== diskContent;
 
-  useEffect(() => {
-    panel.setTitle(getBasename(path));
-  }, [panel, path]);
-
+  usePanelTitle(getBasename(path));
   // Unsaved edits show as a dot on the tab; the draft itself survives closing the panel.
-  useEffect(() => {
-    setPanelBadge(panel.panelId, isDirty ? { title: "Unsaved changes", tone: "warning" } : null);
-  }, [isDirty, panel.panelId]);
-  useEffect(() => () => setPanelBadge(panel.panelId, null), [panel.panelId]);
+  usePanelBadge(isDirty ? { tone: "warning", label: "Unsaved changes" } : null);
 
   const handleSave = useCallback(async () => {
     if (!provider || !isText || draft === null) return;
@@ -137,16 +130,4 @@ function FileEditor({ path, panel }: { path: string; panel: ViewPanelHandle<File
       </div>
     </ViewShell>
   );
-}
-
-/** One text file per panel; without a `path` the panel waits for the next file opened from the tree. */
-export default function FileEditorView({ params, panel }: ViewProps<FileEditorParams>) {
-  useEffect(() => {
-    if (!params.path) panel.setTitle("Editor");
-  }, [panel, params.path]);
-
-  if (!params.path) {
-    return <EmptyState variant="page" className="h-full" icon={FileText} title="No file open" hint="Pick a file in the Files panel to edit it here." />;
-  }
-  return <FileEditor key={params.path} path={params.path} panel={panel} />;
 }
