@@ -15,6 +15,7 @@ async function execute(
   agent: Agent,
 ): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);
+  const { settings } = agent.getState(FileSystemState);
 
   const matchCounts: Record<string, number> = {};
   for (const term of searchTerms) {
@@ -38,39 +39,54 @@ async function execute(
     };
   }
 
-  const { settings } = agent.getState(FileSystemState);
-
   const retrievedFiles = new Map<string, string>();
   let failedReadCount = 0;
+  let skippedLargeCount = 0;
+  /** Reads one file; a failure (unreadable, outside the allowed paths, too large) skips only that file. */
+  const readOne = async (file: string): Promise<void> => {
+    if (retrievedFiles.has(file)) return;
+    try {
+      const stat = await fileSystem.stat(file, agent);
+      if (!stat.exists || stat.isDirectory) return;
+      if (settings.maxTextFileReadSize > 0 && (stat.size ?? 0) > settings.maxTextFileReadSize) {
+        ++skippedLargeCount;
+        return;
+      }
+      const contents = await fileSystem.readTextFile(file, agent);
+      if (contents) retrievedFiles.set(file, contents);
+      else ++failedReadCount;
+    } catch {
+      ++failedReadCount;
+    }
+  };
   for (const file of matchedFiles) {
     try {
       const stat = await fileSystem.stat(file, agent);
-      if (stat.exists) {
-        if (stat.isDirectory) {
-          for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
-            if (retrievedFiles.has(dirFile)) continue;
-            const contents = await fileSystem.readTextFile(dirFile, agent);
-            if (contents) retrievedFiles.set(dirFile, contents);
-            else ++failedReadCount;
-          }
-        } else {
-          const contents = await fileSystem.readTextFile(file, agent);
-          if (contents) retrievedFiles.set(file, contents);
-          else ++failedReadCount;
+      if (!stat.exists) continue;
+      if (stat.isDirectory) {
+        // The tree is recursive and also lists the directories themselves (ending in "/").
+        for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
+          if (!dirFile.endsWith("/")) await readOne(dirFile);
         }
+      } else {
+        await readOne(file);
       }
     } catch {
       ++failedReadCount;
     }
   }
 
-  const searchPatterns = searchTerms.map(s => {
-    if (s.startsWith("/") && s.endsWith("/")) {
-      return new RegExp(s.slice(1, -1), "si");
-    } else {
-      return s.toLowerCase();
-    }
-  });
+  let searchPatterns: (string | RegExp)[];
+  try {
+    // Regexes are matched one line at a time, like grep. (No "g" flag: test() then has no state.)
+    searchPatterns = searchTerms.map(s => (s.length > 1 && s.startsWith("/") && s.endsWith("/") ? new RegExp(s.slice(1, -1), "i") : s.toLowerCase()));
+  } catch (error) {
+    return {
+      failed: true,
+      message: "**File Grep** Invalid regular expression",
+      result: `A search term is not a valid regular expression: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 
   const results = new EnhancedMap<string, string>();
 
@@ -83,20 +99,9 @@ async function execute(
       const term = searchTerms[pi]!;
       let termMatched = false;
 
-      if (typeof pattern === "string") {
-        lowerCaseLines.forEach((line, index) => {
-          if (line.includes(pattern)) {
-            matchedLines.add(index);
-            termMatched = true;
-          }
-        });
-      } else {
-        pattern.lastIndex = 0;
-        let result: RegExpExecArray | null;
-        while ((result = pattern.exec(fileContent))) {
-          const prefix = fileContent.substring(0, result.index);
-          const lineNumber = prefix.split("\n").length - 1;
-          matchedLines.add(lineNumber);
+      for (let index = 0; index < lines.length; index++) {
+        if (typeof pattern === "string" ? lowerCaseLines[index]!.includes(pattern) : pattern.test(lines[index]!)) {
+          matchedLines.add(index);
           termMatched = true;
         }
       }
@@ -107,7 +112,7 @@ async function execute(
     }
 
     for (const lineNumber of Array.from(matchedLines)) {
-      for (let i = lineNumber - settings.searchSnippetLinesBefore; i < lineNumber + settings.searchSnippetLinesAfter; i++) {
+      for (let i = lineNumber - settings.searchSnippetLinesBefore; i <= lineNumber + settings.searchSnippetLinesAfter; i++) {
         if (i >= 0 && i < lines.length) matchedLines.add(i);
       }
     }
@@ -143,6 +148,7 @@ async function execute(
 
   const actions = Object.entries(matchCounts).map(m => `Grep ${m[0]} - ${m[1]} matches`);
   if (failedReadCount > 0) actions.push(`Failed to read ${failedReadCount} files`);
+  if (skippedLargeCount > 0) actions.push(`Skipped ${skippedLargeCount} files larger than ${settings.maxTextFileReadSize} bytes`);
 
   if (results.size > settings.maxGrepResults) {
     return {
@@ -202,11 +208,6 @@ const inputSchema = z
   })
   .strict();
 
-function adjustActivation(enabled: boolean, agent: Agent): boolean | Promise<boolean> {
-  const supportsGrep = agent.requireService(FileSystemService).supportsGrep(agent);
-  return enabled && supportsGrep;
-}
-
 export default {
   name,
   displayName,
@@ -214,5 +215,4 @@ export default {
   inputSchema,
   requiredContextHandlers: ["allowed-paths"],
   execute,
-  adjustActivation,
 } satisfies TokenRingToolDefinition<typeof inputSchema>;

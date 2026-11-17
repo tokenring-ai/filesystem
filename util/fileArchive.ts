@@ -50,10 +50,38 @@ export function workspaceRelativePath(absolutePath: string, workspaceDirectory: 
   return relative.split(path.sep).join("/");
 }
 
-export function archiveDirectoryFor(config: ParsedFileArchiveConfig, workspaceDirectory: string, absolutePath: string): string | null {
+/** Name of the directory (beside the workspace archive directory) that holds archives of files outside the workspace. */
+export function externalArchiveDirectoryName(config: ParsedFileArchiveConfig): string {
+  return `${config.directory}-external`;
+}
+
+/**
+ * Where the versions of one file live, or null when the file is never archived.
+ *
+ * Files inside the workspace keep `<workspace>/<archive>/<relative path>`. Files anywhere else (other allowed
+ * paths) are keyed by their absolute path under `<workspace>/<archive>-external/<hash>-<name>`, so the same
+ * name in two places cannot collide and nothing is ever written into the project itself.
+ *
+ * `excludeRelativePath` is the path the exclude rules are matched against for files outside the workspace
+ * (relative to the allowed path that covers them); without it such files are matched on their absolute path.
+ */
+export function archiveDirectoryFor(
+  config: ParsedFileArchiveConfig,
+  workspaceDirectory: string,
+  absolutePath: string,
+  excludeRelativePath?: string,
+): string | null {
   const relative = workspaceRelativePath(absolutePath, workspaceDirectory);
-  if (!relative || isExcluded(relative, config)) return null;
-  return path.join(workspaceDirectory, config.directory, relative);
+  if (relative) {
+    if (isExcluded(relative, config) || relative.startsWith(`${externalArchiveDirectoryName(config)}/`)) return null;
+    return path.join(workspaceDirectory, config.directory, relative);
+  }
+  if (!path.isAbsolute(absolutePath)) return null;
+  const normalized = path.resolve(absolutePath);
+  const forExcludes = (excludeRelativePath ?? normalized).split(path.sep).join("/").replace(/^\/+/, "");
+  if (!forExcludes || isExcluded(forExcludes, config)) return null;
+  const key = createHash("sha1").update(normalized).digest("hex").slice(0, 16);
+  return path.join(workspaceDirectory, externalArchiveDirectoryName(config), `${key}-${path.basename(normalized)}`);
 }
 
 function contentHash(content: Buffer): string {
@@ -78,10 +106,12 @@ export async function archivePreviousVersion(options: {
   workspaceDirectory: string;
   absolutePath: string;
   previousContent: Buffer;
+  /** Path used for exclude rules when the file is outside the workspace (relative to its allowed path). */
+  excludeRelativePath?: string | undefined;
 }): Promise<void> {
   try {
-    const { config, workspaceDirectory, absolutePath, previousContent } = options;
-    const archiveDir = archiveDirectoryFor(config, workspaceDirectory, absolutePath);
+    const { config, workspaceDirectory, absolutePath, previousContent, excludeRelativePath } = options;
+    const archiveDir = archiveDirectoryFor(config, workspaceDirectory, absolutePath, excludeRelativePath);
     if (!archiveDir) return;
 
     const hash = contentHash(previousContent);
@@ -117,8 +147,9 @@ export async function listArchivedVersions(
   config: ParsedFileArchiveConfig,
   workspaceDirectory: string,
   absolutePath: string,
+  excludeRelativePath?: string,
 ): Promise<ArchivedVersionSummary[]> {
-  const archiveDir = archiveDirectoryFor(config, workspaceDirectory, absolutePath);
+  const archiveDir = archiveDirectoryFor(config, workspaceDirectory, absolutePath, excludeRelativePath);
   if (!archiveDir) return [];
   const manifest = await readManifest(archiveDir);
   return manifest.versions;
@@ -130,8 +161,9 @@ export async function readArchivedVersion(
   workspaceDirectory: string,
   absolutePath: string,
   versionId: string,
+  excludeRelativePath?: string,
 ): Promise<Buffer | null> {
-  const archiveDir = archiveDirectoryFor(config, workspaceDirectory, absolutePath);
+  const archiveDir = archiveDirectoryFor(config, workspaceDirectory, absolutePath, excludeRelativePath);
   if (!archiveDir) return null;
   const manifest = await readManifest(archiveDir);
   if (!manifest.versions.some(version => version.id === versionId)) return null;

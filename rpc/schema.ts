@@ -1,24 +1,17 @@
 import type { RPCSchema } from "@tokenring-ai/rpc/types";
 import { AgentNotFoundSchema, SuccessSchema } from "@tokenring-ai/rpc/types";
 import { z } from "zod";
-import { AllowedPathSchema, StatSchema } from "../schema.ts";
+import { AllowedPathSchema as ConfigAllowedPathSchema, StatSchema } from "../schema.ts";
+
+const AllowedPathSchema = ConfigAllowedPathSchema.omit({ provider: true });
 
 export default {
   name: "Filesystem RPC",
   path: "/rpc/filesystem",
   methods: {
-    getFilesystemProviders: {
-      type: "query",
-      input: z.object({}),
-      result: z.object({
-        providers: z.array(z.string()),
-      }),
-    },
     getAllowedPaths: {
       type: "query",
-      input: z.object({
-        provider: z.string().exactOptional(),
-      }),
+      input: z.object({}),
       result: z.object({
         allowedPaths: z.array(AllowedPathSchema),
       }),
@@ -30,14 +23,12 @@ export default {
       result: z.object({
         workingDirectory: z.string(),
         workspaceDirectory: z.string(),
-        defaultProvider: z.string(),
       }),
     },
 
     readTextFile: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
       }),
       result: z.object({
@@ -48,7 +39,6 @@ export default {
     readFileBase64: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
       }),
       result: z.object({
@@ -58,7 +48,6 @@ export default {
     exists: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
       }),
       result: z.object({
@@ -68,7 +57,6 @@ export default {
     stat: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
       }),
       result: z.object({
@@ -78,7 +66,6 @@ export default {
     glob: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         pattern: z.string(),
       }),
       result: z.object({
@@ -88,7 +75,6 @@ export default {
     searchWorkspaceFiles: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         query: z.string().default(""),
         limit: z.number().int().positive().default(48),
         /** When true, entries matched by .gitignore/.aiignore are excluded. */
@@ -102,7 +88,6 @@ export default {
     listDirectory: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
         showHidden: z.boolean().default(false),
         recursive: z.boolean().default(false),
@@ -116,7 +101,6 @@ export default {
     writeFile: {
       type: "mutation",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
         content: z.string(),
         /** How `content` is encoded. `base64` is decoded to raw bytes before writing. */
@@ -129,7 +113,6 @@ export default {
     appendFile: {
       type: "mutation",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
         content: z.string(),
       }),
@@ -140,7 +123,6 @@ export default {
     deleteFile: {
       type: "mutation",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
       }),
       result: z.object({
@@ -154,7 +136,6 @@ export default {
     deleteDirectory: {
       type: "mutation",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
       }),
       result: z.object({
@@ -165,7 +146,6 @@ export default {
     countDirectoryEntries: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
       }),
       result: z.object({
@@ -178,7 +158,6 @@ export default {
     searchFileContents: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         /** Absolute directory to search. */
         path: z.string(),
         query: z.string().min(1),
@@ -205,7 +184,6 @@ export default {
     listFileVersions: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
       }),
       result: z.object({
@@ -222,7 +200,6 @@ export default {
     readFileVersion: {
       type: "query",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
         versionId: z.string(),
       }),
@@ -233,7 +210,6 @@ export default {
     rename: {
       type: "mutation",
       input: z.object({
-        provider: z.string(),
         oldPath: z.string(),
         newPath: z.string(),
       }),
@@ -244,7 +220,6 @@ export default {
     createDirectory: {
       type: "mutation",
       input: z.object({
-        provider: z.string(),
         path: z.string(),
         recursive: z.boolean().default(false),
       }),
@@ -255,7 +230,6 @@ export default {
     copy: {
       type: "mutation",
       input: z.object({
-        provider: z.string(),
         source: z.string(),
         destination: z.string(),
         overwrite: z.boolean().default(false),
@@ -271,7 +245,6 @@ export default {
       }),
       result: z.discriminatedUnion("status", [
         SuccessSchema.extend({
-          provider: z.string(),
           allowedPaths: z.array(AllowedPathSchema),
           selectedFiles: z.array(z.string()),
           readFiles: z.record(z.string(), z.number()),
@@ -287,7 +260,6 @@ export default {
       }),
       result: z.discriminatedUnion("status", [
         SuccessSchema.extend({
-          provider: z.string(),
           allowedPaths: z.array(AllowedPathSchema),
           selectedFiles: z.array(z.string()),
           readFiles: z.record(z.string(), z.number()),

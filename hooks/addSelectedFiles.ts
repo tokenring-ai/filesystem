@@ -2,9 +2,9 @@ import { BeforeInputReceived } from "@tokenring-ai/agent";
 import type Agent from "@tokenring-ai/agent/Agent";
 import type { HookSubscription } from "@tokenring-ai/lifecycle/types";
 import { HookCallback } from "@tokenring-ai/lifecycle/util/hooks";
-import formatError from "@tokenring-ai/utility/error/formatError";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
+import attachFailureReason from "../util/attachFailureReason.ts";
 import directoryListing from "../util/directoryListing.ts";
 
 const name = "addSelectedFiles";
@@ -79,7 +79,7 @@ async function addSelectedFiles(data: BeforeInputReceived, agent: Agent) {
         });
       }
     } catch (err) {
-      agent.warningMessage(`[${name}] Failed to attach file ${filePath}: ${formatError(err)}`);
+      agent.warningMessage(`Couldn't attach ${filePath}: ${attachFailureReason(err)}`);
     }
   }
 }

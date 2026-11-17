@@ -7,7 +7,7 @@ import { FileSystemConfigSchema } from "../schema.ts";
 import { invalidateWorkspaceFileIndex } from "../util/workspaceFileIndex.ts";
 import FilesystemContextualSearchProvider from "./FilesystemContextualSearchProvider.ts";
 
-function createMockFileSystemProvider(initialFiles: Record<string, string>) {
+function createMockHostFileSystem(initialFiles: Record<string, string>) {
   const files = new Map(Object.entries(initialFiles).map(([filePath, content]) => [filePath, Buffer.from(content)]));
   return {
     async *getDirectoryTree(absolutePath: string, { ignoreFilter }: { ignoreFilter: (path: string) => boolean | Promise<boolean> }) {
@@ -66,51 +66,47 @@ describe("FilesystemContextualSearchProvider", () => {
   const fileSystemService = new FileSystemService(
     app,
     FileSystemConfigSchema.parse({
-      agentDefaults: {
-        provider: "mock",
-      },
       allowedPaths: [{ path: "/repo", permission: "write" }],
     }),
-  );
-  fileSystemService.registerFileSystemProvider(
-    "mock",
-    createMockFileSystemProvider({
+    createMockHostFileSystem({
       "/repo/src/example.ts": "export const example = true;\n",
       "/repo/src/index.js": "console.log('index');\n",
       "/repo/README.md": "# hi\n",
     }) as never,
   );
   app.addService(FileSystemService, fileSystemService);
-  fileSystemService.start();
 
   const provider = new FilesystemContextualSearchProvider(app);
   let agent: ReturnType<typeof createTestingAgent>;
 
   beforeEach(() => {
-    invalidateWorkspaceFileIndex("mock");
+    invalidateWorkspaceFileIndex();
     agent = createTestingAgent(app);
     fileSystemService.attach(agent, { items: [] });
   });
 
-  it("returns tagged file matches with the filesystem provider in the id", async () => {
-    const results: Array<{ title?: string; tag?: string; id?: string }> = [];
-    for await (const batch of provider.search({ query: "example", limit: 8, agent })) {
-      results.push(...batch);
-    }
+  it("returns tagged file matches keyed by absolute path", async () => {
+    const results = await provider.search({ query: "example", limit: 8, agent });
     expect(results.length).toBe(1);
     expect(results[0]?.title).toBe("example.ts");
-    expect(results[0]?.tag).toBe("@[file:mock:/repo/src/example.ts]");
-    expect(results[0]?.id).toBe("mock:/repo/src/example.ts");
+    expect(results[0]?.tag).toBe("@[file:/repo/src/example.ts]");
+    expect(results[0]?.id).toBe("/repo/src/example.ts");
   });
 
-  it("attaches the file when resolving a tag on the active filesystem", async () => {
-    const input: InputMessage = { from: "user", message: "@[file:mock:/repo/src/example.ts]" };
-    await provider.resolve({ itemId: "mock:/repo/src/example.ts" }, input, agent);
+  it("attaches the file when resolving an item id", async () => {
+    const input: InputMessage = { from: "user", message: "@[file:/repo/src/example.ts]" };
+    await provider.resolve({ itemId: "/repo/src/example.ts" }, input, agent);
     expect(input.attachments).toEqual([
       expect.objectContaining({
         name: "/repo/src/example.ts",
         body: "export const example = true;\n",
       }),
     ]);
+  });
+
+  it("still resolves legacy provider-prefixed ids", async () => {
+    const input: InputMessage = { from: "user", message: "@[file:mock:/repo/src/index.js]" };
+    await provider.resolve({ itemId: "mock:/repo/src/index.js" }, input, agent);
+    expect(input.attachments).toEqual([expect.objectContaining({ name: "/repo/src/index.js" })]);
   });
 });

@@ -3,9 +3,10 @@ import { EventEmitter } from "node:events";
 import path from "node:path";
 import createTestingApp from "@tokenring-ai/app/test/createTestingApp.test";
 import QueueService from "@tokenring-ai/queue/QueueService";
-import type { FileSystemProvider, FileSystemWatcher } from "./FileSystemProvider.ts";
 import FileSystemService from "./FileSystemService.ts";
+import type { FileSystemWatcher } from "./FileSystemTypes.ts";
 import FileWatchService from "./FileWatchService.ts";
+import filesystemPlugin from "./plugin.ts";
 import { FileSystemConfigSchema } from "./schema.ts";
 
 class MockWatcher extends EventEmitter implements FileSystemWatcher {
@@ -66,7 +67,7 @@ function createMockProvider(files: Map<string, string>) {
   };
 
   return {
-    provider: provider as unknown as FileSystemProvider,
+    provider: provider,
     getLastWatcher: () => lastWatcher,
     getLastWatchOptions: () => lastWatchOptions,
   };
@@ -86,8 +87,7 @@ describe("FileWatchService", () => {
   beforeEach(async () => {
     app = createTestingApp();
     mockFs = createMockProvider(files);
-    fileSystemService = new FileSystemService(app);
-    fileSystemService.registerFileSystemProvider("mock", mockFs.provider);
+    fileSystemService = new FileSystemService(app, undefined, mockFs.provider as never);
     fileWatchService = new FileWatchService(app);
     queueService = new QueueService(app, {
       defaultAgentType: "test",
@@ -102,9 +102,6 @@ describe("FileWatchService", () => {
     app.addService(QueueService, queueService);
 
     const config = FileSystemConfigSchema.parse({
-      agentDefaults: {
-        provider: "mock",
-      },
       allowedPaths: [{ path: workingDirectory, permission: "write" }],
       watch: {
         notes: {
@@ -152,11 +149,23 @@ describe("FileWatchService", () => {
     ]);
   });
 
+  it("does not read a file that is a link to somewhere outside the allowed paths", async () => {
+    const watcher = mockFs.getLastWatcher()!;
+    (fileWatchService as unknown as { activeWatches: Map<string, { readyAt: number }> }).activeWatches.get("notes")!.readyAt = 0;
+    // As if notes/leak.md were a symlink, created after the watch started, to a file outside /repo.
+    const leak = path.join(workingDirectory, "notes", "leak.md");
+    files.set(leak, "TOPSECRET\n");
+    Object.assign(mockFs.provider, { realpath: async (p: string) => (p === leak ? "/etc/secret.md" : p) });
+
+    watcher.emit("add", leak);
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    expect(queueService.getPending("ingest")).toEqual([]);
+    files.delete(leak);
+  });
+
   it("skips files that do not match contentIncludes", async () => {
     const config = FileSystemConfigSchema.parse({
-      agentDefaults: {
-        provider: "mock",
-      },
       allowedPaths: [{ path: workingDirectory, permission: "write" }],
       watch: {
         notes: {
@@ -200,5 +209,15 @@ describe("FileWatchService", () => {
     const watcher = mockFs.getLastWatcher()!;
     fileWatchService.stop();
     expect(watcher.closed).toBe(true);
+  });
+
+  it("closes watchers and resets the allow-list when the filesystem key is removed", async () => {
+    const watcher = mockFs.getLastWatcher()!;
+    expect(fileSystemService.getConfiguredAllowedPaths()).toHaveLength(1);
+
+    await filesystemPlugin.reconfigure(app, {});
+
+    expect(watcher.closed).toBe(true);
+    expect(fileSystemService.getConfiguredAllowedPaths()).toEqual([]);
   });
 });

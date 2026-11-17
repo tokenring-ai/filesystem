@@ -17,18 +17,8 @@ function displayPath(file: string, root: string): string {
  * the current directory, grouped by file. Choosing a match opens the file in
  * the editor at that line.
  */
-export default function ContentSearchResults({
-  provider,
-  path,
-  query,
-  onOpenMatch,
-}: {
-  provider: string;
-  path: string;
-  query: string;
-  onOpenMatch: (match: ContentMatch) => void;
-}) {
-  const search = useContentSearch(provider, path, query);
+export default function ContentSearchResults({ path, query, onOpenMatch }: { path: string; query: string; onOpenMatch: (match: ContentMatch) => void }) {
+  const search = useContentSearch(path, query);
   const groups = useMemo(() => groupMatchesByFile(search.data?.matches ?? []), [search.data]);
 
   if (query.trim().length < 2) {

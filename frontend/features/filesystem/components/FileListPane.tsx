@@ -11,7 +11,6 @@ import { downloadWorkspaceFile } from "../downloadFile.ts";
 import { getBasename, getFileIcon, isHiddenEntry, isHiddenPath } from "../fsUtils.ts";
 
 interface FileListPaneProps {
-  provider: string | null;
   path: string;
   showHidden: boolean;
   showIgnored: boolean;
@@ -43,7 +42,6 @@ interface RowAction {
 export const ROW_ACTIONS_REVEAL = "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100";
 
 export default function FileListPane({
-  provider,
   path,
   showHidden,
   showIgnored,
@@ -62,8 +60,8 @@ export default function FileListPane({
   const trimmedSearch = searchQuery.trim();
   const isSearching = trimmedSearch.length > 0;
 
-  const listing = useDirectoryListing(provider && !isSearching ? { path, showHidden, showIgnored, provider } : undefined);
-  const workspaceSearch = useWorkspaceFileSearch(provider && isSearching ? { provider, query: trimmedSearch, limit: 80, showIgnored } : undefined);
+  const listing = useDirectoryListing(!isSearching ? { path, showHidden, showIgnored } : undefined);
+  const workspaceSearch = useWorkspaceFileSearch(isSearching ? { query: trimmedSearch, limit: 80, showIgnored } : undefined);
 
   const sortedFiles = useMemo(() => {
     if (isSearching) {
@@ -112,16 +110,6 @@ export default function FileListPane({
   const isLoading = isSearching ? workspaceSearch.isLoading : listing.isLoading;
   const loadError = isSearching ? workspaceSearch.error : listing.error;
 
-  // provider can briefly be null while parents load; avoid a false "empty directory" flash
-  if (!provider) {
-    return (
-      <div className="h-full flex flex-col min-h-0">
-        <NavigationSidebarHeader title="Files" />
-        <LoadingState size="sm" className="flex-1" />
-      </div>
-    );
-  }
-
   if (isLoading) {
     return (
       <div className="h-full flex flex-col min-h-0">
@@ -153,8 +141,7 @@ export default function FileListPane({
             label: "Download",
             icon: Download,
             run: () => {
-              if (!provider) return;
-              downloadWorkspaceFile(file, provider).catch(() => toastManager.error("Download failed", { duration: 3000 }));
+              downloadWorkspaceFile(file).catch(() => toastManager.error("Download failed", { duration: 3000 }));
             },
           },
         ]

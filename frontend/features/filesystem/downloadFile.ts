@@ -5,10 +5,10 @@ import { getBasename } from "./fsUtils.ts";
 /**
  * Download a workspace file via the filesystem HTTP endpoint.
  */
-export async function downloadWorkspaceFile(path: string, provider: string): Promise<void> {
+export async function downloadWorkspaceFile(path: string): Promise<void> {
   const name = getBasename(path);
   await triggerDownloadFromUrl({
-    url: workspaceFileUrl(provider, path, { download: true }),
+    url: workspaceFileUrl(path, { download: true }),
     filename: name,
   });
 }

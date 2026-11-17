@@ -8,6 +8,7 @@ import { FileSystemState } from "../state/fileSystemState.ts";
 import createFileWriteResult from "../util/createFileWriteResult.ts";
 import findWordMatches, { type WordMatch } from "../util/findWordMatches.ts";
 import requireAbsolutePath from "../util/requireAbsolutePath.ts";
+import requireWriteApproval from "../util/requireWriteApproval.ts";
 import runFileValidator from "../util/runFileValidator.ts";
 
 const name = "file_edit";
@@ -86,6 +87,7 @@ async function execute({ path: rawPath, find, replace, multiple }: z.output<type
   const state = agent.getState(FileSystemState);
 
   if (updatedContent !== originalContent) {
+    await requireWriteApproval(agent, name, filePath, "Edit");
     await fileSystem.writeFile(filePath, updatedContent, agent);
   }
 

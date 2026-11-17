@@ -19,7 +19,6 @@ interface FileStats {
 
 interface PreviewMetadataPaneProps {
   file: string | null;
-  provider: string | null;
   selectedPaths: Set<string>;
   onToggleSelected: (f: string) => void;
   onClose: () => void;
@@ -32,7 +31,6 @@ interface PreviewMetadataPaneProps {
 
 export default function PreviewMetadataPane({
   file,
-  provider,
   selectedPaths,
   onToggleSelected,
   onClose,
@@ -48,7 +46,7 @@ export default function PreviewMetadataPane({
   const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!file || !provider) {
+    if (!file) {
       setStats(null);
       setStatsError(null);
       return;
@@ -58,7 +56,7 @@ export default function PreviewMetadataPane({
     setStatsError(null);
     setStats(null);
     filesystemRPCClient
-      .stat({ path: file, provider })
+      .stat({ path: file })
       .then(({ stats: s }) => {
         if (cancelled) return;
         if (s.exists) {
@@ -82,7 +80,7 @@ export default function PreviewMetadataPane({
     return () => {
       cancelled = true;
     };
-  }, [file, provider]);
+  }, [file]);
 
   if (!file) {
     return (
@@ -99,9 +97,8 @@ export default function PreviewMetadataPane({
   const ext = name.includes(".") ? name.split(".").pop()?.toUpperCase() : "File";
 
   const handleDownload = async () => {
-    if (!provider) return;
     try {
-      await downloadWorkspaceFile(file, provider);
+      await downloadWorkspaceFile(file);
     } catch {
       toastManager.error("Download failed", { duration: 3000 });
     }
@@ -175,14 +172,14 @@ export default function PreviewMetadataPane({
           )}
         </div>
 
-        {/\.md$/i.test(file) && provider && (
+        {/\.md$/i.test(file) && (
           <button
             type="button"
             onClick={async () => {
               try {
-                const result = await filesystemRPCClient.readTextFile({ path: file, provider });
+                const result = await filesystemRPCClient.readTextFile({ path: file });
                 const title = getBasename(file).replace(/\.md$/i, "");
-                void navigate("/documents", { state: { filePath: file, fileContent: result.content ?? "", title, provider } });
+                void navigate("/documents", { state: { filePath: file, fileContent: result.content ?? "", title } });
               } catch {
                 toastManager.error("Could not read file", { duration: 3000 });
               }
@@ -192,12 +189,12 @@ export default function PreviewMetadataPane({
             <FileText className="w-3.5 h-3.5" /> Open in Documents
           </button>
         )}
-        {/\.html?$/i.test(file) && provider && (
+        {/\.html?$/i.test(file) && (
           <button
             type="button"
             onClick={async () => {
               try {
-                const result = await filesystemRPCClient.readTextFile({ path: file, provider });
+                const result = await filesystemRPCClient.readTextFile({ path: file });
                 void navigate("/web-design", { state: { fileContent: result.content ?? "" } });
               } catch {
                 toastManager.error("Could not read file", { duration: 3000 });

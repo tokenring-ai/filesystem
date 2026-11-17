@@ -13,7 +13,7 @@ export function useOpenFile() {
 }
 
 /** Create / rename / delete for the current directory, keeping open file tabs in step. */
-export function useFileMutations(provider: string | null, path: string | null, routeFile: string | null): UseFileMutationsResult {
+export function useFileMutations(path: string | null, routeFile: string | null): UseFileMutationsResult {
   const api = useLayoutApi();
   const navigate = useNavigate();
   const open = usePaneLink();
@@ -33,5 +33,5 @@ export function useFileMutations(provider: string | null, path: string | null, r
     },
     replaceRoute: file => void navigate(file === null ? FILES_ROOT : filesPath(file), { replace: true }),
   };
-  return useFileMutationsCore(host, provider, path);
+  return useFileMutationsCore(host, path);
 }

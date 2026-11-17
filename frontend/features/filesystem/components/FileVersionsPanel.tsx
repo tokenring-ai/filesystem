@@ -25,23 +25,21 @@ function formatDate(iso: string): string {
  * content is itself archived first and the restore can be undone.
  */
 export default function FileVersionsPanel({
-  provider,
   path,
   isDirty,
   onRestore,
   onClose,
 }: {
-  provider: string;
   path: string;
   /** The editor holds unsaved edits that a restore would replace. */
   isDirty: boolean;
   onRestore: (content: string) => Promise<boolean>;
   onClose: () => void;
 }) {
-  const versions = useFileVersions(provider, path);
+  const versions = useFileVersions(path);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = versions.data?.versions.find(version => version.id === selectedId) ?? null;
-  const content = useFileVersionContent(provider, path, selected?.id ?? null);
+  const content = useFileVersionContent(path, selected?.id ?? null);
   const { openConfirm, Dialog } = useConfirmDialog();
   const [restoring, setRestoring] = useState(false);
 

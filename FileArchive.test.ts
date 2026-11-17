@@ -56,13 +56,12 @@ describe("filesystem archiving", () => {
     service = new FileSystemService(
       app,
       FileSystemConfigSchema.parse({
-        agentDefaults: { provider: "mock", selectedFiles: [] },
+        agentDefaults: { selectedFiles: [] },
         archive: archiveOverrides,
       }),
+      provider as never,
     );
-    service.registerFileSystemProvider("mock", provider as never);
     app.addService(FileSystemService, service);
-    service.start();
   }
 
   beforeEach(() => {
@@ -227,18 +226,17 @@ describe("file_delete", () => {
     service = new FileSystemService(
       app,
       FileSystemConfigSchema.parse({
-        agentDefaults: { provider: "mock", selectedFiles: [] },
+        agentDefaults: { selectedFiles: [] },
         allowedPaths: [{ path: workspace, permission: "write" }],
       }),
+      provider as never,
     );
-    service.registerFileSystemProvider("mock", provider as never);
     app.addService(FileSystemService, service);
     // Deletion is gated behind the chat tool-approval flow; stub the decision.
     approved = true;
     app.addService(ChatService, {
       checkToolApproval: async () => approved,
     } as never);
-    service.start();
 
     agent = createTestingAgent(app);
     service.attach(agent, { items: [] } as never);

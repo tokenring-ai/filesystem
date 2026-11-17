@@ -1,9 +1,10 @@
 import path from "node:path";
 import { dedupe } from "@tokenring-ai/utility/array/dedupe";
 import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
-import type { FileSystemProvider, GlobOptions } from "../FileSystemProvider.js";
+import type { GlobOptions } from "../FileSystemTypes.ts";
+import type HostFileSystem from "../HostFileSystem.ts";
 
-type GlobCapableProvider = Pick<FileSystemProvider, "getDirectoryTree" | "stat">;
+type GlobCapableProvider = Pick<HostFileSystem, "getDirectoryTree" | "stat">;
 
 type GlobCandidate = {
   path: string;

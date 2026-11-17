@@ -22,14 +22,14 @@ void mock.module("@uiw/react-md-editor", () => ({
 }));
 
 const writeFile = mock(async (_args: Record<string, unknown>) => ({ success: true }));
-const deleteFile = mock(async (_args: { path: string; provider: string }) => ({ success: true }));
-const rename = mock(async (_args: { oldPath: string; newPath: string; provider: string }) => ({ success: true }));
+const deleteFile = mock(async (_args: { path: string }) => ({ success: true }));
+const rename = mock(async (_args: { oldPath: string; newPath: string }) => ({ success: true }));
 const createDirectory = mock(async (_args: Record<string, unknown>) => ({ success: true }));
 const mutateFileContents = mock(async (_updater?: unknown) => undefined);
 const copy = mock(async (_args: Record<string, unknown>) => ({ success: true }));
 const mutateListing = mock(async () => undefined);
-const deleteDirectory = mock(async (_args: { path: string; provider: string }) => ({ success: true }));
-const countDirectoryEntries = mock(async (_args: { path: string; provider: string }) => ({ files: 3, directories: 1, truncated: false }));
+const deleteDirectory = mock(async (_args: { path: string }) => ({ success: true }));
+const countDirectoryEntries = mock(async (_args: { path: string }) => ({ files: 3, directories: 1, truncated: false }));
 const searchFileContents = mock(async (args: { path: string; query: string }) => ({
   matches: [
     { file: `${args.path}/src/a.ts`, line: 3, match: `const ${args.query} = 1;` },
@@ -38,30 +38,35 @@ const searchFileContents = mock(async (args: { path: string; query: string }) =>
   ],
   truncated: false,
 }));
-const listFileVersions = mock(async (_args: { path: string; provider: string }) => ({
+const listFileVersions = mock(async (_args: { path: string }) => ({
   versions: [{ id: "v1", createdAt: "2026-01-02T03:04:05.000Z", size: 9 }],
 }));
-const readFileVersion = mock(async (_args: { path: string; provider: string; versionId: string }) => ({ content: "old text" }));
+const readFileVersion = mock(async (_args: { path: string; versionId: string }) => ({ content: "old text" }));
 const existing = new Set<string>();
 
 const state = {
-  providers: ["local"] as string[],
+  defaultsError: undefined as Error | undefined,
   files: ["src/", "README.md", "logo.png"] as string[],
   contents: {} as Record<string, string>,
   listingError: undefined as Error | undefined,
 };
 
 void mock.module("@tokenring-ai/one-frontend/rpc.ts", () => ({
-  useFilesystemProviders: () => ({ data: { providers: state.providers }, isLoading: false, error: undefined, mutate: mock() }),
+  // Bun keeps the export names of the first mock of a module for the whole run, so the
+  // Remote files test (same plugin, same process) needs its hooks to exist here too.
+  useRemoteMounts: () => ({ data: undefined }),
+  useRemoteEntry: () => ({ data: undefined }),
+  useRemoteListing: () => ({ data: undefined }),
+  useRemoteContent: () => ({ data: undefined }),
+  remoteRPCClient: {},
   useDefaultDirectories: () => ({
-    data: { defaultProvider: "local", workingDirectory: "/project", workspaceDirectory: "/project" },
+    data: state.defaultsError ? undefined : { workingDirectory: "/project", workspaceDirectory: "/project" },
     isLoading: false,
-    error: undefined,
+    error: state.defaultsError,
   }),
   useFilesystemState: () => ({
     data: {
       status: "success" as const,
-      provider: "local",
       allowedPaths: [],
       selectedFiles: [] as string[],
       readFiles: {},
@@ -153,7 +158,7 @@ describe("Files app", () => {
     resetRevealRequests();
     existing.clear();
     state.listingError = undefined;
-    state.providers = ["local"];
+    state.defaultsError = undefined;
     state.files = ["src/", "README.md", "logo.png"];
     state.contents = { [README]: "# Hello" };
   });
@@ -162,7 +167,7 @@ describe("Files app", () => {
     it("shows the landing tab at /files", async () => {
       renderApp();
       expect(await screen.findByText("No file open")).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Editor" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Open a file" })).toBeInTheDocument();
     });
 
     it("keeps the encoded file URLs: a path with slashes and spaces opens its own tab", async () => {
@@ -192,13 +197,30 @@ describe("Files app", () => {
       await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2FREADME.md"));
       expect(await screen.findByLabelText("Markdown editor")).toHaveValue("# Hello");
       expect(tab("README.md")).toBeInTheDocument();
-      expect(tab("Editor")).not.toBeInTheDocument();
+      expect(tab("Open a file")).not.toBeInTheDocument();
     });
 
     it("shows the directory of a file named by the URL", async () => {
       renderApp("/files/%2Fproject%2Fsrc%2Findex.ts");
       expect(await screen.findByText("README.md")).toBeInTheDocument();
       expect(screen.getAllByText("src").length).toBeGreaterThan(0);
+    });
+
+    it("puts the browsed folder in the URL, so Back steps back out of it", async () => {
+      const user = userEvent.setup();
+      const app = renderApp();
+      await user.click(await screen.findByText("src"));
+      await waitFor(() => expect(new URLSearchParams(app.location().search).get("dir")).toBe("/project/src"));
+      expect(await screen.findByRole("button", { name: /Back to \/project/ })).toBeInTheDocument();
+
+      app.go(-1);
+      await waitFor(() => expect(app.location().search).toBe(""));
+      expect(screen.queryByRole("button", { name: /Back to \/project/ })).not.toBeInTheDocument();
+    });
+
+    it("opens the folder a ?dir link names", async () => {
+      renderApp("/files?dir=%2Fproject%2Fsrc");
+      expect(await screen.findByRole("button", { name: /Back to \/project/ })).toBeInTheDocument();
     });
 
     it("creates a new file from the breadcrumb actions and opens it", async () => {
@@ -210,8 +232,24 @@ describe("Files app", () => {
       await user.type(within(dialog).getByRole("textbox"), "notes.md");
       await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
-      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: "/project/notes.md", content: "", provider: "local" }));
+      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: "/project/notes.md", content: "" }));
       await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2Fnotes.md"));
+    });
+
+    it("refuses to create a file over one that already exists, instead of emptying it", async () => {
+      const user = userEvent.setup();
+      existing.add("/project/notes.md");
+      renderApp();
+
+      await user.click(await screen.findByRole("button", { name: "New file" }));
+      const dialog = screen.getByRole("dialog");
+      await user.type(within(dialog).getByRole("textbox"), "notes.md");
+      await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+      // The prompt stays open (the error is a toast) and nothing is written.
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(writeFile).not.toHaveBeenCalled();
     });
 
     it("shows a listing error with a working Retry", async () => {
@@ -224,13 +262,11 @@ describe("Files app", () => {
       expect(mutateListing).toHaveBeenCalled();
     });
 
-    it("explains how to configure a provider when none exist", async () => {
-      state.providers = [];
+    it("shows an error when the launch directory cannot be loaded", async () => {
+      state.defaultsError = new Error("boom");
       renderApp();
 
-      const empty = await screen.findByTestId("files-no-providers");
-      expect(empty).toHaveTextContent("filesystem.agentDefaults.provider");
-      expect(within(empty).getByRole("link", { name: "Open configuration" })).toHaveAttribute("href", "/configuration");
+      expect(await screen.findByText("Could not load the launch directory")).toBeInTheDocument();
     });
 
     it("duplicates a file next to itself under the first free name", async () => {
@@ -239,28 +275,28 @@ describe("Files app", () => {
       renderApp();
 
       await user.click(await screen.findByRole("button", { name: "Duplicate README.md" }));
-      await waitFor(() => expect(copy).toHaveBeenCalledWith({ provider: "local", source: README, destination: "/project/README copy 2.md", overwrite: false }));
+      await waitFor(() => expect(copy).toHaveBeenCalledWith({ source: README, destination: "/project/README copy 2.md", overwrite: false }));
     });
 
     it("deletes a folder after a confirmation that says how much is inside, closing its open tabs and dropping drafts", async () => {
       const user = userEvent.setup();
       setConfirmSkipped("Delete", true);
       // Opening a file shows its directory in the tree; step back up to /project so its "src" folder is listed.
-      setFileDraft(fileDraftKey("local", "/project/src/index.ts"), "draft inside");
+      setFileDraft(fileDraftKey("/project/src/index.ts"), "draft inside");
       renderApp(filesPath("/project/src/index.ts"));
       await screen.findByLabelText("Code editor");
       act(() => setFilesBrowserState({ pathOverride: "/project" }));
 
       await user.click(await screen.findByRole("button", { name: "Delete folder src" }));
-      await waitFor(() => expect(countDirectoryEntries).toHaveBeenCalledWith({ path: "/project/src", provider: "local" }));
+      await waitFor(() => expect(countDirectoryEntries).toHaveBeenCalledWith({ path: "/project/src" }));
       const dialog = await screen.findByRole("dialog");
       await waitFor(() => expect(dialog).toHaveTextContent("Delete folder “src” and the 3 files and 1 folder inside it?"));
       expect(deleteDirectory).not.toHaveBeenCalled();
 
       await user.click(within(dialog).getByRole("button", { name: "Delete folder" }));
-      await waitFor(() => expect(deleteDirectory).toHaveBeenCalledWith({ path: "/project/src", provider: "local" }));
+      await waitFor(() => expect(deleteDirectory).toHaveBeenCalledWith({ path: "/project/src" }));
       await waitFor(() => expect(tab("index.ts")).not.toBeInTheDocument());
-      expect(getFileDraft(fileDraftKey("local", "/project/src/index.ts"))).toBeNull();
+      expect(getFileDraft(fileDraftKey("/project/src/index.ts"))).toBeNull();
     });
   });
 
@@ -276,25 +312,25 @@ describe("Files app", () => {
 
     it("moves a renamed file's unsaved draft and open tab to the new path", async () => {
       const user = userEvent.setup();
-      setFileDraft(fileDraftKey("local", README), "unsaved edits");
+      setFileDraft(fileDraftKey(README), "unsaved edits");
       const app = renderApp(filesPath(README));
       await screen.findByLabelText("Markdown editor");
 
       await renameTo(user, "README.md", "NOTES.md");
 
-      await waitFor(() => expect(rename).toHaveBeenCalledWith({ oldPath: README, newPath: "/project/NOTES.md", provider: "local" }));
+      await waitFor(() => expect(rename).toHaveBeenCalledWith({ oldPath: README, newPath: "/project/NOTES.md" }));
       await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2FNOTES.md"));
       await waitFor(() => expect(tab("NOTES.md")).toBeInTheDocument());
       await waitFor(() => expect(tab("README.md")).not.toBeInTheDocument());
-      expect(getFileDraft(fileDraftKey("local", "/project/NOTES.md"))).toBe("unsaved edits");
-      expect(getFileDraft(fileDraftKey("local", README))).toBeNull();
+      expect(getFileDraft(fileDraftKey("/project/NOTES.md"))).toBe("unsaved edits");
+      expect(getFileDraft(fileDraftKey(README))).toBeNull();
       expect(await screen.findByLabelText("Markdown editor")).toHaveValue("unsaved edits");
     });
 
     it("re-points tabs and drafts of files inside a renamed directory, leaving prefix siblings alone", async () => {
       const user = userEvent.setup();
-      setFileDraft(fileDraftKey("local", "/project/src/index.ts"), "inner draft");
-      setFileDraft(fileDraftKey("local", "/project/srcfile.ts"), "sibling draft");
+      setFileDraft(fileDraftKey("/project/src/index.ts"), "inner draft");
+      setFileDraft(fileDraftKey("/project/srcfile.ts"), "sibling draft");
       const app = renderApp(filesPath("/project/src/index.ts"));
       await screen.findByLabelText("Code editor");
       // A sibling that merely shares the prefix, opened too.
@@ -305,26 +341,26 @@ describe("Files app", () => {
 
       await renameTo(user, "src", "lib");
 
-      await waitFor(() => expect(rename).toHaveBeenCalledWith({ oldPath: "/project/src", newPath: "/project/lib", provider: "local" }));
+      await waitFor(() => expect(rename).toHaveBeenCalledWith({ oldPath: "/project/src", newPath: "/project/lib" }));
       await waitFor(() => expect(app.location().pathname).toBe("/files/%2Fproject%2Flib%2Findex.ts"));
-      expect(getFileDraft(fileDraftKey("local", "/project/lib/index.ts"))).toBe("inner draft");
-      expect(getFileDraft(fileDraftKey("local", "/project/src/index.ts"))).toBeNull();
-      expect(getFileDraft(fileDraftKey("local", "/project/srcfile.ts"))).toBe("sibling draft");
+      expect(getFileDraft(fileDraftKey("/project/lib/index.ts"))).toBe("inner draft");
+      expect(getFileDraft(fileDraftKey("/project/src/index.ts"))).toBeNull();
+      expect(getFileDraft(fileDraftKey("/project/srcfile.ts"))).toBe("sibling draft");
       expect(tab("srcfile.ts")).toBeInTheDocument();
     });
 
-    it("deletes with the current provider when confirmation is skipped, closing the tab and dropping the draft", async () => {
+    it("deletes when confirmation is skipped, closing the tab and dropping the draft", async () => {
       const user = userEvent.setup();
       setConfirmSkipped("Delete", true);
-      setFileDraft(fileDraftKey("local", README), "doomed draft");
+      setFileDraft(fileDraftKey(README), "doomed draft");
       renderApp(filesPath(README));
       await screen.findByLabelText("Markdown editor");
 
       await user.click(await screen.findByRole("button", { name: "Delete README.md" }));
 
-      await waitFor(() => expect(deleteFile).toHaveBeenCalledWith({ path: README, provider: "local" }));
+      await waitFor(() => expect(deleteFile).toHaveBeenCalledWith({ path: README }));
       await waitFor(() => expect(tab("README.md")).not.toBeInTheDocument());
-      expect(getFileDraft(fileDraftKey("local", README))).toBeNull();
+      expect(getFileDraft(fileDraftKey(README))).toBeNull();
     });
   });
 
@@ -337,7 +373,7 @@ describe("Files app", () => {
       await user.type(screen.getByLabelText("Search file contents"), "needle");
 
       expect(await screen.findByText("3 matches in 2 files")).toBeInTheDocument();
-      expect(searchFileContents).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "local", path: "/project", query: "needle", limit: 200 }));
+      expect(searchFileContents).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/project", query: "needle", limit: 200 }));
       await user.click(screen.getByRole("button", { name: "Open src/a.ts at line 9" }));
 
       expect(getPendingRevealForTest()).toMatchObject({ path: "/project/src/a.ts", line: 9 });
@@ -353,7 +389,7 @@ describe("Files app", () => {
 
       expect(await screen.findByLabelText("Code editor")).toHaveValue("new text");
       await user.click(screen.getByRole("button", { name: "Versions" }));
-      await waitFor(() => expect(listFileVersions).toHaveBeenCalledWith({ provider: "local", path: "/project/versioned.ts" }));
+      await waitFor(() => expect(listFileVersions).toHaveBeenCalledWith({ path: "/project/versioned.ts" }));
 
       const list = await screen.findByRole("list", { name: "Archived versions" });
       await user.click(within(list).getByRole("button"));
@@ -363,7 +399,7 @@ describe("Files app", () => {
       const dialog = await screen.findByRole("dialog");
       await user.click(within(dialog).getByRole("button", { name: "Restore" }));
 
-      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: "/project/versioned.ts", content: "old text", provider: "local" }));
+      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: "/project/versioned.ts", content: "old text" }));
       expect(mutateFileContents).toHaveBeenCalled();
     });
 
@@ -378,7 +414,7 @@ describe("Files app", () => {
       await waitFor(() => expect(screen.getByRole("img", { name: "Unsaved changes" })).toBeInTheDocument());
 
       await user.keyboard("{Control>}s{/Control}");
-      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: README, content: "# Changed", provider: "local" }));
+      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: README, content: "# Changed" }));
       await waitFor(() => expect(screen.queryByRole("img", { name: "Unsaved changes" })).not.toBeInTheDocument());
     });
 
@@ -391,13 +427,13 @@ describe("Files app", () => {
       const editor = await screen.findByLabelText("Markdown editor");
       await user.type(editor, " one");
       await user.keyboard("{Control>}s{/Control}");
-      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: README, content: "# Hello one", provider: "local" }));
+      await waitFor(() => expect(writeFile).toHaveBeenCalledWith({ path: README, content: "# Hello one" }));
 
       await user.type(editor, " two");
       finishWrite();
 
       await waitFor(() => expect(mutateFileContents).toHaveBeenCalled());
-      expect(getFileDraft(fileDraftKey("local", README))).toBe("# Hello one two");
+      expect(getFileDraft(fileDraftKey(README))).toBe("# Hello one two");
       expect(editor).toHaveValue("# Hello one two");
     });
 

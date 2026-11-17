@@ -97,7 +97,7 @@ export interface UseFileMutationsResult {
  * preview views. Keeps open editor/preview panels in step: a renamed file's
  * panel follows the new path, a deleted file's panels close.
  */
-export function useFileMutationsCore(host: FilesHost, provider: string | null, path: string | null): UseFileMutationsResult {
+export function useFileMutationsCore(host: FilesHost, path: string | null): UseFileMutationsResult {
   const { routeFile, openFile } = host;
   const refreshListing = useRefreshListing();
   const [namePrompt, setNamePrompt] = useState<NamePrompt | null>(null);
@@ -116,7 +116,7 @@ export function useFileMutationsCore(host: FilesHost, provider: string | null, p
       const isDir = id.endsWith("/");
       removeSelectedPaths([id]);
       // The deleted file's (or folder's) unsaved edits have nothing left to save to.
-      discardFileDrafts(provider, id, isDir);
+      discardFileDrafts(id, isDir);
       for (const { panelId } of filePanelsUnder(id, isDir)) host.closePanel(panelId);
     },
     successMessage: name => `Deleted ${getBasename(name)}`,
@@ -126,12 +126,17 @@ export function useFileMutationsCore(host: FilesHost, provider: string | null, p
   });
 
   const handleNamePromptSubmit = async (name: string) => {
-    if (!provider || !namePrompt) return;
+    if (!namePrompt) return;
     const action = namePrompt.mode === "rename" ? "Rename" : namePrompt.mode === "new-file" ? "Create file" : "Create folder";
     try {
       if (namePrompt.mode === "new-file") {
         const dest = joinPath(path ?? ".", name);
-        await filesystemRPCClient.writeFile({ path: dest, content: "", provider });
+        // Writing "" over an existing file would empty it: refuse instead, and keep the prompt open.
+        if ((await filesystemRPCClient.exists({ path: dest })).exists) {
+          toastManager.error(`${name} already exists`, { duration: 3000 });
+          return;
+        }
+        await filesystemRPCClient.writeFile({ path: dest, content: "" });
         await refreshListing();
         setNamePrompt(null);
         openFile(dest);
@@ -140,7 +145,7 @@ export function useFileMutationsCore(host: FilesHost, provider: string | null, p
       }
       if (namePrompt.mode === "new-folder") {
         const dest = joinPath(path ?? ".", name);
-        await filesystemRPCClient.createDirectory({ path: dest, provider, recursive: true });
+        await filesystemRPCClient.createDirectory({ path: dest, recursive: true });
         await refreshListing();
         setNamePrompt(null);
         toastManager.success(`Created folder ${name}`, { duration: 2000 });
@@ -153,12 +158,12 @@ export function useFileMutationsCore(host: FilesHost, provider: string | null, p
         setNamePrompt(null);
         return;
       }
-      await filesystemRPCClient.rename({ oldPath, newPath, provider });
+      await filesystemRPCClient.rename({ oldPath, newPath });
       await refreshListing();
       // Unsaved drafts and open panels follow the file — or, for a folder, every
       // file inside it — to the new path. Drafts move first so the re-keyed
       // editor finds its draft when it remounts.
-      moveFileDrafts(provider, oldPath, newPath, namePrompt.isDir);
+      moveFileDrafts(oldPath, newPath, namePrompt.isDir);
       for (const panel of filePanelsUnder(oldPath, namePrompt.isDir)) {
         const next = renamedPath(panel.path, oldPath, newPath, namePrompt.isDir);
         if (next !== null) host.repointPanel(panel.panelId, next);
@@ -179,35 +184,32 @@ export function useFileMutationsCore(host: FilesHost, provider: string | null, p
   };
 
   const handleDeleteConfirm = async (pathToDelete = deleteTarget) => {
-    if (!provider || !pathToDelete) return;
+    if (!pathToDelete) return;
     setDeleteTarget(null);
     await entityDelete.deleteEntity(pathToDelete, pathToDelete, async () => {
-      await filesystemRPCClient.deleteFile({ path: pathToDelete, provider });
+      await filesystemRPCClient.deleteFile({ path: pathToDelete });
     });
   };
 
   const handleFolderDeleteConfirm = async () => {
-    if (!provider || !folderDelete) return;
+    if (!folderDelete) return;
     const folder = folderDelete.path;
     setFolderDelete(null);
     // The id keeps its trailing slash so clearLocalState treats it as a directory.
     await entityDelete.deleteEntity(folder, folder, async () => {
-      await filesystemRPCClient.deleteDirectory({ path: trimTrailingSlash(folder), provider });
+      await filesystemRPCClient.deleteDirectory({ path: trimTrailingSlash(folder) });
     });
   };
 
-  // Read through a ref so the stable callback always deletes with the current provider.
+  // Read through a ref so the stable callback always runs the current delete.
   const handleDeleteConfirmRef = useRefSync(handleDeleteConfirm);
-  const providerRef = useRefSync(provider);
   const requestDelete = useCallback(
     (file: string) => {
       if (file.endsWith("/")) {
         // Folders always ask (no "don't ask again"), and say how much goes with them.
-        const currentProvider = providerRef.current;
         setFolderDelete({ path: file, count: null, countError: null });
-        if (!currentProvider) return;
         filesystemRPCClient
-          .countDirectoryEntries({ path: trimTrailingSlash(file), provider: currentProvider })
+          .countDirectoryEntries({ path: trimTrailingSlash(file) })
           .then(count => setFolderDelete(current => (current?.path === file ? { ...current, count } : current)))
           .catch((error: unknown) => setFolderDelete(current => (current?.path === file ? { ...current, countError: formatError(error) } : current)));
         return;
@@ -218,35 +220,35 @@ export function useFileMutationsCore(host: FilesHost, provider: string | null, p
         () => void handleDeleteConfirmRef.current(file),
       );
     },
-    [handleDeleteConfirmRef, providerRef],
+    [handleDeleteConfirmRef],
   );
 
   const deleting = entityDelete.isDeleting;
 
   const duplicate = useCallback(
     async (file: string) => {
-      if (!provider || file.endsWith("/")) return;
+      if (file.endsWith("/")) return;
       const parent = getParentPath(file);
       const name = getBasename(file);
       try {
         let destination: string | null = null;
         for (let attempt = 1; attempt <= MAX_DUPLICATE_ATTEMPTS; attempt++) {
           const candidate = joinPath(parent, duplicateName(name, attempt));
-          const { exists } = await filesystemRPCClient.exists({ path: candidate, provider });
+          const { exists } = await filesystemRPCClient.exists({ path: candidate });
           if (!exists) {
             destination = candidate;
             break;
           }
         }
         if (!destination) throw new Error("too many copies already exist");
-        await filesystemRPCClient.copy({ provider, source: file, destination, overwrite: false });
+        await filesystemRPCClient.copy({ source: file, destination, overwrite: false });
         await refreshListing();
         toastManager.success(`Duplicated as ${getBasename(destination)}`, { duration: 2000 });
       } catch (e: unknown) {
         toastManager.error(`Duplicate failed: ${formatError(e)}`, { duration: 4000 });
       }
     },
-    [provider, refreshListing],
+    [refreshListing],
   );
 
   const modals = (

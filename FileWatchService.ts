@@ -5,8 +5,9 @@ import { ConfigurationError } from "@tokenring-ai/app/types";
 import QueueService from "@tokenring-ai/queue/QueueService";
 import EnhancedStringMap from "@tokenring-ai/utility/map/enhancedStringMap";
 import type { z } from "zod";
-import type { FileSystemProvider, FileSystemWatcher } from "./FileSystemProvider.ts";
 import FileSystemService from "./FileSystemService.ts";
+import type { FileSystemWatcher } from "./FileSystemTypes.ts";
+import type HostFileSystem from "./HostFileSystem.ts";
 import type { FileSystemConfigSchema, ParsedFileWatch } from "./schema.ts";
 import detectMimeType from "./util/detectMimeType.ts";
 import { isIgnoreFile, RefreshingTreeIgnore } from "./util/treeIgnore.ts";
@@ -71,21 +72,15 @@ export default class FileWatchService implements TokenRingService {
   }
 
   private async openWatcher(watchName: string, config: ParsedFileWatch): Promise<ActiveWatch> {
-    const options = this.requireOptions();
-    const providerName = config.provider ?? options.agentDefaults.provider;
+    this.requireOptions();
 
     if (!path.isAbsolute(config.path)) {
       throw new ConfigurationError(this.name, `Watch "${watchName}" path must be absolute (got "${config.path}")`);
     }
 
     const fileSystemService = this.app.requireService(FileSystemService);
-    const provider = fileSystemService.requireFileSystemProviderByName(providerName);
-
-    if (!provider.watch) {
-      throw new ConfigurationError(this.name, `File system provider '${providerName}' does not support watching`);
-    }
-
-    const absolutePath = await fileSystemService.authorizePathForProvider(config.path, "read", providerName);
+    const provider = fileSystemService.host;
+    const absolutePath = await fileSystemService.authorizePath(config.path, "read");
 
     // Event-time ignore: rebuilt after a short TTL (and when an ignore file
     // changes), so .gitignore edits take effect while the watcher runs.
@@ -160,7 +155,7 @@ export default class FileWatchService implements TokenRingService {
     return active;
   }
 
-  private async handleStableFileChange(watchName: string, absoluteFilePath: string, watchRoot: string, provider: FileSystemProvider): Promise<void> {
+  private async handleStableFileChange(watchName: string, absoluteFilePath: string, watchRoot: string, provider: HostFileSystem): Promise<void> {
     const active = this.activeWatches.get(watchName);
     if (!active) return;
 
@@ -170,7 +165,17 @@ export default class FileWatchService implements TokenRingService {
     if (active.exclude?.test(relativePath)) return;
     if (active.include && !active.include.test(relativePath)) return;
 
-    const buffer = await provider.readFile(absoluteFilePath);
+    // The watched directory was authorized when the watch started, but a file in it can be a
+    // symlink added later that points outside the allowed paths: authorize each file read.
+    let allowedPath: string;
+    try {
+      allowedPath = await this.app.requireService(FileSystemService).authorizePath(absoluteFilePath, "read");
+    } catch (error) {
+      this.app.serviceError(this, `Watch "${watchName}" skipped ${relativePath}:`, error);
+      return;
+    }
+
+    const buffer = await provider.readFile(allowedPath);
     if (buffer == null) return;
 
     const contents = buffer.toString("utf-8");

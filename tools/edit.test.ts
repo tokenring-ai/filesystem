@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import createTestingAgent from "@tokenring-ai/agent/test/createTestingAgent.test";
 import createTestingApp from "@tokenring-ai/app/test/createTestingApp.test";
+import ChatService from "@tokenring-ai/chat/ChatService";
 import FileSystemService from "../FileSystemService.ts";
 import { FileSystemConfigSchema } from "../schema.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
 import findReplaceTool from "./edit.ts";
 
-function createMockFileSystemProvider(initialFiles: Record<string, string>) {
+function createMockHostFileSystem(initialFiles: Record<string, string>) {
   const files = new Map(Object.entries(initialFiles).map(([filePath, content]) => [filePath, Buffer.from(content)]));
 
   return {
@@ -76,11 +77,11 @@ describe("file_findReplace", () => {
   let app: ReturnType<typeof createTestingApp>;
   let agent: ReturnType<typeof createTestingAgent>;
   let fileSystemService: FileSystemService;
-  let provider: ReturnType<typeof createMockFileSystemProvider>;
+  let host: ReturnType<typeof createMockHostFileSystem>;
 
   beforeEach(() => {
     app = createTestingApp();
-    provider = createMockFileSystemProvider({
+    host = createMockHostFileSystem({
       "/repo/src/example.ts": ["function example() {", '  const message = "The quick brown fox jumps over the lazy dog";', "}", ""].join("\n"),
     });
 
@@ -88,16 +89,18 @@ describe("file_findReplace", () => {
       app,
       FileSystemConfigSchema.parse({
         agentDefaults: {
-          provider: "mock",
           selectedFiles: [],
         },
+        // The mock host writes to fake paths; keep archives out of the shared /tmp workspace.
+        archive: { enabled: false },
         allowedPaths: [{ path: "/repo", permission: "write" }],
       }),
+      host as never,
     );
 
-    fileSystemService.registerFileSystemProvider("mock", provider as any);
     app.addService(FileSystemService, fileSystemService);
-    fileSystemService.start();
+    // Writes go through the tool-approval flow; approve them here.
+    app.addService(ChatService, { checkToolApproval: async () => true } as never);
 
     agent = createTestingAgent(app);
     fileSystemService.attach(agent, { items: [] } as any);
@@ -122,7 +125,7 @@ describe("file_findReplace", () => {
       agent,
     );
 
-    expect(provider.files.get("/repo/src/example.ts")?.toString("utf-8")).toContain("lazy cat");
+    expect(host.files.get("/repo/src/example.ts")?.toString("utf-8")).toContain("lazy cat");
     expect(agent.getState(FileSystemState).readFiles.get("/repo/src/example.ts")).toBe(12345);
     expect(fileSystemService.isDirty(agent)).toBe(true);
     expect(typeof result).not.toBe("string");
@@ -130,7 +133,7 @@ describe("file_findReplace", () => {
   });
 
   it("returns the match list when multiple matches are found and multiple=false", async () => {
-    provider.files.set("/repo/src/example.ts", Buffer.from(["alpha beta", "something", "alpha beta", ""].join("\n")));
+    host.files.set("/repo/src/example.ts", Buffer.from(["alpha beta", "something", "alpha beta", ""].join("\n")));
 
     const result = await findReplaceTool.execute(
       {
@@ -145,11 +148,11 @@ describe("file_findReplace", () => {
     expect(typeof result).not.toBe("string");
     expect((result as any).message).toContain("**File Edit**");
     expect((result as any).result).toContain("Found 2 matches");
-    expect(provider.files.get("/repo/src/example.ts")?.toString("utf-8")).toContain("alpha beta");
+    expect(host.files.get("/repo/src/example.ts")?.toString("utf-8")).toContain("alpha beta");
   });
 
   it("replaces every match when multiple=true", async () => {
-    provider.files.set("/repo/src/example.ts", Buffer.from(["alpha beta", "something", "alpha\tbeta", ""].join("\n")));
+    host.files.set("/repo/src/example.ts", Buffer.from(["alpha beta", "something", "alpha\tbeta", ""].join("\n")));
 
     await findReplaceTool.execute(
       {
@@ -161,7 +164,7 @@ describe("file_findReplace", () => {
       agent,
     );
 
-    const content = provider.files.get("/repo/src/example.ts")!.toString("utf-8");
+    const content = host.files.get("/repo/src/example.ts")!.toString("utf-8");
     expect(content).not.toContain("alpha");
     expect(content.match(/gamma/g)?.length).toBe(2);
   });

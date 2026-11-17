@@ -11,15 +11,11 @@ export class PathNotAllowedError extends Error {
 }
 
 export interface AuthorizeOptions {
-  /** Workspace allow-list entries (raw config; provider defaults applied here). */
+  /** Workspace allow-list entries (raw config). */
   entries: AllowedPath[];
-  /** Provider the path being authorized belongs to. */
-  provider: string;
-  /** Provider that entries without an explicit provider field apply to. */
-  defaultProvider: string;
-  /** Implicitly write-allowed subtree for the default provider (workspace data directory). */
+  /** Implicitly write-allowed subtree (workspace data directory). */
   workspaceDirectory?: string | undefined;
-  /** Symlink resolver (posix only). When set, the resolved path is re-checked for containment. */
+  /** Symlink resolver. When set, the resolved path is re-checked for containment. */
   realpath?: ((p: string) => Promise<string>) | undefined;
 }
 
@@ -35,15 +31,13 @@ export function pathIsWithin(root: string, target: string): boolean {
 }
 
 /**
- * Entries applying to `provider`, normalized, with the implicit workspace entry
- * appended for the default provider. Order preserves the configured list.
+ * The entries, normalized, with the implicit workspace entry appended. Order
+ * preserves the configured list. Legacy `provider` fields are dropped.
  */
-export function allowedPathsForProvider(opts: Omit<AuthorizeOptions, "realpath">): AllowedPath[] {
-  const list: AllowedPath[] = opts.entries
-    .filter(entry => (entry.provider ?? opts.defaultProvider) === opts.provider)
-    .map(entry => ({ ...entry, path: normalizeAllowedPath(entry.path) }));
+export function allowedPathsFor(opts: Omit<AuthorizeOptions, "realpath">): AllowedPath[] {
+  const list: AllowedPath[] = opts.entries.map(entry => ({ ...entry, path: normalizeAllowedPath(entry.path) }));
 
-  if (opts.workspaceDirectory && opts.provider === opts.defaultProvider) {
+  if (opts.workspaceDirectory) {
     const workspacePath = normalizeAllowedPath(opts.workspaceDirectory);
     if (!list.some(entry => entry.path === workspacePath)) {
       list.push({ path: workspacePath, permission: "write", description: "Workspace data directory" });
@@ -104,7 +98,7 @@ async function resolveRealPath(target: string, realpath: (p: string) => Promise<
  * write access inside a read-only root. Write implies read.
  */
 export async function authorizePath(target: string, access: PathAccess, opts: AuthorizeOptions): Promise<string> {
-  const entries = allowedPathsForProvider(opts);
+  const entries = allowedPathsFor(opts);
 
   if (!path.isAbsolute(target)) {
     throw new PathNotAllowedError(
@@ -114,8 +108,8 @@ export async function authorizePath(target: string, access: PathAccess, opts: Au
 
   const normalized = normalizeAllowedPath(target);
 
-  const check = (candidate: string): void => {
-    const root = findAllowedRoot(candidate, entries);
+  const check = (candidate: string, roots: AllowedPath[] = entries): void => {
+    const root = findAllowedRoot(candidate, roots);
     if (!root) {
       throw new PathNotAllowedError(`Path "${target}" is outside the allowed directories:\n${describeEntries(entries)}`);
     }
@@ -130,7 +124,14 @@ export async function authorizePath(target: string, access: PathAccess, opts: Au
 
   if (opts.realpath) {
     const real = await resolveRealPath(normalized, opts.realpath);
-    if (real !== normalized) check(real);
+    if (real !== normalized) {
+      // Compare real paths with real paths: an allowed root that is itself behind a symlink
+      // (macOS /tmp -> /private/tmp) still contains its own files, while a symlink inside a
+      // root that points outside every root is still refused.
+      const realpath = opts.realpath;
+      const realEntries = await Promise.all(entries.map(async entry => ({ ...entry, path: await resolveRealPath(entry.path, realpath) })));
+      check(real, realEntries);
+    }
   }
 
   return normalized;

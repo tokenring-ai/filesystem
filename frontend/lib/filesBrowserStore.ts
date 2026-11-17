@@ -1,16 +1,14 @@
-import { useDefaultDirectories, useFilesystemProviders } from "@tokenring-ai/one-frontend/rpc.ts";
-import { useMemo, useSyncExternalStore } from "react";
+import { useDefaultDirectories } from "@tokenring-ai/one-frontend/rpc.ts";
+import { useSyncExternalStore } from "react";
 
 /**
  * Browser state shared by the Files views (tree, editors, previews). Each
- * view is its own React subtree, so the current provider, directory and
+ * view is its own React subtree, so the current directory and
  * multi-selection live here rather than in component state. In memory only.
  */
 
 export interface FilesBrowserState {
-  /** Provider chosen in the tree; null means the first available one. */
-  providerOverride: string | null;
-  /** Directory the tree shows; null means the provider's home. */
+  /** Directory the tree shows; null means the launch directory. */
   pathOverride: string | null;
   showHidden: boolean;
   /** Whether .gitignore/.aiignore matches are listed. */
@@ -23,7 +21,6 @@ export interface FilesBrowserState {
 }
 
 const INITIAL: FilesBrowserState = {
-  providerOverride: null,
   pathOverride: null,
   showHidden: false,
   showIgnored: false,
@@ -97,12 +94,12 @@ export function resetFilesBrowserStore(): void {
 
 // ─── Unsaved editor drafts ─────────────────────────────────────────────────────
 
-/** Edits not yet written to disk, keyed by provider + path, so closing a tab does not lose them. */
+/** Edits not yet written to disk, keyed by path, so closing a tab does not lose them. */
 const drafts = new Map<string, string>();
 const draftListeners = new Set<() => void>();
 
-export function fileDraftKey(provider: string | null, path: string): string {
-  return `${provider ?? ""}\0${path}`;
+export function fileDraftKey(path: string): string {
+  return path;
 }
 
 export function getFileDraft(key: string): string | null {
@@ -151,23 +148,16 @@ export function renamedPath(path: string, oldPath: string, newPath: string, isDi
   return trimDirectory(newPath) + path.slice(from.length);
 }
 
-function splitDraftKey(key: string): { provider: string; path: string } {
-  const index = key.indexOf("\0");
-  return { provider: key.slice(0, index), path: key.slice(index + 1) };
-}
-
 /**
  * Moves unsaved drafts after a rename so a panel re-keyed to the new path finds
  * them. For a directory, every draft of a file inside it follows.
  */
-export function moveFileDrafts(provider: string | null, oldPath: string, newPath: string, isDir: boolean): void {
+export function moveFileDrafts(oldPath: string, newPath: string, isDir: boolean): void {
   // Collect first: inserting keys while iterating the map would visit them again.
   const moves: [from: string, to: string, content: string][] = [];
   for (const [key, content] of drafts) {
-    const parsed = splitDraftKey(key);
-    if (parsed.provider !== (provider ?? "")) continue;
-    const next = renamedPath(parsed.path, oldPath, newPath, isDir);
-    if (next !== null && next !== parsed.path) moves.push([key, fileDraftKey(provider, next), content]);
+    const next = renamedPath(key, oldPath, newPath, isDir);
+    if (next !== null && next !== key) moves.push([key, fileDraftKey(next), content]);
   }
   if (moves.length === 0) return;
   for (const [from] of moves) drafts.delete(from);
@@ -176,12 +166,11 @@ export function moveFileDrafts(provider: string | null, oldPath: string, newPath
 }
 
 /** Drops the drafts of a deleted file, or of every file inside a deleted directory. */
-export function discardFileDrafts(provider: string | null, path: string, isDir: boolean): void {
+export function discardFileDrafts(path: string, isDir: boolean): void {
   let changed = false;
   // Deleting the entry being visited is safe while iterating a Map.
   for (const key of drafts.keys()) {
-    const parsed = splitDraftKey(key);
-    if (parsed.provider !== (provider ?? "") || !isPathAtOrUnder(parsed.path, path, isDir)) continue;
+    if (!isPathAtOrUnder(key, path, isDir)) continue;
     drafts.delete(key);
     changed = true;
   }
@@ -202,25 +191,10 @@ export function clearFileDrafts(): void {
   for (const listener of draftListeners) listener();
 }
 
-// ─── Provider resolution ───────────────────────────────────────────────────────
+// ─── Home directory ───────────────────────────────────────────────────────────
 
-export function useFilesProvider() {
-  const fsProviders = useFilesystemProviders();
+/** Browsing starts in the launch directory; walking up past it via breadcrumbs is allowed. */
+export function useFilesHome() {
   const defaultDirectories = useDefaultDirectories();
-  const { providerOverride } = useFilesBrowserStore();
-
-  const providers = useMemo(() => fsProviders.data?.providers ?? [], [fsProviders.data]);
-  const provider = useMemo(() => {
-    if (providerOverride && providers.includes(providerOverride)) return providerOverride;
-    return providers[0] ?? null;
-  }, [providerOverride, providers]);
-
-  // Browsing starts in the launch directory (host filesystem); other providers
-  // keep their own root. Walking up past it via breadcrumbs is allowed.
-  const homePath = useMemo(() => {
-    if (!defaultDirectories.data || !provider) return null;
-    return provider === defaultDirectories.data.defaultProvider ? defaultDirectories.data.workingDirectory : ".";
-  }, [defaultDirectories.data, provider]);
-
-  return { provider, providers, homePath, fsProviders, defaultDirectories };
+  return { homePath: defaultDirectories.data?.workingDirectory ?? null, defaultDirectories };
 }

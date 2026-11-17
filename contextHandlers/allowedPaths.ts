@@ -1,7 +1,6 @@
 import type { ChatInputMessage } from "@tokenring-ai/ai-client/client/AIChatClient";
 import type { ContextHandlerOptions } from "@tokenring-ai/chat/schema";
 import FileSystemService from "../FileSystemService.ts";
-import { FileSystemState } from "../state/fileSystemState.ts";
 
 /**
  * Injects the workspace allow-list so the model knows which absolute paths the
@@ -10,8 +9,7 @@ import { FileSystemState } from "../state/fileSystemState.ts";
  */
 export default async function* allowedPaths({ agent }: ContextHandlerOptions): AsyncGenerator<ChatInputMessage> {
   const fileSystem = agent.requireService(FileSystemService);
-  const { providerName } = agent.getState(FileSystemState);
-  const entries = fileSystem.getAllowedPaths(providerName ?? undefined);
+  const entries = fileSystem.getAllowedPaths();
 
   yield {
     role: "user",

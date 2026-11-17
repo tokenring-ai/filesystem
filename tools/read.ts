@@ -69,17 +69,47 @@ async function execute({ files, cwd }: z.output<typeof inputSchema>, agent: Agen
     }
   >();
 
+  // First the paths: a directory is expanded once (its tree is already recursive, and lists the
+  // directories themselves ending in "/"). Past the limit only names are returned, so nothing is
+  // read just to be thrown away.
+  const paths = new Set<string>();
+  for (const file of matchedFiles) {
+    try {
+      const stat = await fileSystem.stat(file, agent);
+      if (stat.exists && stat.isDirectory) {
+        for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
+          if (!dirFile.endsWith("/")) paths.add(dirFile);
+        }
+      } else {
+        paths.add(file);
+      }
+    } catch (err) {
+      retrievedFiles.set(file, { mimeType: "text/plain", encoding: "text", contents: `[Could not read: ${formatError(err)}]` });
+    }
+    if (paths.size > maxFileReadCount) break;
+  }
+
+  if (paths.size > maxFileReadCount) {
+    agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
+
+    return {
+      message: `**File Read** Matched more than ${maxFileReadCount} files`,
+      actions: [`Too many files matched, summarizing results...`],
+      result: `
+The file read operation matched more than ${maxFileReadCount} files, the user specified limit.
+The list of matched files will be returned as a directory listing instead. To retrieve the files, you will need to request no more than ${maxFileReadCount} files at a time
+
+${fileListing(paths)}
+`.trim(),
+    };
+  }
+
   async function retrieveFile(file: string) {
     const stat = await fileSystem.stat(file, agent);
     if (!stat.exists) {
       retrievedFiles.set(file, { mimeType: "text/plain", encoding: "text", contents: "[File does not exist]" });
       return;
-    } else if (stat.isDirectory) {
-      for await (const dirFile of fileSystem.getDirectoryTree(file, {}, agent)) {
-        await retrieveFile(dirFile);
-      }
     }
-
     const mimeType = detectMimeType(file);
     switch (mimeType) {
       case "image/jpeg":
@@ -133,23 +163,13 @@ async function execute({ files, cwd }: z.output<typeof inputSchema>, agent: Agen
     }
   }
 
-  for (const file of matchedFiles) {
-    await retrieveFile(file);
-  }
-
-  if (retrievedFiles.size > maxFileReadCount) {
-    agent.infoMessage(`[${name}] Too many files were matched. Returning only the names.`);
-
-    return {
-      message: `**File Read** Read ${retrievedFiles.size} files`,
-      actions: [`Too many files matched, summarizing results...`],
-      result: `
-The file read operation matched ${retrievedFiles.size} files, which is higher than the user specified limit of ${maxFileReadCount}.
-The list of matched files will be returned as a directory listing instead. To retrieve the files, you will need to request no more than ${maxFileReadCount} files at a time
-
-${fileListing(retrievedFiles.keys())}
-`.trim(),
-    };
+  for (const file of paths) {
+    try {
+      await retrieveFile(file);
+    } catch (err) {
+      // One unreadable file (outside the allowed paths through a symlink, say) does not fail the rest.
+      retrievedFiles.set(file, { mimeType: "text/plain", encoding: "text", contents: `[Could not read: ${formatError(err)}]` });
+    }
   }
 
   agent.mutateState(FileSystemState, state => {

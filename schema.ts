@@ -16,14 +16,22 @@ export const FileMatchSchema = z.object({
 export const AllowedPathPermissionSchema = z.enum(["read", "write"]);
 
 export const AllowedPathSchema = z.object({
-  path: z.string().meta({ description: "Absolute directory the agent may access (in the provider's namespace)" } satisfies ConfigFieldMeta),
+  path: z.string().meta({ description: "Absolute host directory the agent may access" } satisfies ConfigFieldMeta),
   permission: AllowedPathPermissionSchema.default("write").meta({
     description: "read = list/read only; write = read plus create/modify/delete",
   } satisfies ConfigFieldMeta),
-  provider: z
-    .string()
+  approvalLevel: z
+    .number()
+    .int()
+    .min(1)
+    .max(8)
     .exactOptional()
-    .meta({ description: "Filesystem provider this entry applies to (defaults to agentDefaults.provider)" } satisfies ConfigFieldMeta),
+    .meta({
+      description:
+        "Write entries only: rate file writes, edits and appends under this path at least this level (1-8) on the tool approval scale, so a lower auto-approve threshold asks before changing files here. Never lowers a tool's own level.",
+    } satisfies ConfigFieldMeta),
+  /** Removed: there is one host filesystem. Kept as `never` so leftover uses fail to type-check and old configs fail loudly. */
+  provider: z.never().exactOptional(),
   description: z
     .string()
     .exactOptional()
@@ -152,10 +160,6 @@ const AddToQueueActionSchema = z.object({
 const TriggeredActionSchema = z.discriminatedUnion("action", [AddToQueueActionSchema]);
 
 export const FileWatchSchema = FileMatchSchema.extend({
-  provider: z
-    .string()
-    .exactOptional()
-    .meta({ description: "Filesystem provider to watch (defaults to agentDefaults.provider)" } satisfies ConfigFieldMeta),
   contentIncludes: z
     .string()
     .exactOptional()
@@ -200,8 +204,19 @@ export type ParsedFileArchiveConfig = z.output<typeof FileArchiveConfigSchema>;
 
 export const FileSystemAgentConfigSchema = z
   .object({
-    provider: z.string().exactOptional(),
-    /** @deprecated Ignored. Filesystem access is governed by `filesystem.allowedPaths`. */
+    approvalLevel: z
+      .number()
+      .int()
+      .min(1)
+      .max(8)
+      .exactOptional()
+      .meta({
+        description:
+          "Write entries only: rate file writes, edits and appends under this path at least this level (1-8) on the tool approval scale, so a lower auto-approve threshold asks before changing files here. Never lowers a tool's own level.",
+      } satisfies ConfigFieldMeta),
+    /** Removed: there is one host filesystem. */
+    provider: z.never().exactOptional(),
+    /** Deprecated and ignored. Filesystem access is governed by `filesystem.allowedPaths`. */
     workingDirectory: z
       .string()
       .exactOptional()
@@ -216,11 +231,19 @@ export const FileSystemConfigSchema = z
   .object({
     agentDefaults: z
       .object({
-        provider: z
-          .string()
-          .default("posix")
-          .meta({ description: "Filesystem provider new agents use by default (e.g. posix)" } satisfies ConfigFieldMeta),
-        /** @deprecated Ignored. Filesystem access is governed by `filesystem.allowedPaths`. */
+        approvalLevel: z
+          .number()
+          .int()
+          .min(1)
+          .max(8)
+          .exactOptional()
+          .meta({
+            description:
+              "Write entries only: rate file writes, edits and appends under this path at least this level (1-8) on the tool approval scale, so a lower auto-approve threshold asks before changing files here. Never lowers a tool's own level.",
+          } satisfies ConfigFieldMeta),
+        /** Removed: there is one host filesystem. */
+        provider: z.never().exactOptional(),
+        /** Deprecated and ignored. Filesystem access is governed by `filesystem.allowedPaths`. */
         workingDirectory: z
           .string()
           .exactOptional()

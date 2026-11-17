@@ -11,7 +11,7 @@ import FileEditorPane from "../features/filesystem/components/FileEditorPane.tsx
 import FileVersionsPanel from "../features/filesystem/components/FileVersionsPanel.tsx";
 import { getBasename, isLikelyTextFile } from "../features/filesystem/fsUtils.ts";
 import { consumeRevealLine, revealLineIn, usePendingReveal } from "../lib/contentSearch.ts";
-import { clearSavedFileDraft, fileDraftKey, setFileDraft, useFileDraft, useFilesProvider } from "../lib/filesBrowserStore.ts";
+import { clearSavedFileDraft, fileDraftKey, setFileDraft, useFileDraft } from "../lib/filesBrowserStore.ts";
 import { fileVersionsKey } from "../lib/fileVersions.ts";
 
 /** How long an "open at line" request waits for the editor to mount before giving up. */
@@ -21,10 +21,9 @@ const REVEAL_INTERVAL_MS = 150;
 /** The editor of one text file, with its save/restore flow and version history. */
 export default function FileEditorTab({ path }: { path: string }) {
   const panel = usePanel();
-  const { provider } = useFilesProvider();
   const isText = isLikelyTextFile(path);
-  const fileContent = useFileContents(isText ? path : undefined, provider ?? undefined);
-  const draftKey = fileDraftKey(provider, path);
+  const fileContent = useFileContents(isText ? path : undefined);
+  const draftKey = fileDraftKey(path);
   const draft = useFileDraft(draftKey);
   const [saving, setSaving] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -66,29 +65,28 @@ export default function FileEditorTab({ path }: { path: string }) {
   usePanelBadge(isDirty ? { tone: "warning", label: "Unsaved changes" } : null);
 
   const handleSave = useCallback(async () => {
-    if (!provider || !isText || draft === null) return;
+    if (!isText || draft === null) return;
     setSaving(true);
     try {
-      await filesystemRPCClient.writeFile({ path, content: draft, provider });
+      await filesystemRPCClient.writeFile({ path, content: draft });
       await fileContent.mutate(() => ({ content: draft }));
       // Text typed while the write was in flight stays as the new draft.
       clearSavedFileDraft(draftKey, draft);
       // The save archived the previous content.
-      void globalMutate(fileVersionsKey(provider, path));
+      void globalMutate(fileVersionsKey(path));
       toastManager.success("Saved", { duration: 2000 });
     } catch (e: unknown) {
       toastManager.error(`Save failed: ${formatError(e)}`, { duration: 3000 });
     } finally {
       setSaving(false);
     }
-  }, [draft, draftKey, fileContent, globalMutate, isText, path, provider]);
+  }, [draft, draftKey, fileContent, globalMutate, isText, path]);
 
   /** Restore = the normal save path with the archived text; the current text is archived first. */
   const handleRestore = useCallback(
     async (content: string): Promise<boolean> => {
-      if (!provider) return false;
       try {
-        await filesystemRPCClient.writeFile({ path, content, provider });
+        await filesystemRPCClient.writeFile({ path, content });
         await fileContent.mutate(() => ({ content }));
         setFileDraft(draftKey, null);
         toastManager.success("Version restored", { duration: 2000 });
@@ -98,7 +96,7 @@ export default function FileEditorTab({ path }: { path: string }) {
         return false;
       }
     },
-    [draftKey, fileContent, path, provider],
+    [draftKey, fileContent, path],
   );
 
   // ⌘/Ctrl+S saves the editor on screen.
@@ -122,9 +120,9 @@ export default function FileEditorTab({ path }: { path: string }) {
             versionsOpen={versionsOpen}
           />
         </div>
-        {versionsOpen && provider && (
+        {versionsOpen && (
           <div className="w-72 max-w-[45%] shrink-0 h-full">
-            <FileVersionsPanel provider={provider} path={path} isDirty={isDirty} onRestore={handleRestore} onClose={() => setVersionsOpen(false)} />
+            <FileVersionsPanel path={path} isDirty={isDirty} onRestore={handleRestore} onClose={() => setVersionsOpen(false)} />
           </div>
         )}
       </div>

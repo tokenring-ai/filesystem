@@ -1,7 +1,6 @@
 import { useRouteParamsFor } from "@tokenring-ai/one-frontend/apps/panelHooks.ts";
 import AgentLaunchPanel from "@tokenring-ai/one-frontend/components/ui/AgentLaunchPanel.tsx";
 import BreadcrumbBar, { type BreadcrumbAction, type BreadcrumbSegment } from "@tokenring-ai/one-frontend/components/ui/BreadcrumbBar.tsx";
-import EmptyState from "@tokenring-ai/one-frontend/components/ui/EmptyState.tsx";
 import ErrorState from "@tokenring-ai/one-frontend/components/ui/ErrorState.tsx";
 import LoadingState from "@tokenring-ai/one-frontend/components/ui/LoadingState.tsx";
 import SearchInput from "@tokenring-ai/one-frontend/components/ui/SearchInput.tsx";
@@ -9,18 +8,19 @@ import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx
 import ViewShell from "@tokenring-ai/one-frontend/components/ui/ViewShell.tsx";
 import { useDebounce } from "@tokenring-ai/one-frontend/hooks/useDebounce.ts";
 import { useFileUpload } from "@tokenring-ai/one-frontend/hooks/useFileUpload.ts";
+import { requireAgentFound } from "@tokenring-ai/one-frontend/lib/requireAgentFound.ts";
 import { filesystemRPCClient } from "@tokenring-ai/one-frontend/rpc.ts";
-import { Button, SegmentedControl, Select } from "@tokenring-ai/one-frontend/ui";
+import { Button, SegmentedControl } from "@tokenring-ai/one-frontend/ui";
 import formatError from "@tokenring-ai/utility/error/formatError";
-import { Eye, EyeOff, FilePlus, Filter, FilterX, FolderPlus, HardDrive, Plus, RefreshCw } from "lucide-react";
+import { Eye, EyeOff, FilePlus, Filter, FilterX, FolderPlus, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import ContentSearchResults from "../features/filesystem/components/ContentSearchResults.tsx";
 import FileListPane from "../features/filesystem/components/FileListPane.tsx";
 import { getParentPath, joinPath } from "../features/filesystem/fsUtils.ts";
 import { FILE_VIEW_ID } from "../ids.ts";
 import { requestRevealLine } from "../lib/contentSearch.ts";
-import { setFilesBrowserState, toggleSelectAll, toggleSelectedPath, useFilesBrowserStore, useFilesProvider } from "../lib/filesBrowserStore.ts";
+import { setFilesBrowserState, toggleSelectAll, toggleSelectedPath, useFilesBrowserStore, useFilesHome } from "../lib/filesBrowserStore.ts";
 import { useRefreshListing } from "../lib/useFileMutationsCore.tsx";
 import { useFileMutations, useOpenFile } from "../lib/useFilesLayoutNavigation.ts";
 
@@ -29,29 +29,40 @@ const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 const MAX_UPLOAD_SIZE_MB = 5;
 
 /**
- * The Files navigator: provider, search, breadcrumbs with file actions and
+ * The Files navigator: search, breadcrumbs with file actions and
  * the directory listing. Selecting a file opens its tab beside the tree.
  */
 export default function FileTreePane() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // `?dir=<folder>`: the folder being browsed, on whatever URL is current, so a folder can be
+  // linked to and Back steps back through folders without moving focus off an open file.
+  const [searchParams] = useSearchParams();
+  const routeDir = searchParams.get("dir");
   const routeFile = useRouteParamsFor(FILE_VIEW_ID)?.fileId;
-  const { provider, providers, homePath, fsProviders } = useFilesProvider();
+  const { homePath, defaultDirectories } = useFilesHome();
   const { pathOverride, showHidden, showIgnored, selectedPaths, searchQuery, searchMode } = useFilesBrowserStore();
   const path = pathOverride ?? homePath;
   const debouncedSearch = useDebounce(searchQuery, 250);
   const openFile = useOpenFile();
   const refreshListing = useRefreshListing();
-  const { newFile, newFolder, openRename, requestDelete, duplicate, modals } = useFileMutations(provider, path, routeFile ?? null);
+  const { newFile, newFolder, openRename, requestDelete, duplicate, modals } = useFileMutations(path, routeFile ?? null);
 
-  // A file named by the URL (deep link, "open in Files" from a terminal) shows its directory.
+  // The URL decides the folder: `?dir` if present, else an open file's directory (deep link,
+  // "open in Files" from a terminal), else the home folder.
   useEffect(() => {
-    if (!routeFile) return;
-    setFilesBrowserState({ pathOverride: getParentPath(routeFile) });
-  }, [routeFile]);
+    setFilesBrowserState({ pathOverride: routeDir ?? (routeFile ? getParentPath(routeFile) : null) });
+  }, [routeDir, routeFile]);
 
-  const navigateTo = useCallback((nextPath: string) => {
-    setFilesBrowserState({ pathOverride: nextPath, searchQuery: "" });
-  }, []);
+  const navigateTo = useCallback(
+    (nextPath: string) => {
+      setFilesBrowserState({ pathOverride: nextPath, searchQuery: "" });
+      const params = new URLSearchParams(location.search);
+      params.set("dir", nextPath);
+      void navigate({ pathname: location.pathname, search: `?${params.toString()}` });
+    },
+    [location.pathname, location.search, navigate],
+  );
 
   /** Binary-safe uploads via base64 so images and other non-text files are not corrupted. */
   const upload = useFileUpload({
@@ -59,12 +70,12 @@ export default function FileTreePane() {
     maxSize: MAX_UPLOAD_SIZE,
     maxSizeLabel: `${MAX_UPLOAD_SIZE_MB} MB`,
     uploadFile: async ({ filePath, content, encoding }) => {
-      if (!provider || path === null) throw new Error("No filesystem provider");
-      await filesystemRPCClient.writeFile({ path: joinPath(path, filePath), content, encoding, provider });
+      if (path === null) throw new Error("Files are still loading");
+      await filesystemRPCClient.writeFile({ path: joinPath(path, filePath), content, encoding });
     },
     checkExists: async ({ filePath }) => {
-      if (!provider || path === null) return { exists: false };
-      return filesystemRPCClient.exists({ path: joinPath(path, filePath), provider });
+      if (path === null) return { exists: false };
+      return filesystemRPCClient.exists({ path: joinPath(path, filePath) });
     },
     onSkip: ({ reason, detail }) => {
       if ((reason === "size" || reason === "invalid-name") && detail) toastManager.error(detail, { duration: 3000 });
@@ -111,63 +122,23 @@ export default function FileTreePane() {
     [newFile, newFolder, refreshListing, showHidden, showIgnored, upload.trigger],
   );
 
-  const switchProvider = (next: string) => {
-    if (next === provider) return;
-    // Fall back to the new provider's home (launch dir for the host filesystem).
-    setFilesBrowserState({ providerOverride: next, pathOverride: null, selectedPaths: new Set(), searchQuery: "" });
-  };
-
-  if (fsProviders.error) {
+  if (defaultDirectories.error) {
     return (
-      <ErrorState title="Could not load filesystem providers" error={formatError(fsProviders.error)} onRetry={() => void fsProviders.mutate()} variant="page" />
-    );
-  }
-  if (fsProviders.isLoading || (!provider && !fsProviders.data)) {
-    return <LoadingState message="Loading filesystems…" className="h-full w-full" />;
-  }
-  if (!provider) {
-    return (
-      <EmptyState
+      <ErrorState
+        title="Could not load the launch directory"
+        error={formatError(defaultDirectories.error)}
+        onRetry={() => void defaultDirectories.mutate()}
         variant="page"
-        icon={HardDrive}
-        title="No filesystem providers"
-        hint={
-          <>
-            Files needs a filesystem provider. Enable the POSIX System plugin (<code>posix.filesystem</code>) or add Drive to a Google account (
-            <code>google.accounts.&lt;name&gt;.drive</code>), then set <code>filesystem.agentDefaults.provider</code>.
-          </>
-        }
-        action={
-          <div className="flex items-center gap-3">
-            <Link to="/configuration" className="text-xs font-medium text-accent hover:underline focus-ring rounded">
-              Open configuration
-            </Link>
-            <Button variant="ghost" onClick={() => void fsProviders.mutate()}>
-              Retry
-            </Button>
-          </div>
-        }
-        data-testid="files-no-providers"
       />
     );
   }
-  // Checked after the provider: with no provider there is no home path either, so this would spin forever.
   if (path === null) {
-    return <LoadingState message="Loading filesystems…" className="h-full w-full" />;
+    return <LoadingState message="Loading files…" className="h-full w-full" />;
   }
 
   return (
     <ViewShell tone="sidebar" scroll={false}>
       <div className="shrink-0 flex items-center gap-2 px-2 py-1.5 border-b border-primary">
-        {providers.length > 1 && (
-          <Select value={provider} onChange={switchProvider} aria-label="Filesystem provider">
-            {providers.map(p => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </Select>
-        )}
         <SearchInput
           value={searchQuery}
           onChange={value => setFilesBrowserState({ searchQuery: value })}
@@ -206,7 +177,6 @@ export default function FileTreePane() {
       <div className="flex-1 min-h-0 min-w-0">
         {searchMode === "contents" ? (
           <ContentSearchResults
-            provider={provider}
             path={path}
             query={debouncedSearch}
             onOpenMatch={match => {
@@ -216,7 +186,6 @@ export default function FileTreePane() {
           />
         ) : (
           <FileListPane
-            provider={provider}
             path={path}
             showHidden={showHidden}
             showIgnored={showIgnored}
@@ -241,7 +210,7 @@ export default function FileTreePane() {
           itemLabel="file"
           onClear={() => setFilesBrowserState({ selectedPaths: new Set() })}
           attachItemToAgent={async (agentId, file) => {
-            await filesystemRPCClient.addFileToChat({ agentId, file });
+            requireAgentFound(await filesystemRPCClient.addFileToChat({ agentId, file }));
           }}
           onNavigateToAgent={agentId => void navigate(`/agent/${agentId}`)}
         />

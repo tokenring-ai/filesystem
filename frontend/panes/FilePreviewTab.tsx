@@ -8,28 +8,27 @@ import { useState } from "react";
 import PreviewMetadataPane from "../features/filesystem/components/PreviewMetadataPane.tsx";
 import { getBasename, getParentPath, isLikelyTextFile } from "../features/filesystem/fsUtils.ts";
 import { FILE_VIEW_ID } from "../ids.ts";
-import { clearSavedFileDraft, fileDraftKey, toggleSelectedPath, useFileDraft, useFilesBrowserStore, useFilesProvider } from "../lib/filesBrowserStore.ts";
+import { clearSavedFileDraft, fileDraftKey, toggleSelectedPath, useFileDraft, useFilesBrowserStore } from "../lib/filesBrowserStore.ts";
 import { useFileMutations } from "../lib/useFilesLayoutNavigation.ts";
 
 /** Preview and metadata for one file. Offers to save an unsaved editor draft of the same file. */
 export default function FilePreviewTab({ path }: { path: string }) {
   const panel = usePanel();
   const routeFile = useRouteParamsFor(FILE_VIEW_ID)?.fileId ?? null;
-  const { provider } = useFilesProvider();
   const { selectedPaths } = useFilesBrowserStore();
-  const { openRename, requestDelete, modals } = useFileMutations(provider, getParentPath(path), routeFile);
-  const draftKey = fileDraftKey(provider, path);
+  const { openRename, requestDelete, modals } = useFileMutations(getParentPath(path), routeFile);
+  const draftKey = fileDraftKey(path);
   const draft = useFileDraft(draftKey);
-  const fileContent = useFileContents(isLikelyTextFile(path) && draft !== null ? path : undefined, provider ?? undefined);
+  const fileContent = useFileContents(isLikelyTextFile(path) && draft !== null ? path : undefined);
   const [saving, setSaving] = useState(false);
 
   usePanelTitle(getBasename(path));
 
   const handleSave = async () => {
-    if (!provider || draft === null) return;
+    if (draft === null) return;
     setSaving(true);
     try {
-      await filesystemRPCClient.writeFile({ path, content: draft, provider });
+      await filesystemRPCClient.writeFile({ path, content: draft });
       await fileContent.mutate(() => ({ content: draft }));
       // Text typed while the write was in flight stays as the new draft.
       clearSavedFileDraft(draftKey, draft);
@@ -45,7 +44,6 @@ export default function FilePreviewTab({ path }: { path: string }) {
     <ViewShell tone="sidebar" scroll={false}>
       <PreviewMetadataPane
         file={path}
-        provider={provider}
         selectedPaths={selectedPaths as Set<string>}
         onToggleSelected={toggleSelectedPath}
         onClose={() => panel.close()}

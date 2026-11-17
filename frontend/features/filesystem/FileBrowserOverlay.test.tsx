@@ -54,14 +54,13 @@ const state = {
 void mock.module("@tokenring-ai/one-frontend/rpc.ts", () => ({
   useFilesystemProviders: () => ({ data: { providers: state.providers }, isLoading: false, error: undefined, mutate: mock() }),
   useDefaultDirectories: () => ({
-    data: { defaultProvider: "local", workingDirectory: "/project", workspaceDirectory: "/project" },
+    data: { workingDirectory: "/project", workspaceDirectory: "/project" },
     isLoading: false,
     error: undefined,
   }),
   useFilesystemState: () => ({
     data: {
       status: "success" as const,
-      provider: "local",
       allowedPaths: [],
       selectedFiles: [] as string[],
       readFiles: {},
@@ -129,6 +128,13 @@ describe("chat file browser overlay", () => {
     );
     return { onClose };
   }
+
+  it("has a visible Done button that closes it", async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderOutsideFiles();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(onClose).toHaveBeenCalled();
+  });
 
   it("hides dotfiles until Show Hidden is turned on", async () => {
     const user = userEvent.setup();

@@ -9,8 +9,8 @@ import requireAbsolutePath from "../util/requireAbsolutePath.ts";
 const name = "file_delete";
 const displayName = "Filesystem/delete";
 
-/** Permanent deletion is in the data-loss band. */
-const DELETE_SAFETY_LEVEL = 8;
+/** Deleting a file loses it for good (approval standard: own data loss). */
+const DELETE_SAFETY_LEVEL = 6;
 
 async function execute({ path: rawPath }: z.output<typeof inputSchema>, agent: Agent): Promise<TokenRingToolResult> {
   const fileSystem = agent.requireService(FileSystemService);

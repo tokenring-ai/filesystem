@@ -1,9 +1,8 @@
 import type Agent from "@tokenring-ai/agent/Agent";
 import { dedupe } from "@tokenring-ai/utility/array/dedupe";
 import EnhancedMap from "@tokenring-ai/utility/map/enhancedMap";
-import type { GrepResult } from "../FileSystemProvider.ts";
 import type FileSystemService from "../FileSystemService.ts";
-import { FileSystemState } from "../state/fileSystemState.ts";
+import type { GrepResult } from "../FileSystemTypes.ts";
 import { topLevelRoots } from "./allowedPaths.ts";
 
 export interface FileSearchMatch {
@@ -380,7 +379,7 @@ export async function searchFiles(
 ): Promise<FileSearchMatch[]> {
   const results = new EnhancedMap<string, FileSearchMatch>();
 
-  const searchRoots = topLevelRoots(fileSystemService.getAllowedPaths(agent.getState(FileSystemState).providerName ?? undefined));
+  const searchRoots = topLevelRoots(fileSystemService.getAllowedPaths());
 
   // Strategy 1: Filename/path matching via glob across every allowed root
   const allFiles: string[] = [];

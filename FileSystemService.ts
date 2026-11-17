@@ -4,14 +4,14 @@ import type { AgentCreationContext } from "@tokenring-ai/agent/types";
 import type TokenRingApp from "@tokenring-ai/app";
 import type { TokenRingService } from "@tokenring-ai/app/types";
 import deepClone from "@tokenring-ai/utility/object/deepClone";
-import KeyedRegistry from "@tokenring-ai/utility/registry/KeyedRegistry";
 import EnhancedSet from "@tokenring-ai/utility/set/enhancedSet";
 import type { z } from "zod";
-import type { DirectoryTreeOptions, FileSystemProvider, FileSystemWatcher, GrepOptions, GrepResult, StatLike, WatchOptions } from "./FileSystemProvider.js";
+import type { DirectoryTreeOptions, FileSystemWatcher, GrepOptions, GrepResult, IgnorePredicate, StatLike, WatchOptions } from "./FileSystemTypes.ts";
+import HostFileSystem from "./HostFileSystem.ts";
 import type { AllowedPath } from "./schema.ts";
 import { FileSystemAgentConfigSchema, FileSystemConfigSchema } from "./schema.ts";
 import { FileSystemState } from "./state/fileSystemState.ts";
-import { allowedPathsForProvider, authorizePath, type PathAccess, PathNotAllowedError, pathIsWithin } from "./util/allowedPaths.ts";
+import { allowedPathsFor, authorizePath, findAllowedRoot, type PathAccess, PathNotAllowedError, pathIsWithin } from "./util/allowedPaths.ts";
 import { findFirstMagicIndex } from "./util/fallbackGlob.ts";
 import { type ArchivedVersionSummary, archivePreviousVersion, listArchivedVersions, readArchivedVersion } from "./util/fileArchive.ts";
 import { RefreshingTreeIgnore, TreeIgnore, type TreeIgnoreIO, type WalkIgnoreOptions } from "./util/treeIgnore.ts";
@@ -33,32 +33,25 @@ export type WatchWalkOptions = WalkIgnoreOptions & {
 };
 
 /**
- * FileSystem is an abstract class that provides a unified interface
- * for file operations, allowing for different implementations of file systems.
+ * The host machine's filesystem, as agents and the UI see it.
  *
- * Paths are absolute within the active provider's namespace and are authorized
- * against the workspace allow-list (`filesystem.allowedPaths`). Relative paths
- * from internal callers (services, config) resolve against the workspace
- * directory, which is implicitly write-allowed for the default provider.
+ * Paths are absolute host paths authorized against the workspace allow-list
+ * (`filesystem.allowedPaths`). Relative paths from internal callers (services,
+ * config) resolve against the workspace directory, which is implicitly
+ * write-allowed. Remote stores such as Google Drive are not filesystems and do
+ * not go through this service.
  */
 export default class FileSystemService implements TokenRingService {
   readonly name = "FileSystemService";
-  description = "Abstract interface for virtual file system operations";
-
-  protected defaultProvider!: FileSystemProvider;
-
-  private fileSystemProviderRegistry = new KeyedRegistry<FileSystemProvider>();
-
-  registerFileSystemProvider = this.fileSystemProviderRegistry.set;
-  unregisterFileSystemProvider = this.fileSystemProviderRegistry.unregister;
-  requireFileSystemProviderByName = this.fileSystemProviderRegistry.require;
-  getFilesystemProviderNames = this.fileSystemProviderRegistry.keysArray;
+  description = "The host filesystem, authorized against the workspace allow-list";
 
   private options: z.output<typeof FileSystemConfigSchema> = FileSystemConfigSchema.parse({});
 
   constructor(
     private readonly app: TokenRingApp,
     options?: z.output<typeof FileSystemConfigSchema>,
+    /** The host filesystem implementation. Tests pass an in-memory one. */
+    readonly host: HostFileSystem = new HostFileSystem(),
   ) {
     if (options) this.options = options;
   }
@@ -67,13 +60,8 @@ export default class FileSystemService implements TokenRingService {
     this.options = options;
   }
 
-  start(): void {
-    // Throws an error if the default provider is not registered, since this is most likely a mistake
-    this.defaultProvider = this.fileSystemProviderRegistry.require(this.options.agentDefaults.provider);
-  }
-
   attach(agent: Agent, creationContext: AgentCreationContext): void {
-    // oxlint-disable-next-line typescript/no-deprecated -- strips the legacy key from merged config
+    // oxlint-disable-next-line typescript/no-deprecated -- strips the legacy keys from merged config
     const { workingDirectory: _deprecated, ...config } = deepClone(
       this.options.agentDefaults,
       agent.getAgentConfigSlice("filesystem", FileSystemAgentConfigSchema),
@@ -82,47 +70,27 @@ export default class FileSystemService implements TokenRingService {
     if (initialState.selectedFiles.size > 0) {
       creationContext.items.push(`Selected Files: ${initialState.selectedFiles.valuesArray().join(", ")}`);
     }
-    const allowedPaths = this.getAllowedPaths(initialState.providerName ?? undefined);
+    const allowedPaths = this.getAllowedPaths();
     creationContext.items.push(`Allowed Paths: ${allowedPaths.map(entry => `${entry.path} (${entry.permission})`).join(", ") || "(none)"}`);
-  }
-
-  requireActiveFileSystem(agent: Agent): FileSystemProvider {
-    const { providerName } = agent.getState(FileSystemState);
-    if (!providerName) throw new Error("No file system provider configured for agent");
-    return this.fileSystemProviderRegistry.require(providerName);
-  }
-
-  setActiveFileSystem(providerName: string, agent: Agent): void {
-    this.fileSystemProviderRegistry.require(providerName);
-    agent.mutateState(FileSystemState, (state: FileSystemState) => {
-      state.providerName = providerName;
-    });
   }
 
   // Path authorization
 
-  /** The configured allow-list as-is (no provider filtering, no implicit workspace entry). */
+  /** The configured allow-list as-is (no implicit workspace entry). */
   getConfiguredAllowedPaths(): AllowedPath[] {
     return this.options.allowedPaths;
   }
 
-  /** The provider name new agents default to (and unscoped allow-list entries apply to). */
-  getDefaultProviderName(): string {
-    return this.options.agentDefaults.provider;
+  /** The workspace allow-list with the implicit workspace-directory entry appended. */
+  getAllowedPaths(): AllowedPath[] {
+    return allowedPathsFor({ entries: this.options.allowedPaths, workspaceDirectory: this.app.appConfig.workspaceDirectory });
   }
 
-  /**
-   * Workspace allow-list for a provider (default: the default provider), with
-   * the implicit workspace-directory entry appended.
-   */
-  getAllowedPaths(providerName?: string): AllowedPath[] {
-    const defaultProvider = this.options.agentDefaults.provider;
-    return allowedPathsForProvider({
-      entries: this.options.allowedPaths,
-      provider: providerName ?? defaultProvider,
-      defaultProvider,
-      workspaceDirectory: this.app.appConfig.workspaceDirectory,
-    });
+  /** Directories (the workspace directory included) whose files agents' file tools may write. */
+  getWritablePaths(): string[] {
+    return this.getAllowedPaths()
+      .filter(entry => entry.permission === "write")
+      .map(entry => entry.path);
   }
 
   /**
@@ -135,40 +103,64 @@ export default class FileSystemService implements TokenRingService {
   }
 
   /**
-   * Resolve and authorize a path for the agent's active provider. Returns the
-   * normalized absolute path; throws PathNotAllowedError with the allowed
-   * roots listed otherwise.
+   * Resolve and authorize a path against the allow-list. Returns the normalized
+   * absolute path; throws PathNotAllowedError with the allowed roots listed
+   * otherwise. Agentless callers (watchers, terminals, the UI) use this too.
    */
-  authorizePath(filePath: string, access: PathAccess, agent: Agent): Promise<string> {
-    const { providerName } = agent.getState(FileSystemState);
-    if (!providerName) throw new Error("No file system provider configured for agent");
-    return this.authorizePathForProvider(filePath, access, providerName);
-  }
-
-  /** Same authorization for callers that have a provider name but no agent (watchers, terminals). */
-  authorizePathForProvider(filePath: string, access: PathAccess, providerName: string): Promise<string> {
-    const provider = this.fileSystemProviderRegistry.require(providerName);
+  authorizePath(filePath: string, access: PathAccess, _agent?: Agent): Promise<string> {
     return authorizePath(this.resolvePath(filePath), access, {
       entries: this.options.allowedPaths,
-      provider: providerName,
-      defaultProvider: this.options.agentDefaults.provider,
       workspaceDirectory: this.app.appConfig.workspaceDirectory,
-      realpath: provider.realpath?.bind(provider),
+      realpath: path => this.host.realpath(path),
     });
   }
 
-  private providerIO(provider: FileSystemProvider): TreeIgnoreIO {
+  /** The allowed-path entry (implicit workspace entry included) that covers `target`, or null. */
+  findCoveringEntry(target: string): AllowedPath | null {
+    return findAllowedRoot(path.resolve(target), this.getAllowedPaths());
+  }
+
+  /**
+   * Archive location inputs for `target`. Files in the workspace use workspace-relative keys; files under
+   * another allowed path are keyed by absolute path, with exclude rules matched relative to that allowed
+   * path. Returns null for a path outside every allowed path (nothing is archived or readable there).
+   */
+  private archiveScope(target: string): { excludeRelativePath?: string } | null {
+    const resolved = path.resolve(target);
+    if (pathIsWithin(path.resolve(this.app.appConfig.workspaceDirectory), resolved)) return {};
+    const entry = this.findCoveringEntry(resolved);
+    if (!entry) return null;
+    return { excludeRelativePath: path.relative(entry.path, resolved) };
+  }
+
+  /**
+   * Wraps an ignore predicate for walks that read file contents: an entry whose real path leaves
+   * the allow-list (a symlink to a file or folder outside it) is skipped, not just the walk's root.
+   */
+  private skipOutsideAllowList(ignore: IgnorePredicate): IgnorePredicate {
+    return async (filePath, isDirectory) => {
+      if (await ignore(filePath, isDirectory)) return true;
+      try {
+        await this.authorizePath(filePath, "read");
+        return false;
+      } catch {
+        return true;
+      }
+    };
+  }
+
+  private hostIO(): TreeIgnoreIO {
     return {
       readFile: async (filePath: string) => {
         try {
-          return await provider.readFile(filePath);
+          return await this.host.readFile(filePath);
         } catch {
           return null;
         }
       },
       exists: async (filePath: string) => {
         try {
-          return await provider.exists(filePath);
+          return await this.host.exists(filePath);
         } catch {
           return false;
         }
@@ -179,10 +171,9 @@ export default class FileSystemService implements TokenRingService {
   // Directory walking
   async *getDirectoryTree(dirPath: string, options: TreeWalkOptions = {}, agent: Agent): AsyncGenerator<string> {
     const { recursive, ...ignoreOptions } = options;
-    const activeFileSystem = this.requireActiveFileSystem(agent);
     const root = await this.authorizePath(dirPath, "read", agent);
-    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.providerIO(activeFileSystem));
-    yield* activeFileSystem.getDirectoryTree(root, {
+    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.hostIO());
+    yield* this.host.getDirectoryTree(root, {
       ignoreFilter: treeIgnore.shouldIgnore,
       ...(recursive !== undefined && { recursive }),
     } as DirectoryTreeOptions);
@@ -190,7 +181,7 @@ export default class FileSystemService implements TokenRingService {
 
   // file ops
 
-  /** Subscribes to successful file writes (absolute provider paths). Returns an unsubscribe function. */
+  /** Subscribes to successful file writes (absolute host paths). Returns an unsubscribe function. */
   onFileWritten(listener: (absolutePath: string) => void): () => void {
     this.writeListeners.add(listener);
     return () => this.writeListeners.delete(listener);
@@ -213,10 +204,12 @@ export default class FileSystemService implements TokenRingService {
    * archiving (best-effort, off the write path's critical latency). Returns the
    * promise so callers may await it when they need ordering guarantees.
    */
-  private archiveBeforeWrite(provider: FileSystemProvider, target: string): Promise<void> {
+  private archiveBeforeWrite(target: string): Promise<void> {
     const archiveConfig = this.options.archive;
     if (!archiveConfig.enabled) return Promise.resolve();
-    return Promise.resolve(provider.readFile(target))
+    const scope = this.archiveScope(target);
+    if (!scope) return Promise.resolve();
+    return Promise.resolve(this.host.readFile(target))
       .then(previous => {
         if (!previous) return;
         return archivePreviousVersion({
@@ -224,6 +217,7 @@ export default class FileSystemService implements TokenRingService {
           workspaceDirectory: this.app.appConfig.workspaceDirectory,
           absolutePath: target,
           previousContent: previous,
+          ...scope,
         });
       })
       .catch(() => {
@@ -233,10 +227,9 @@ export default class FileSystemService implements TokenRingService {
 
   async writeFile(filePath: string, content: string | Buffer, agent: Agent): Promise<boolean> {
     const target = await this.authorizePath(filePath, "write", agent);
-    const activeFileSystem = this.requireActiveFileSystem(agent);
-    await this.archiveBeforeWrite(activeFileSystem, target);
+    await this.archiveBeforeWrite(target);
     this.setDirty(true, agent);
-    const result = await activeFileSystem.writeFile(target, content);
+    const result = await this.host.writeFile(target, content);
     this.notifyFileWritten(target);
     return result;
   }
@@ -244,22 +237,21 @@ export default class FileSystemService implements TokenRingService {
   /**
    * Agentless write for internal services and HTTP resources: same archive and
    * notification behavior as {@link writeFile}, resolved against the default
-   * provider's namespace without permission state.
+   * workspace without permission state.
    */
   async writeSystemFile(filePath: string, content: string | Buffer): Promise<boolean> {
     const target = this.resolvePath(filePath);
-    await this.archiveBeforeWrite(this.defaultProvider, target);
-    const result = await this.defaultProvider.writeFile(target, content);
+    await this.archiveBeforeWrite(target);
+    const result = await this.host.writeFile(target, content);
     this.notifyFileWritten(target);
     return result;
   }
 
   async appendFile(filePath: string, finalContent: string | Buffer, agent: Agent): Promise<boolean> {
     const target = await this.authorizePath(filePath, "write", agent);
-    const activeFileSystem = this.requireActiveFileSystem(agent);
-    await this.archiveBeforeWrite(activeFileSystem, target);
+    await this.archiveBeforeWrite(target);
     this.setDirty(true, agent);
-    const result = await activeFileSystem.appendFile(target, finalContent);
+    const result = await this.host.appendFile(target, finalContent);
     this.notifyFileWritten(target);
     return result;
   }
@@ -267,52 +259,36 @@ export default class FileSystemService implements TokenRingService {
   async deleteFile(filePath: string, agent: Agent): Promise<boolean> {
     const target = await this.authorizePath(filePath, "write", agent);
     this.setDirty(true, agent);
-    return this.requireActiveFileSystem(agent).deleteFile(target);
-  }
-
-  /**
-   * Recursively delete a directory for an agent. See {@link deleteDirectoryForProvider}.
-   */
-  async deleteDirectory(dirPath: string, agent: Agent): Promise<boolean> {
-    const { providerName } = agent.getState(FileSystemState);
-    if (!providerName) throw new Error("No file system provider configured for agent");
-    this.setDirty(true, agent);
-    return this.deleteDirectoryForProvider(dirPath, providerName);
+    return this.host.deleteFile(target);
   }
 
   /**
    * Recursively delete a directory. The path must be write-authorized by the
    * allow-list (symlinks resolved), and may not be an allowed root, the
    * workspace or working directory, or anything containing one of them.
+   * Without an agent (the UI), nothing is marked dirty.
    */
-  async deleteDirectoryForProvider(dirPath: string, providerName: string): Promise<boolean> {
-    const provider = this.fileSystemProviderRegistry.require(providerName);
-    if (!provider.deleteDirectory) {
-      throw new Error(`The ${providerName} filesystem does not support deleting directories`);
-    }
-    const target = await this.authorizePathForProvider(dirPath, "write", providerName);
-    await this.assertDeletableDirectory(target, provider, providerName);
-    const stat = await provider.stat(target);
+  async deleteDirectory(dirPath: string, agent?: Agent): Promise<boolean> {
+    const target = await this.authorizePath(dirPath, "write");
+    await this.assertDeletableDirectory(target);
+    if (agent) this.setDirty(true, agent);
+    const stat = await this.host.stat(target);
     if (!stat.exists) throw new Error(`Directory ${target} does not exist`);
     if (!stat.isDirectory) throw new Error(`Path ${target} is not a directory`);
-    return provider.deleteDirectory(target);
+    return this.host.deleteDirectory(target);
   }
 
   /** Throws when `target` is a protected directory (an allowed root, the workspace, or one of their ancestors). */
-  private async assertDeletableDirectory(target: string, provider: FileSystemProvider, providerName: string): Promise<void> {
-    const protectedRoots = this.getAllowedPaths(providerName).map(entry => entry.path);
-    if (providerName === this.options.agentDefaults.provider) {
-      protectedRoots.push(path.resolve(this.app.appConfig.workspaceDirectory), path.resolve(this.app.appConfig.workingDirectory));
-    }
+  private async assertDeletableDirectory(target: string): Promise<void> {
+    const protectedRoots = this.getAllowedPaths().map(entry => entry.path);
+    protectedRoots.push(path.resolve(this.app.appConfig.workspaceDirectory), path.resolve(this.app.appConfig.workingDirectory));
     // Check the symlink-resolved location too, so a path through a linked parent cannot reach a protected root.
     const candidates = [target];
-    if (provider.realpath) {
-      try {
-        const real = await provider.realpath(target);
-        if (real !== target) candidates.push(real);
-      } catch {
-        // Missing paths are reported by the caller's stat.
-      }
+    try {
+      const real = await this.host.realpath(target);
+      if (real !== target) candidates.push(real);
+    } catch {
+      // Missing paths are reported by the caller's stat.
     }
     for (const candidate of candidates) {
       if (candidate === path.parse(candidate).root) {
@@ -334,16 +310,11 @@ export default class FileSystemService implements TokenRingService {
    * Count what a recursive delete would remove (read-authorized). Stops at
    * `limit` entries and reports `truncated`.
    */
-  async countDirectoryEntriesForProvider(
-    dirPath: string,
-    providerName: string,
-    limit = 100_000,
-  ): Promise<{ files: number; directories: number; truncated: boolean }> {
-    const provider = this.fileSystemProviderRegistry.require(providerName);
-    const target = await this.authorizePathForProvider(dirPath, "read", providerName);
+  async countDirectoryEntries(dirPath: string, limit = 100_000): Promise<{ files: number; directories: number; truncated: boolean }> {
+    const target = await this.authorizePath(dirPath, "read");
     let files = 0;
     let directories = 0;
-    for await (const entry of provider.getDirectoryTree(target, { ignoreFilter: () => false, recursive: true })) {
+    for await (const entry of this.host.getDirectoryTree(target, { ignoreFilter: () => false, recursive: true })) {
       if (entry.endsWith("/") || entry.endsWith(path.sep)) directories++;
       else files++;
       if (files + directories >= limit) return { files, directories, truncated: true };
@@ -353,23 +324,29 @@ export default class FileSystemService implements TokenRingService {
 
   // archived versions
 
-  /** Archived previous versions of a file (workspace-relative or absolute path), newest first. */
+  /** Archived previous versions of a file (workspace-relative or absolute path inside any allowed path), newest first. */
   async listVersions(filePath: string): Promise<ArchivedVersionSummary[]> {
     const archiveConfig = this.options.archive;
     if (!archiveConfig.enabled) return [];
-    return listArchivedVersions(archiveConfig, this.app.appConfig.workspaceDirectory, this.resolvePath(filePath));
+    const target = this.resolvePath(filePath);
+    const scope = this.archiveScope(target);
+    if (!scope) return [];
+    return listArchivedVersions(archiveConfig, this.app.appConfig.workspaceDirectory, target, scope.excludeRelativePath);
   }
 
   /** Content of one archived version, or null when the version does not exist. */
   async readVersion(filePath: string, versionId: string): Promise<Buffer | null> {
     const archiveConfig = this.options.archive;
     if (!archiveConfig.enabled) return null;
-    return readArchivedVersion(archiveConfig, this.app.appConfig.workspaceDirectory, this.resolvePath(filePath), versionId);
+    const target = this.resolvePath(filePath);
+    const scope = this.archiveScope(target);
+    if (!scope) return null;
+    return readArchivedVersion(archiveConfig, this.app.appConfig.workspaceDirectory, target, versionId, scope.excludeRelativePath);
   }
 
   async readFile(filePath: string, agent: Agent): Promise<Buffer | null> {
     const target = await this.authorizePath(filePath, "read", agent);
-    return this.requireActiveFileSystem(agent).readFile(target);
+    return this.host.readFile(target);
   }
 
   async readTextFile(filePath: string, agent: Agent): Promise<string | null> {
@@ -380,13 +357,13 @@ export default class FileSystemService implements TokenRingService {
   async rename(oldPath: string, newPath: string, agent: Agent): Promise<boolean> {
     const source = await this.authorizePath(oldPath, "write", agent);
     const destination = await this.authorizePath(newPath, "write", agent);
-    return this.requireActiveFileSystem(agent).rename(source, destination);
+    return this.host.rename(source, destination);
   }
 
   async exists(filePath: string, agent: Agent): Promise<boolean> {
     try {
       const target = await this.authorizePath(filePath, "read", agent);
-      return await this.requireActiveFileSystem(agent).exists(target);
+      return await this.host.exists(target);
     } catch {
       return false;
     }
@@ -394,7 +371,7 @@ export default class FileSystemService implements TokenRingService {
 
   async stat(filePath: string, agent: Agent): Promise<StatLike> {
     const target = await this.authorizePath(filePath, "read", agent);
-    const result = await this.requireActiveFileSystem(agent).stat(target);
+    const result = await this.host.stat(target);
     if (result.exists) {
       return {
         ...result,
@@ -422,7 +399,7 @@ export default class FileSystemService implements TokenRingService {
     const target = await this.authorizePath(dirPath, "write", agent);
     this.setDirty(true, agent);
 
-    return this.requireActiveFileSystem(agent).createDirectory(target, options);
+    return this.host.createDirectory(target, options);
   }
 
   async copy(source: string, destination: string, options: { overwrite?: boolean | undefined }, agent: Agent): Promise<boolean> {
@@ -430,7 +407,7 @@ export default class FileSystemService implements TokenRingService {
     const destinationPath = await this.authorizePath(destination, "write", agent);
     this.setDirty(true, agent);
 
-    return this.requireActiveFileSystem(agent).copy(sourcePath, destinationPath, options);
+    return this.host.copy(sourcePath, destinationPath, options);
   }
 
   /**
@@ -439,7 +416,6 @@ export default class FileSystemService implements TokenRingService {
    */
   async glob(pattern: string, options: GlobWalkOptions, agent: Agent): Promise<string[]> {
     const { cwd, includeDirectories = false, ...ignoreOptions } = options;
-    const activeFileSystem = this.requireActiveFileSystem(agent);
 
     let absolutePattern: string;
     if (path.isAbsolute(pattern)) {
@@ -449,7 +425,7 @@ export default class FileSystemService implements TokenRingService {
         throw new PathNotAllowedError(
           `Relative glob pattern "${pattern}" requires an absolute "cwd" to resolve against. ` +
             `Pass a cwd inside an allowed directory, or use an absolute pattern:\n` +
-            this.getAllowedPaths(agent.getState(FileSystemState).providerName ?? undefined)
+            this.getAllowedPaths()
               .map(entry => `- ${entry.path} (${entry.permission})`)
               .join("\n"),
         );
@@ -463,10 +439,10 @@ export default class FileSystemService implements TokenRingService {
     // Exact (non-magic) pattern: stat it directly instead of walking the parent.
     if (magicIndex === -1) {
       const target = await this.authorizePath(absolutePattern, "read", agent);
-      const stat = await activeFileSystem.stat(target);
+      const stat = await this.host.stat(target);
       if (!stat.exists) return [];
       if (stat.isDirectory && !includeDirectories) return [];
-      const treeIgnore = new TreeIgnore(path.dirname(target), ignoreOptions, this.providerIO(activeFileSystem));
+      const treeIgnore = new TreeIgnore(path.dirname(target), ignoreOptions, this.hostIO());
       if (await treeIgnore.shouldIgnore(target, stat.isDirectory ?? false)) return [];
       return [target];
     }
@@ -476,13 +452,13 @@ export default class FileSystemService implements TokenRingService {
     const root = await this.authorizePath(walkRoot, "read", agent);
 
     const matcher = new Bun.Glob(absolutePattern);
-    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.providerIO(activeFileSystem));
+    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.hostIO());
     const results = new Set<string>();
 
-    const rootStat = await activeFileSystem.stat(root);
+    const rootStat = await this.host.stat(root);
     if (!rootStat.exists) return [];
 
-    for await (const entry of activeFileSystem.getDirectoryTree(root, {
+    for await (const entry of this.host.getDirectoryTree(root, {
       recursive: true,
       ignoreFilter: treeIgnore.shouldIgnore,
     } as DirectoryTreeOptions)) {
@@ -497,13 +473,9 @@ export default class FileSystemService implements TokenRingService {
 
   async watch(dir: string, options: WatchWalkOptions, agent: Agent): Promise<FileSystemWatcher> {
     const { pollInterval, stabilityThreshold, ...ignoreOptions } = options;
-    const activeFileSystem = this.requireActiveFileSystem(agent);
-    if (!activeFileSystem.watch) {
-      throw new Error(`Watch is not supported by the active file system`);
-    }
     const root = await this.authorizePath(dir, "read", agent);
-    const treeIgnore = new RefreshingTreeIgnore(root, ignoreOptions, this.providerIO(activeFileSystem));
-    return activeFileSystem.watch(root, {
+    const treeIgnore = new RefreshingTreeIgnore(root, ignoreOptions, this.hostIO());
+    return this.host.watch(root, {
       ignoreFilter: treeIgnore.shouldIgnore,
       ...(pollInterval !== undefined && { pollInterval }),
       ...(stabilityThreshold !== undefined && { stabilityThreshold }),
@@ -513,63 +485,55 @@ export default class FileSystemService implements TokenRingService {
   /** Search file contents under `options.cwd` (required, absolute, allow-listed). */
   async grep(searchString: string | string[], options: GrepWalkOptions, agent: Agent): Promise<GrepResult[]> {
     const { cwd, includeContent, ...ignoreOptions } = options;
-    const activeFileSystem = this.requireActiveFileSystem(agent);
-    if (!activeFileSystem.grep) {
-      throw new Error(`Grep is not supported by the active file system`);
-    }
     if (!cwd) {
       throw new PathNotAllowedError(
         `grep requires an absolute "cwd" to walk. Allowed directories:\n` +
-          this.getAllowedPaths(agent.getState(FileSystemState).providerName ?? undefined)
+          this.getAllowedPaths()
             .map(entry => `- ${entry.path} (${entry.permission})`)
             .join("\n"),
       );
     }
     const root = await this.authorizePath(cwd, "read", agent);
-    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.providerIO(activeFileSystem));
-    return await activeFileSystem.grep(searchString, {
+    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.hostIO());
+    return await this.host.grep(searchString, {
       cwd: root,
-      ignoreFilter: treeIgnore.shouldIgnore,
+      ignoreFilter: this.skipOutsideAllowList(treeIgnore.shouldIgnore),
       ...(includeContent !== undefined && { includeContent }),
     } as GrepOptions);
   }
 
   /**
    * Agentless content search for UI callers: `cwd` is read-authorized against
-   * the provider's allow-list, ignore rules apply, and at most `maxResults`
-   * matching lines are returned (`truncated` says whether more exist).
+   * the allow-list, ignore rules apply, and at most `maxResults` matching lines
+   * are returned (`truncated` says whether more exist).
    */
-  async grepForProvider(
+  async searchContents(
     searchString: string,
     options: WalkIgnoreOptions & { cwd: string; maxResults: number; ignoreCase?: boolean | undefined },
-    providerName: string,
   ): Promise<{ matches: GrepResult[]; truncated: boolean }> {
     const { cwd, maxResults, ignoreCase, ...ignoreOptions } = options;
-    const provider = this.fileSystemProviderRegistry.require(providerName);
-    if (!provider.grep) {
-      throw new Error(`The ${providerName} filesystem does not support content search`);
-    }
-    const root = await this.authorizePathForProvider(cwd, "read", providerName);
-    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.providerIO(provider));
+    const root = await this.authorizePath(cwd, "read");
+    const treeIgnore = new TreeIgnore(root, ignoreOptions, this.hostIO());
     // One extra match tells us whether the list was cut short.
-    const results = await provider.grep(searchString, {
+    const results = await this.host.grep(searchString, {
       cwd: root,
-      ignoreFilter: treeIgnore.shouldIgnore,
+      ignoreFilter: this.skipOutsideAllowList(treeIgnore.shouldIgnore),
       maxResults: maxResults + 1,
       ...(ignoreCase !== undefined && { ignoreCase }),
     });
     return { matches: results.slice(0, maxResults), truncated: results.length > maxResults };
   }
 
-  supportsGrep(agent: Agent) {
-    const activeFileSystem = this.requireActiveFileSystem(agent);
-    return !!activeFileSystem.grep;
-  }
-
   setDirty(dirty: boolean, agent: Agent): void {
     agent.mutateState(FileSystemState, (state: FileSystemState) => {
       state.dirty = dirty;
+      if (dirty) state.writeCount++;
     });
+  }
+
+  /** How many writes the agent has made; compare two readings to tell whether files changed in between. */
+  getWriteCount(agent: Agent): number {
+    return agent.getState(FileSystemState).writeCount;
   }
 
   isDirty(agent: Agent): boolean {
@@ -620,8 +584,7 @@ export default class FileSystemService implements TokenRingService {
     if (path.isAbsolute(mention)) {
       return (await this.exists(mention, agent)) ? path.resolve(mention) : null;
     }
-    const { providerName } = agent.getState(FileSystemState);
-    for (const entry of this.getAllowedPaths(providerName ?? undefined)) {
+    for (const entry of this.getAllowedPaths()) {
       const candidate = path.join(entry.path, mention);
       if (await this.exists(candidate, agent)) return candidate;
     }

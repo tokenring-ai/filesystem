@@ -18,12 +18,11 @@ export interface ContentMatch {
  * Searches file contents under `path` (gitignored and hidden files skipped).
  * Idle until the query is at least two characters.
  */
-export function useContentSearch(provider: string | null, path: string | null, query: string) {
+export function useContentSearch(path: string | null, query: string) {
   const trimmed = query.trim();
-  const key = provider && path && trimmed.length >= 2 ? `${CONTENT_SEARCH_KEY_PREFIX}${provider}\0${path}\0${trimmed}` : null;
+  const key = path && trimmed.length >= 2 ? `${CONTENT_SEARCH_KEY_PREFIX}${path}\0${trimmed}` : null;
   return useSWR(key, () =>
     filesystemRPCClient.searchFileContents({
-      provider: provider!,
       path: path!,
       query: trimmed,
       limit: CONTENT_SEARCH_LIMIT,

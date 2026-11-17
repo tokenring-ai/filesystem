@@ -5,7 +5,6 @@ import { type ParsedWebHostAuthConfig, WebHostService, type WebResource } from "
 import { credentialsValid, parseBasicCredentials } from "@tokenring-ai/web-host/sessionStore";
 import { LoginRateLimiter, loginRateLimiter } from "@tokenring-ai/web-host/util/authSecurity";
 import mime from "mime-types";
-import type { FileSystemProvider } from "./FileSystemProvider.ts";
 import FileSystemService from "./FileSystemService.ts";
 import { PathNotAllowedError } from "./util/allowedPaths.ts";
 
@@ -13,9 +12,12 @@ const DEFAULT_PREFIX = "/api/fs";
 const ALLOWED_METHODS = "GET, HEAD, PUT";
 
 export type FileSystemHttpResourceOptions = {
-  /** URL prefix, e.g. `/api/fs`. Paths are `/api/fs/{provider}/{path...}`. */
+  /** URL prefix, e.g. `/api/fs`. Paths are `/api/fs/{path...}`. */
   prefix?: string;
 };
+
+/** Types a browser renders as a live document, with scripts. */
+const ACTIVE_DOCUMENT_TYPES = new Set(["text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml"]);
 
 /** RFC 5987-ish filename for Content-Disposition (ASCII fallback + UTF-8). */
 function contentDispositionAttachment(filename: string): string {
@@ -41,15 +43,16 @@ function unauthorizedResponse(): Response {
 }
 
 type ParsedFileTarget = {
-  providerName: string;
+  /** Absolute, or relative to the workspace directory. */
   filePath: string;
 };
 
 /**
- * Serves (and accepts uploads for) files from registered filesystem providers over HTTP.
+ * Serves (and accepts uploads for) host files over HTTP, inside the allow-list.
  *
  * ```
- * GET|HEAD|PUT /api/fs/{provider}/{path...}
+ * GET|HEAD|PUT /api/fs/{workspace-relative path...}
+ * GET|HEAD|PUT /api/fs//{absolute path...}
  * ```
  *
  * Always requires authentication: HTTP Basic, or the web host's sign-in session
@@ -78,25 +81,15 @@ export default class FileSystemHttpResource implements WebResource {
       const target = this.parseTarget(request, prefix);
       if (target instanceof Response) return target;
 
-      const { providerName } = target;
       let { filePath } = target;
 
-      let provider: FileSystemProvider;
-      let fileSystemService: FileSystemService | undefined;
+      let fileSystemService: FileSystemService;
       try {
         fileSystemService = this.app.requireService(FileSystemService);
-        provider = fileSystemService.requireFileSystemProviderByName(providerName);
-        // Relative URLs resolve against the workspace directory for the default
-        // (host filesystem) provider; other providers keep their own namespace.
-        if (providerName === fileSystemService.getDefaultProviderName()) {
-          if (!path.posix.isAbsolute(filePath)) {
-            filePath = fileSystemService.resolvePath(filePath);
-          }
-          // Absolute paths are honored (workspaceFileUrl keeps the leading slash) but
-          // they are host paths, so they must still fall inside the configured
-          // allow-list — an arbitrary host path must not be readable/writable here.
-          filePath = await fileSystemService.authorizePathForProvider(filePath, request.method === "PUT" ? "write" : "read", providerName);
-        }
+        // Relative URLs resolve against the workspace directory. Absolute paths are
+        // honored (workspaceFileUrl keeps the leading slash) but must still fall inside
+        // the allow-list: an arbitrary host path must not be readable/writable here.
+        filePath = await fileSystemService.authorizePath(filePath, request.method === "PUT" ? "write" : "read");
       } catch (error: unknown) {
         if (error instanceof PathNotAllowedError) {
           return new Response("Forbidden", { status: 403 });
@@ -107,12 +100,8 @@ export default class FileSystemHttpResource implements WebResource {
       if (request.method === "PUT") {
         try {
           const body = Buffer.from(await request.arrayBuffer());
-          // Default-provider uploads go through the system write so they archive like any other write.
-          if (providerName === fileSystemService.getDefaultProviderName()) {
-            await fileSystemService.writeSystemFile(filePath, body);
-          } else {
-            await provider.writeFile(filePath, body);
-          }
+          // Uploads go through the system write so they archive like any other write.
+          await fileSystemService.writeSystemFile(filePath, body);
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : "Upload failed";
           return new Response(message, { status: 500 });
@@ -120,7 +109,7 @@ export default class FileSystemHttpResource implements WebResource {
         return new Response(null, { status: 201 });
       }
 
-      const stats = await provider.stat(filePath);
+      const stats = await fileSystemService.host.stat(filePath);
       if (!stats.exists || !stats.isFile) {
         if (!stats.exists) {
           return new Response("Not Found", { status: 404 });
@@ -136,6 +125,13 @@ export default class FileSystemHttpResource implements WebResource {
         "Content-Type": contentType,
         "X-Content-Type-Options": "nosniff",
       });
+
+      // A document type the browser runs (HTML, SVG, XML) gets an opaque origin, so a page an agent
+      // wrote cannot act as the signed-in user: no session cookie, no RPC socket. Images, media and
+      // PDFs are unaffected.
+      if (ACTIVE_DOCUMENT_TYPES.has(contentType.split(";")[0]!.trim().toLowerCase())) {
+        headers.set("Content-Security-Policy", "sandbox allow-scripts allow-popups allow-forms allow-modals");
+      }
 
       if (url.searchParams.get("download") === "1") {
         headers.set("Content-Disposition", contentDispositionAttachment(filePath));
@@ -161,7 +157,7 @@ export default class FileSystemHttpResource implements WebResource {
         }
       }
 
-      const content = await provider.readFile(filePath);
+      const content = await fileSystemService.host.readFile(filePath);
       if (content == null) {
         return new Response("Not Found", { status: 404 });
       }
@@ -230,20 +226,9 @@ export default class FileSystemHttpResource implements WebResource {
       return new Response("Not Found", { status: 404 });
     }
 
-    const rest = pathname.slice(prefix.length).replace(/^\/+/, "");
-    if (!rest) {
-      return new Response("Not Found", { status: 404 });
-    }
-
-    const slash = rest.indexOf("/");
-    if (slash <= 0) {
-      return new Response("Not Found", { status: 404 });
-    }
-
-    const providerName = rest.slice(0, slash);
-    let filePath = rest.slice(slash + 1);
-
-    if (!providerName || !filePath) {
+    // `/api/fs/rel/path` is workspace-relative; `/api/fs//abs/path` keeps its leading slash.
+    let filePath = pathname.slice(prefix.length).replace(/^\//, "");
+    if (!filePath) {
       return new Response("Not Found", { status: 404 });
     }
 
@@ -255,6 +240,6 @@ export default class FileSystemHttpResource implements WebResource {
       return new Response("Not Found", { status: 404 });
     }
 
-    return { providerName, filePath };
+    return { filePath };
   }
 }

@@ -7,6 +7,7 @@ import FileSystemService from "../FileSystemService.ts";
 import { FileSystemState } from "../state/fileSystemState.ts";
 import createFileWriteResult from "../util/createFileWriteResult.ts";
 import requireAbsolutePath from "../util/requireAbsolutePath.ts";
+import requireWriteApproval from "../util/requireWriteApproval.ts";
 import runFileValidator from "../util/runFileValidator.ts";
 
 const name = "file_append";
@@ -50,6 +51,8 @@ ${curFileContents}`.trim(),
       };
     }
   }
+
+  await requireWriteApproval(agent, name, filePath, "Append to");
 
   // Ensure parent directory exists
   const dirPath = path.dirname(filePath);

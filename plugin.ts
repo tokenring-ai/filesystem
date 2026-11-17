@@ -1,6 +1,6 @@
 import { AgentCommandService } from "@tokenring-ai/agent";
 import type { TokenRingPlugin } from "@tokenring-ai/app";
-import { ChatService, ContextualSearchService } from "@tokenring-ai/chat";
+import { ChatService, ContextualSearchService, PermissionService } from "@tokenring-ai/chat";
 import { AgentLifecycleService } from "@tokenring-ai/lifecycle";
 import { RpcService } from "@tokenring-ai/rpc";
 import { ScriptingService } from "@tokenring-ai/scripting";
@@ -17,7 +17,11 @@ import addSelectedFiles from "./hooks/addSelectedFiles.ts";
 import addSimilarFiles from "./hooks/addSimilarFiles.ts";
 import clearReadFiles from "./hooks/clearReadFiles.ts";
 import packageJSON from "./package.json" with { type: "json" };
+import remoteStoresContextHandler from "./remote/contextHandler.ts";
+import RemoteStoreService from "./remote/RemoteStoreService.ts";
+import remoteTools from "./remote/tools.ts";
 import filesystemRPC from "./rpc/filesystem.ts";
+import remoteRPC from "./rpc/remote.ts";
 import { FileSystemConfigSchema } from "./schema.ts";
 import tools from "./tools.ts";
 
@@ -67,21 +71,31 @@ export default {
         },
       });
     });
+    // Permission grants are stored in config files; one inside a folder agents can write is not trusted.
+    app.waitForService(PermissionService, permissionService => {
+      permissionService.setWritableRootsProvider(() => app.requireService(FileSystemService).getWritablePaths());
+    });
     app.waitForService(ChatService, chatService => {
       chatService.addTools(tools);
+      chatService.addTools(remoteTools);
       chatService.registerContextHandler("allowed-paths", allowedPathsContextHandler);
+      chatService.registerContextHandler("remote-stores", remoteStoresContextHandler);
     });
     app.waitForService(ContextualSearchService, service => {
       service.registerProvider("file", new FilesystemContextualSearchProvider(app));
+      // Remote mounts that opt into `@` search register once both services exist.
+      app.waitForService(RemoteStoreService, remote => remote.mountsChanged());
     });
 
     app.waitForService(AgentLifecycleService, lifecycleService => lifecycleService.addHooks(clearReadFiles, addSelectedFiles, addSimilarFiles));
     app.waitForService(AgentCommandService, agentCommandService => agentCommandService.addAgentCommands(agentCommands));
     app.addService(FileSystemService, new FileSystemService(app));
     app.addService(FileWatchService, new FileWatchService(app));
+    app.addService(RemoteStoreService, new RemoteStoreService(app));
 
     app.waitForService(RpcService, rpcService => {
       rpcService.registerEndpoint(filesystemRPC);
+      rpcService.registerEndpoint(remoteRPC);
     });
 
     app.waitForService(WebHostService, webHostService => {
@@ -89,10 +103,10 @@ export default {
     });
   },
   async reconfigure(app, config) {
-    if (config.filesystem) {
-      app.requireService(FileSystemService).reconfigure(config.filesystem);
-      await app.requireService(FileWatchService).reconfigure(config.filesystem);
-    }
+    // Also when the key was removed: fall back to defaults so the allow-list resets and watchers close.
+    const filesystem = config.filesystem ?? FileSystemConfigSchema.parse({});
+    app.requireService(FileSystemService).reconfigure(filesystem);
+    await app.requireService(FileWatchService).reconfigure(filesystem);
   },
   configSchema: packageConfigSchema,
 } satisfies TokenRingPlugin<typeof packageConfigSchema>;

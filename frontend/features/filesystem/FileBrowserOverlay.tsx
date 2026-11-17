@@ -5,12 +5,13 @@ import { toastManager } from "@tokenring-ai/one-frontend/components/ui/toast.tsx
 import { useDebounce } from "@tokenring-ai/one-frontend/hooks/useDebounce.ts";
 import { useEventListener } from "@tokenring-ai/one-frontend/hooks/useEventListener.ts";
 import { useFileUpload } from "@tokenring-ai/one-frontend/hooks/useFileUpload.ts";
+import { requireAgentFound } from "@tokenring-ai/one-frontend/lib/requireAgentFound.ts";
 import { cn } from "@tokenring-ai/one-frontend/lib/utils.ts";
 import { filesystemRPCClient, useDirectoryListing, useFileContents, useFilesystemState } from "@tokenring-ai/one-frontend/rpc.ts";
 import formatError from "@tokenring-ai/utility/error/formatError";
 import { FocusTrap } from "focus-trap-react";
 import { Check, ChevronRight, Download, Edit, Eye, EyeOff, File, Folder, Plus, Save, Trash2, X } from "lucide-react";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOpenWorkspaceFile } from "../../lib/openWorkspaceFile.ts";
 import { downloadWorkspaceFile } from "./downloadFile.ts";
 import { getBasename, getFileIcon, isHiddenEntry } from "./fsUtils.ts";
@@ -37,19 +38,24 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
 
   const fsState = useFilesystemState(agentId);
   const fsStateData = fsState.data?.status === "success" ? fsState.data : null;
-  const provider = fsStateData?.provider ?? null;
+
+  // Start in the agent's first allowed folder. "." would mean the server's working directory for
+  // listing but the workspace for saving, so the browser would show one folder and save into another.
+  const firstAllowedPath = fsStateData?.allowedPaths[0]?.path;
+  useEffect(() => {
+    if (firstAllowedPath) setPath(current => (current === "." ? firstAllowedPath : current));
+  }, [firstAllowedPath]);
   const openFile = useOpenWorkspaceFile();
-  const directoryListing = useDirectoryListing(provider ? { path, showHidden: showHiddenFiles, provider } : undefined);
-  const fileContent = useFileContents(selectedFile ?? undefined, provider ?? undefined);
+  const directoryListing = useDirectoryListing({ path, showHidden: showHiddenFiles });
+  const fileContent = useFileContents(selectedFile ?? undefined);
 
   const upload = useFileUpload({
     encoding: "base64",
     maxSize: 5 * 1024 * 1024,
     maxSizeLabel: "5 MB",
     uploadFile: async ({ filePath, content, encoding }) => {
-      if (!provider) throw new Error("No filesystem provider");
       const targetPath = path === "." ? filePath : `${path}/${filePath}`;
-      await filesystemRPCClient.writeFile({ path: targetPath, content, encoding, provider });
+      await filesystemRPCClient.writeFile({ path: targetPath, content, encoding });
     },
     askOverwrite: false,
     onSkip: ({ fileName, reason, detail }) => {
@@ -172,8 +178,7 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
     const contentToSave = editorContent;
     setIsSaving(true);
     try {
-      if (!provider) throw new Error("No filesystem provider");
-      await filesystemRPCClient.writeFile({ path: fileToSave, content: contentToSave, provider });
+      await filesystemRPCClient.writeFile({ path: fileToSave, content: contentToSave });
       await fileContent.mutate();
     } catch (error: unknown) {
       toastManager.error(`Failed to save "${getBasename(fileToSave)}": ${formatError(error)}`, { duration: 5000 });
@@ -213,8 +218,7 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
     const isDir = file.endsWith("/");
     const fullPath = isDir ? file.slice(0, -1) : file;
     try {
-      if (!provider) return;
-      const { stats } = await filesystemRPCClient.stat({ path: fullPath, provider });
+      const { stats } = await filesystemRPCClient.stat({ path: fullPath });
 
       if (stats.exists) {
         if (stats.isDirectory) {
@@ -232,7 +236,7 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
   const handleAddFile = async (file: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
-      await filesystemRPCClient.addFileToChat({ agentId, file });
+      requireAgentFound(await filesystemRPCClient.addFileToChat({ agentId, file }));
       await fsState.mutate();
       toastManager.success(`Added ${getBasename(file)} to chat`, { duration: 2000 });
     } catch (error: unknown) {
@@ -244,7 +248,7 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
   const handleRemoveFile = async (file: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
-      await filesystemRPCClient.removeFileFromChat({ agentId, file });
+      requireAgentFound(await filesystemRPCClient.removeFileFromChat({ agentId, file }));
       await fsState.mutate();
       toastManager.info(`Removed ${getBasename(file)} from chat`, { duration: 2000 });
     } catch (error: unknown) {
@@ -257,8 +261,7 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
     e?.stopPropagation();
     const cleanFile = file.endsWith("/") ? file.slice(0, -1) : file;
     try {
-      if (!provider) return;
-      await downloadWorkspaceFile(cleanFile, provider);
+      await downloadWorkspaceFile(cleanFile);
     } catch (error: unknown) {
       toastManager.error(`Failed to download "${getBasename(cleanFile)}": ${formatError(error)}`, { duration: 5000 });
     }
@@ -494,6 +497,14 @@ export default function FileBrowserOverlay({ agentId, isOpen, onClose }: FileBro
 
               <div className="h-9 border-t border-primary bg-tertiary flex items-center justify-between px-4 shrink-0">
                 <span className="text-xs text-muted">{fsStateData?.selectedFiles.length ?? 0} items in chat</span>
+                {/* Files join the chat as they are added, so this only closes the browser. */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-xs font-medium px-3 py-1 rounded-md bg-accent text-white hover:bg-accent-hover transition-colors focus-ring"
+                >
+                  Done
+                </button>
               </div>
 
               {upload.uploadingFiles.length > 0 && (

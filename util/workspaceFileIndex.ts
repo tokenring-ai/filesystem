@@ -1,4 +1,5 @@
-import type { FileSystemProvider, IgnorePredicate } from "../FileSystemProvider.ts";
+import type { IgnorePredicate } from "../FileSystemTypes.ts";
+import type HostFileSystem from "../HostFileSystem.ts";
 
 type IndexEntry = {
   files: string[];
@@ -6,21 +7,15 @@ type IndexEntry = {
 };
 
 const INDEX_TTL_MS = 30_000;
-const indexByProviderRoot = new Map<string, IndexEntry>();
+const indexByRoot = new Map<string, IndexEntry>();
 
-function indexKey(providerName: string, root: string, variant: string): string {
-  return `${providerName}\0${root}\0${variant}`;
+function indexKey(root: string, variant: string): string {
+  return `${root}\0${variant}`;
 }
 
 /** Invalidate cached workspace file lists (e.g. after writes). */
-export function invalidateWorkspaceFileIndex(providerName?: string) {
-  if (providerName) {
-    for (const key of indexByProviderRoot.keys()) {
-      if (key.startsWith(`${providerName}\0`)) indexByProviderRoot.delete(key);
-    }
-    return;
-  }
-  indexByProviderRoot.clear();
+export function invalidateWorkspaceFileIndex() {
+  indexByRoot.clear();
 }
 
 /**
@@ -28,14 +23,13 @@ export function invalidateWorkspaceFileIndex(providerName?: string) {
  * `searchWorkspaceFiles` and contextual search. Results are absolute paths.
  */
 export async function listWorkspaceFiles(
-  providerName: string,
-  provider: FileSystemProvider,
+  provider: HostFileSystem,
   root: string,
   options: { ignoreFilter?: IgnorePredicate; variant?: string } = {},
 ): Promise<string[]> {
   const now = Date.now();
-  const key = indexKey(providerName, root, options.variant ?? "");
-  const cached = indexByProviderRoot.get(key);
+  const key = indexKey(root, options.variant ?? "");
+  const cached = indexByRoot.get(key);
   if (cached && now - cached.builtAt < INDEX_TTL_MS) {
     return cached.files;
   }
@@ -51,6 +45,6 @@ export async function listWorkspaceFiles(
     // Root missing or unreadable — treat as empty rather than failing the search.
   }
 
-  indexByProviderRoot.set(key, { files, builtAt: now });
+  indexByRoot.set(key, { files, builtAt: now });
   return files;
 }

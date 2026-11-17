@@ -1,11 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import type { AllowedPath } from "../schema.ts";
-import { allowedPathsForProvider, authorizePath, findAllowedRoot, PathNotAllowedError, pathIsWithin, topLevelRoots } from "./allowedPaths.ts";
+import { allowedPathsFor, authorizePath, findAllowedRoot, PathNotAllowedError, pathIsWithin, topLevelRoots } from "./allowedPaths.ts";
 
-const baseOptions = {
-  provider: "posix",
-  defaultProvider: "posix",
-};
+const baseOptions = {};
 
 function entries(...items: Array<Partial<AllowedPath> & { path: string }>): AllowedPath[] {
   return items.map(item => ({ permission: "write", ...item }) as AllowedPath);
@@ -59,19 +56,10 @@ describe("authorizePath", () => {
     await expect(authorizePath("/proj/vendor/lib.js", "write", opts)).rejects.toThrow(/read-only/);
   });
 
-  it("filters entries by provider", async () => {
-    const opts = {
-      ...baseOptions,
-      entries: entries({ path: "/drive", provider: "google-drive" }),
-    };
-    await expect(authorizePath("/drive/doc.txt", "read", opts)).rejects.toThrow(/allowed/);
-    expect(await authorizePath("/drive/doc.txt", "read", { ...opts, provider: "google-drive" })).toBe("/drive/doc.txt");
-  });
-
-  it("implicitly write-allows the workspace directory for the default provider", async () => {
+  it("implicitly write-allows the workspace directory", async () => {
     const opts = { ...baseOptions, entries: [], workspaceDirectory: "/workspace" };
     expect(await authorizePath("/workspace/media/x.png", "write", opts)).toBe("/workspace/media/x.png");
-    await expect(authorizePath("/workspace/media/x.png", "write", { ...opts, provider: "google-drive" })).rejects.toThrow(/allowed/);
+    await expect(authorizePath("/elsewhere/x.png", "write", opts)).rejects.toThrow(/allowed/);
   });
 
   it("re-checks symlink targets via realpath", async () => {
@@ -79,6 +67,16 @@ describe("authorizePath", () => {
     const opts = { ...baseOptions, entries: entries({ path: "/proj" }), realpath };
     await expect(authorizePath("/proj/link/a.ts", "read", opts)).rejects.toThrow(/allowed/);
     expect(await authorizePath("/proj/src/a.ts", "read", { ...opts, realpath: async p => p })).toBe("/proj/src/a.ts");
+  });
+
+  it("allows files in a root that is itself behind a symlink, like macOS /tmp", async () => {
+    // /tmp is a symlink to /private/tmp, so every path under it resolves there, the root included.
+    const realpath = async (p: string) => p.replace(/^\/tmp(?=\/|$)/, "/private/tmp");
+    const opts = { ...baseOptions, entries: entries({ path: "/tmp" }), realpath };
+    expect(await authorizePath("/tmp/work/a.txt", "write", opts)).toBe("/tmp/work/a.txt");
+    // A link inside it that leaves every root is still refused.
+    const escaping = async (p: string) => (p.startsWith("/tmp/link") ? p.replace("/tmp/link", "/etc") : p.replace(/^\/tmp(?=\/|$)/, "/private/tmp"));
+    await expect(authorizePath("/tmp/link/passwd", "read", { ...opts, realpath: escaping })).rejects.toThrow(/allowed/);
   });
 });
 
@@ -89,14 +87,14 @@ describe("topLevelRoots", () => {
   });
 });
 
-describe("findAllowedRoot / allowedPathsForProvider", () => {
+describe("findAllowedRoot / allowedPathsFor", () => {
   it("returns the longest matching root", () => {
     const list = entries({ path: "/proj" }, { path: "/proj/vendor", permission: "read" });
     expect(findAllowedRoot("/proj/vendor/a.js", list)?.path).toBe("/proj/vendor");
   });
 
   it("appends the workspace entry once", () => {
-    const list = allowedPathsForProvider({
+    const list = allowedPathsFor({
       ...baseOptions,
       entries: entries({ path: "/proj" }),
       workspaceDirectory: "/workspace",

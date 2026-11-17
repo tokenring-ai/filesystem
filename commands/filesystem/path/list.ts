@@ -8,12 +8,7 @@ function execute({ agent }: AgentCommandInputType<typeof inputSchema>): Promise<
   const entries = fileSystemService.getAllowedPaths();
   if (entries.length === 0) return Promise.resolve("No allowed paths are configured.");
   return Promise.resolve(
-    "Allowed paths:\n" +
-      entries
-        .map(
-          entry => `- ${entry.path} (${entry.permission}${entry.provider ? `, ${entry.provider}` : ""})${entry.description ? ` — ${entry.description}` : ""}`,
-        )
-        .join("\n"),
+    "Allowed paths:\n" + entries.map(entry => `- ${entry.path} (${entry.permission})${entry.description ? ` — ${entry.description}` : ""}`).join("\n"),
   );
 }
 
